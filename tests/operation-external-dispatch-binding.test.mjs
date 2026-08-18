@@ -32,6 +32,23 @@ async function compileAndRunHarness(source) {
   }
 }
 
+async function compileAndRunPureSwiftHarness(source) {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'aos-external-intent-classification-'))
+  const main = path.join(root, 'main.swift')
+  const executable = path.join(root, 'external-intent-classification-proof')
+  try {
+    await writeFile(main, source)
+    execFileSync('swiftc', [
+      '-module-cache-path', path.join(root, 'module-cache'),
+      main,
+      '-o', executable,
+    ], { cwd: repoRoot, stdio: 'pipe' })
+    execFileSync(executable, [], { cwd: repoRoot, stdio: 'pipe' })
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+}
+
 test('external dispatch publishes digest-only intent, finalization, receipt, and skip evidence', async () => {
   await compileAndRunHarness(String.raw`
 import Foundation
@@ -317,15 +334,88 @@ test('durable external-dispatch shapes expose digest fields and no raw script ca
   assert.match(source, /reviewedDependencySetDigest/u)
 })
 
-test('registered microphone spawn preserves only reviewed admission rejection codes', async () => {
-  const source = await readFile(dispatchSource, 'utf8')
+test('registered microphone spawn classifies unavailable and daemon error responses without raw data', async () => {
+  const [source, state] = await Promise.all([
+    readFile(dispatchSource, 'utf8'),
+    readFile(stateSource, 'utf8'),
+  ])
   const intent = source.match(/private func prepareExternalSpawnIntent\([\s\S]*?\n\}/u)?.[0]
+  const classifier = source.match(
+    /private struct ExternalSpawnIntentFailureClassification[\s\S]*?(?=\nprivate func exitExternalSpawnIntentFailure)/u,
+  )?.[0]
+  const daemonCodes = [...state.matchAll(/case \.[^:]+: return "(OPERATION_[A-Z0-9_]+)"/gu)]
+    .map((match) => match[1])
   assert.ok(intent)
-  assert.match(intent, /\["OPERATION_BARRIER_CLOSED", "OPERATION_RESOURCE_BUSY"\]\.contains/u)
-  assert.match(intent, /\? \$0 : nil/u)
-  assert.match(intent, /\?\? "EXTERNAL_SPAWN_INTENT_FAILED"/u)
-  assert.match(intent, /code: reviewedCode/u)
-  assert.doesNotMatch(intent, /code: response\["code"\]/u)
+  assert.ok(classifier)
+  assert.ok(daemonCodes.length > 0)
+  assert.match(intent, /exitExternalSpawnIntentFailure\(\.noResponse\)/u)
+  assert.match(intent, /externalSpawnIntentDaemonFailureClassification\(response\)/u)
+  assert.doesNotMatch(intent, /EXTERNAL_SPAWN_INTENT_FAILED/u)
+
+  await compileAndRunPureSwiftHarness(`
+import Foundation
+
+${classifier}
+
+precondition(ExternalSpawnIntentFailureClassification.noResponse
+    == ExternalSpawnIntentFailureClassification(
+        code: "EXTERNAL_SPAWN_INTENT_NO_RESPONSE",
+        reason: nil
+    ))
+for code in ${JSON.stringify(daemonCodes)} {
+    precondition(externalSpawnIntentDaemonFailureClassification([
+        "error": code,
+        "code": code,
+    ]) == ExternalSpawnIntentFailureClassification(code: code, reason: nil))
+}
+precondition(externalSpawnIntentDaemonFailureClassification([
+    "error": "OPERATION_BARRIER_CLOSED",
+    "code": "OPERATION_BARRIER_CLOSED",
+]) == ExternalSpawnIntentFailureClassification(
+    code: "OPERATION_BARRIER_CLOSED",
+    reason: nil
+))
+precondition(externalSpawnIntentDaemonFailureClassification([
+    "error": "OPERATION_RESOURCE_BUSY",
+    "code": "OPERATION_RESOURCE_BUSY",
+]) == ExternalSpawnIntentFailureClassification(
+    code: "OPERATION_RESOURCE_BUSY",
+    reason: nil
+))
+precondition(externalSpawnIntentDaemonFailureClassification([
+    "error": "OPERATION_CALLER_NOT_AUTHENTICATED",
+    "code": "OPERATION_CALLER_NOT_AUTHENTICATED",
+]) == ExternalSpawnIntentFailureClassification(
+    code: "OPERATION_CALLER_NOT_AUTHENTICATED",
+    reason: nil
+))
+precondition(externalSpawnIntentDaemonFailureClassification([
+    "error": "OPERATION_RECORD_INVALID:external_spawn_intent",
+    "code": "OPERATION_RECORD_INVALID",
+]) == ExternalSpawnIntentFailureClassification(
+    code: "OPERATION_RECORD_INVALID",
+    reason: "external_spawn_intent"
+))
+precondition(externalSpawnIntentDaemonFailureClassification([
+    "error": "OPERATION_RECORD_INVALID:/private/tmp/private.wav",
+    "code": "OPERATION_RECORD_INVALID",
+]) == ExternalSpawnIntentFailureClassification(
+    code: "OPERATION_RECORD_INVALID",
+    reason: nil
+))
+precondition(externalSpawnIntentDaemonFailureClassification([
+    "error": "private daemon text",
+    "code": "OPERATION_PRIVATE_IDENTITY_123",
+    "details": ["path": "/private/tmp/private.wav"],
+]) == ExternalSpawnIntentFailureClassification(
+    code: "EXTERNAL_SPAWN_INTENT_DAEMON_ERROR",
+    reason: nil
+))
+precondition(externalSpawnIntentDaemonFailureClassification([
+    "v": 1,
+    "status": "success",
+]) == nil)
+`)
 })
 
 test('registered microphone attribution is validated before spawn and never becomes connection state', async () => {

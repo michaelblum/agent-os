@@ -4,10 +4,11 @@ import path from 'node:path'
 export const proofSchemaVersion = 'aos.operation-control-native-proof.v1'
 
 export class OperationNativeProofError extends Error {
-  constructor(code, message = code) {
+  constructor(code, message = code, beforeCaptureFailure = null) {
     super(message)
     this.name = 'OperationNativeProofError'
     this.code = code
+    this.beforeCaptureFailure = beforeCaptureFailure
   }
 }
 
@@ -31,26 +32,89 @@ export function envelopeData(value, code = 'OPERATION_ENVELOPE_INVALID') {
   return value.data
 }
 
-export function commandErrorCode(result) {
+const safeCommandErrorCodes = new Set([
+  'DAEMON_UNREACHABLE',
+  'EXTERNAL_SPAWN_INTENT_DAEMON_ERROR',
+  'EXTERNAL_SPAWN_INTENT_INVALID',
+  'EXTERNAL_SPAWN_INTENT_NO_RESPONSE',
+  'INVALID_ARG',
+  'INVALID_MANIFEST',
+  'OPERATION_ADAPTER_REGISTRY_CONFLICT',
+  'OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE',
+  'OPERATION_BARRIER_CLOSED',
+  'OPERATION_BARRIER_GENERATION_CONFLICT',
+  'OPERATION_BARRIER_NOT_CLOSED',
+  'OPERATION_CALLER_NOT_AUTHENTICATED',
+  'OPERATION_CONTROL_ORIGIN_UNSUPPORTED',
+  'OPERATION_GENERATION_CONFLICT',
+  'OPERATION_IDEMPOTENCY_CONFLICT',
+  'OPERATION_NOT_FOUND',
+  'OPERATION_OWNER_MISMATCH',
+  'OPERATION_RECONCILIATION_INCOMPLETE',
+  'OPERATION_RECORD_INVALID',
+  'OPERATION_RECOVERY_CLAIM_STALE',
+  'OPERATION_RESIDUALS_PRESENT',
+  'OPERATION_RESOURCE_BUSY',
+  'OPERATION_RESOURCE_CAS_CONFLICT',
+  'OPERATION_RESOURCE_DECLARATION_CONFLICT',
+  'OPERATION_RESOURCE_FANOUT_EXHAUSTED',
+  'OPERATION_SPAWN_RECORD_CAPACITY',
+  'OPERATION_STORE_CORRUPT',
+  'OPERATION_STORE_LOCKED',
+  'OPERATION_STORE_UNAVAILABLE',
+  'OPERATION_TAP_UNAVAILABLE',
+  'OPERATION_TRANSITION_INVALID',
+])
+
+function commandErrorClassificationFromValue(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const code = typeof value.code === 'string' && safeCommandErrorCodes.has(value.code)
+    ? value.code
+    : null
+  if (code === null) return null
+  const reason = code === 'OPERATION_RECORD_INVALID' && value.reason === 'external_spawn_intent'
+    ? 'external_spawn_intent'
+    : null
+  return { code, reason }
+}
+
+export function commandErrorClassification(result) {
   for (const text of [result?.stdout, result?.stderr]) {
     const trimmed = String(text ?? '').trim()
     if (!trimmed) continue
     try {
-      const value = JSON.parse(trimmed)
-      if (typeof value?.code === 'string') return value.code
+      const classification = commandErrorClassificationFromValue(JSON.parse(trimmed))
+      if (classification !== null) return classification
     } catch {
       // Fall through to the one-object-per-line envelope form.
     }
     for (const line of trimmed.split(/\r?\n/u).filter(Boolean).reverse()) {
       try {
-        const value = JSON.parse(line)
-        if (typeof value?.code === 'string') return value.code
+        const classification = commandErrorClassificationFromValue(JSON.parse(line))
+        if (classification !== null) return classification
       } catch {
         // Child diagnostics are treated as opaque unless they are one-line JSON.
       }
     }
   }
   return null
+}
+
+export function commandErrorCode(result) {
+  return commandErrorClassification(result)?.code ?? null
+}
+
+export function captureEndedBeforeStartError(result) {
+  const classification = commandErrorClassification(result)
+  const beforeCaptureFailure = classification ?? {
+    code: 'CAPTURE_ENDED_BEFORE_START',
+    reason: null,
+  }
+  return new OperationNativeProofError(
+    beforeCaptureFailure.code,
+    beforeCaptureFailure.code,
+    beforeCaptureFailure,
+  )
 }
 
 function sha256(value) {
@@ -202,6 +266,7 @@ export function makeSummary(runtimeRevision) {
     status: 'failed',
     runtime_revision: runtimeRevision,
     failure_code: null,
+    before_capture_failure: null,
     offline_checks: {
       live_evidence_unset: false,
       runtime_command_count: null,
@@ -258,9 +323,31 @@ export function makeSummary(runtimeRevision) {
 
 const prohibitedSummaryKey = /(?:path|pid|token|argv|stdout|stderr|audio|segment|text|url|account|credential)/iu
 const absolutePathValue = /(?:^|[\s"'])\/(?:Users|private|tmp|var|Applications|Volumes)\//u
+const contentFreeFailureCode = /^[A-Z][A-Z0-9_]{0,127}$/u
 
 export function assertContentFreeSummary(summary) {
   requireProof(summary?.schema_version === proofSchemaVersion, 'SUMMARY_SCHEMA_INVALID')
+  requireProof(
+    summary.failure_code === null
+      || (typeof summary.failure_code === 'string' && contentFreeFailureCode.test(summary.failure_code)),
+    'SUMMARY_FAILURE_CLASSIFICATION_INVALID',
+  )
+  requireProof(
+    summary.before_capture_failure === null
+      || (
+        summary.before_capture_failure
+        && typeof summary.before_capture_failure === 'object'
+        && !Array.isArray(summary.before_capture_failure)
+        && JSON.stringify(Object.keys(summary.before_capture_failure).sort())
+          === JSON.stringify(['code', 'reason'])
+        && (summary.before_capture_failure.code === 'CAPTURE_ENDED_BEFORE_START'
+          || safeCommandErrorCodes.has(summary.before_capture_failure.code))
+        && (summary.before_capture_failure.reason === null
+          || (summary.before_capture_failure.code === 'OPERATION_RECORD_INVALID'
+            && summary.before_capture_failure.reason === 'external_spawn_intent'))
+      ),
+    'SUMMARY_FAILURE_CLASSIFICATION_INVALID',
+  )
   requireProof(
     summary.offline_checks
       && typeof summary.offline_checks === 'object'
