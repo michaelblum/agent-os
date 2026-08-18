@@ -154,6 +154,44 @@ test('preflight binds one current managed repo daemon, microphone authority, and
   assert.throws(() => assertBarrierUnchanged(result.barrier, finalBarrier), /BARRIER_CHANGED/u)
 })
 
+test('live preflight runs passive commands serially in exact order', async () => {
+  const { livePreflight } = await import(pathToFileURL(driverPath).href)
+  const expectedCommands = [
+    ['runtime', 'build-attestation', '--json'],
+    ['status', '--json'],
+    ['service', 'status', '--mode', 'repo', '--json'],
+    ['permissions', 'check', '--json'],
+    ['operation', 'barrier-status', '--json'],
+  ]
+  const preflight = validPreflight()
+  const responses = [
+    preflight.build,
+    preflight.status,
+    preflight.service,
+    preflight.permissions,
+    preflight.barrier,
+  ]
+  const commands = []
+  let inFlight = 0
+  let maxInFlight = 0
+  const runner = {
+    async runAOS(args) {
+      const response = responses[commands.length]
+      commands.push(args)
+      inFlight += 1
+      maxInFlight = Math.max(maxInFlight, inFlight)
+      await Promise.resolve()
+      inFlight -= 1
+      return { code: 0, signal: null, stdout: `${JSON.stringify(response)}\n`, stderr: '' }
+    },
+  }
+
+  await livePreflight({ aos: preflight.aosPath }, runner)
+
+  assert.deepEqual(commands, expectedCommands)
+  assert.equal(maxInFlight, 1)
+})
+
 test('summary and operation envelopes reject sensitive or ambiguous material', () => {
   const summary = selfTestSummary()
   assertContentFreeSummary(summary)

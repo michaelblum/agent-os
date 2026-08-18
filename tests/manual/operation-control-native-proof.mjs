@@ -730,16 +730,14 @@ async function settleOwnedOperations(options, cleanup) {
   }
 }
 
-async function livePreflight(options, runner) {
-  const [buildResult, statusResult, serviceResult, permissionsResult] = await Promise.all([
-    runner.runAOS(['runtime', 'build-attestation', '--json']),
-    runner.runAOS(['status', '--json']),
-    runner.runAOS(['service', 'status', '--mode', 'repo', '--json']),
-    runner.runAOS(['permissions', 'check', '--json']),
-  ])
+export async function livePreflight(options, runner) {
+  const buildResult = await runner.runAOS(['runtime', 'build-attestation', '--json'])
   const build = await successfulJSON(buildResult, 'BUILD_ATTESTATION_FAILED')
+  const statusResult = await runner.runAOS(['status', '--json'])
   const status = await successfulJSON(statusResult, 'STATUS_PREFLIGHT_FAILED')
+  const serviceResult = await runner.runAOS(['service', 'status', '--mode', 'repo', '--json'])
   const service = await successfulJSON(serviceResult, 'SERVICE_PREFLIGHT_FAILED')
+  const permissionsResult = await runner.runAOS(['permissions', 'check', '--json'])
   const permissions = await successfulJSON(permissionsResult, 'PERMISSION_PREFLIGHT_FAILED')
   const barrierResult = await runner.runAOS(['operation', 'barrier-status', '--json'])
   const barrier = await successfulJSON(barrierResult, 'BARRIER_PREFLIGHT_FAILED')
