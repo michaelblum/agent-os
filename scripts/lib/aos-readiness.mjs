@@ -470,7 +470,7 @@ export function readyBlockers({ runtime, daemon, permissions, setup, cleanReport
     });
   }
 
-  const microphoneBlocker = microphonePermissionBlocker(daemon, daemonPath);
+  const microphoneBlocker = microphonePermissionBlocker(daemon, daemonPath, runtime.socket_reachable);
   if (microphoneBlocker) blockers.push(microphoneBlocker);
 
   if (daemon?.inputTap && daemon.inputTap.status !== 'active') {
@@ -845,7 +845,7 @@ export function runtimeVerdict(facts, mode, prefix = invocationName()) {
   };
 }
 
-export function permissionCheckNotes(cli, setup, daemon, mode) {
+export function permissionCheckNotes(cli, setup, daemon, mode, daemonReachable) {
   const notes = [];
   if (!cli.accessibility) notes.push('Accessibility permission is not granted (CLI view).');
   if (!cli.screen_recording) notes.push('Screen Recording permission is not granted.');
@@ -862,7 +862,9 @@ export function permissionCheckNotes(cli, setup, daemon, mode) {
     notes.push(`Run '${setup.recommended_command}' before interactive testing.`);
   }
   if (!daemon) {
-    notes.push('Daemon unreachable; readiness computed from CLI preflights only.');
+    notes.push(daemonReachable
+      ? 'Daemon is reachable, but structured daemon health is unavailable; readiness remains fail-closed.'
+      : 'Daemon unreachable; readiness computed from CLI preflights only.');
   } else if (daemon.inputTap.status !== 'active') {
     notes.push(inputTapRecoveryGuidance(daemon.inputTap.status, daemon.inputTap.attempts));
     if (daemon.inputTap.listenAccess === false || daemon.inputTap.postAccess === false) {

@@ -19,7 +19,7 @@ export function daemonMicrophoneIsAuthorized(daemon) {
     && daemon?.permissions?.microphone === true;
 }
 
-export function microphonePermissionBlocker(daemon, targetPath) {
+export function microphonePermissionBlocker(daemon, targetPath, daemonReachable) {
   if (!daemon) {
     return {
       kind: 'permission',
@@ -27,7 +27,9 @@ export function microphonePermissionBlocker(daemon, targetPath) {
       scope: 'daemon',
       reason: 'microphone_unknown',
       authorization_state: 'unknown',
-      message: 'Daemon Microphone authorization cannot be verified while the daemon is unreachable.',
+      message: daemonReachable
+        ? 'Daemon Microphone authorization is unknown because structured daemon health is unavailable; voice readiness fails closed.'
+        : 'Daemon Microphone authorization cannot be verified while the daemon is unreachable.',
       target_path: targetPath,
       settings_url: MICROPHONE_SETTINGS_URL,
       blocks: ['listen'],
