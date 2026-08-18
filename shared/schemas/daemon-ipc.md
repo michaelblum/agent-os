@@ -197,6 +197,15 @@ system audio is explicitly optional and omission remains exact video-only.
 Selected audio must be available and produce samples before success, and its
 independent selected/admitted/available/sample/failure/drain/finalized summary
 is bound through progress, terminal result, artifact identity, and custody.
+Every positive first-sample claim carries positive sample-count and byte truth.
+Total artifact bytes may advance from ready audio while written-video frame
+count remains zero; global bounds validate the exact per-track summary instead
+of imposing video-only byte equivalence. Shared-startup settlement classifies
+every missing selected track with `SCREEN_RECORDING_NO_VIDEO_FRAMES` taking
+terminal precedence over `SCREEN_RECORDING_SYSTEM_AUDIO_NO_SAMPLES` when both
+are silent. Screen-recording progress and terminal receipts require the exact
+track summary; success requires selected/finalized truth and an artifact, and a
+failed terminal receipt requires its typed failure code.
 Microphone tracks, followed geometry, dry-run, and raw-media fields are absent.
 
 The private `operation.external_spawn_intent`,
@@ -260,6 +269,8 @@ idempotent; abandon after finalize fails closed and never stops active authority
 | `OPERATION_ARTIFACT_DESTINATION_EXISTS` | Release refused to overwrite an existing destination. |
 | `SCREEN_RECORDING_BOUNDS_EXCEEDED` | A duration, frame-rate, pixel, queue, or byte bound is outside the closed contract. |
 | `SCREEN_RECORDING_TARGET_DRIFT` | Topology, display, window, or fixed geometry changed after admission. |
+| `SCREEN_RECORDING_NO_VIDEO_FRAMES` | Mandatory video produced no positive-byte sample before settlement. |
+| `SCREEN_RECORDING_SYSTEM_AUDIO_NO_SAMPLES` | Selected and available system audio produced no positive-byte sample before settlement. |
 | `SCREEN_RECORDING_ENCODER_FAILED` | The bounded H.264 QuickTime encoder failed. |
 | `SCREEN_RECORDING_CLEANUP_REQUIRED` | Native, broker, claim, writer, or file authority could not be proven absent. |
 | `INTERNAL` | Unexpected daemon error. |

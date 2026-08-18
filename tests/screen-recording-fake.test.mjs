@@ -43,6 +43,41 @@ struct AOSOperationProgress: Codable, Equatable {
     var byteCount: UInt64
     var elapsedMilliseconds: UInt64
     var droppedFrameCount: UInt64
+    var trackSummary: AOSScreenRecordingTrackSummary?
+
+    init(
+        frameCount: UInt64,
+        byteCount: UInt64,
+        elapsedMilliseconds: UInt64,
+        droppedFrameCount: UInt64,
+        trackSummary: AOSScreenRecordingTrackSummary? = nil
+    ) {
+        self.frameCount = frameCount
+        self.byteCount = byteCount
+        self.elapsedMilliseconds = elapsedMilliseconds
+        self.droppedFrameCount = droppedFrameCount
+        self.trackSummary = trackSummary
+    }
+}
+
+struct AOSScreenRecordingTrackTruth: Codable, Equatable {
+    let selected: Bool
+    let admitted: Bool
+    let available: Bool
+    let firstSamplePresent: Bool
+    let sampleCount: UInt64
+    let sampleByteCount: UInt64
+    let failureCode: String?
+    let drained: Bool
+    let finalized: Bool
+}
+
+struct AOSScreenRecordingTrackSummary: Codable, Equatable {
+    let selectedTracks: [String]
+    let finalizedTracks: [String]
+    let commonMediaEpochNanoseconds: UInt64?
+    let video: AOSScreenRecordingTrackTruth
+    let systemAudio: AOSScreenRecordingTrackTruth
 }
 
 enum AOSOperationDigest {
@@ -224,6 +259,33 @@ struct ScreenRecordingOwnerHarness {
         return value
     }
 
+    static func progressSummary(
+        videoSamples: UInt64,
+        audioSamples: UInt64 = 0,
+        systemAudio: Bool = false
+    ) -> AOSScreenRecordingTrackSummary {
+        func truth(_ selected: Bool, _ samples: UInt64) -> AOSScreenRecordingTrackTruth {
+            AOSScreenRecordingTrackTruth(
+                selected: selected,
+                admitted: selected,
+                available: samples > 0,
+                firstSamplePresent: samples > 0,
+                sampleCount: samples,
+                sampleByteCount: samples * 128,
+                failureCode: nil,
+                drained: !selected,
+                finalized: !selected
+            )
+        }
+        return AOSScreenRecordingTrackSummary(
+            selectedTracks: systemAudio ? ["video", "system_audio"] : ["video"],
+            finalizedTracks: [],
+            commonMediaEpochNanoseconds: nil,
+            video: truth(true, videoSamples),
+            systemAudio: truth(systemAudio, audioSamples)
+        )
+    }
+
     static func expectInvalid(_ value: [String: Any]) throws {
         do {
             _ = try AOSScreenRecordingRequest.validatingPublicValue(value)
@@ -314,17 +376,42 @@ struct ScreenRecordingOwnerHarness {
             frameCount: 4,
             byteCount: 512,
             elapsedMilliseconds: 1_000,
-            bounds: bounds
+            bounds: bounds,
+            trackSummary: progressSummary(videoSamples: 4)
         ) { stored.append($0) }
         require(progress.frameCount == 4 && progress.byteCount == 512, "nonzero progress lost")
         require(stored == [progress], "durable progress not published")
+        let audioProgress = try aosPersistScreenRecordingProgress(
+            frameCount: 0,
+            byteCount: 256,
+            elapsedMilliseconds: 500,
+            bounds: bounds,
+            trackSummary: progressSummary(
+                videoSamples: 0,
+                audioSamples: 2,
+                systemAudio: true
+            )
+        ) { _ in }
+        require(audioProgress.frameCount == 0 && audioProgress.byteCount == 256,
+                "audio-only global progress was rejected")
+        do {
+            try aosPersistScreenRecordingProgress(
+                frameCount: 5,
+                byteCount: 512,
+                elapsedMilliseconds: 500,
+                bounds: bounds,
+                trackSummary: progressSummary(videoSamples: 4)
+            ) { _ in }
+            fatalError("global video count exceeded per-track truth")
+        } catch AOSOperationCoreError.recordingBoundsExceeded {}
         var reportedSuccess = false
         do {
             try aosPersistScreenRecordingProgress(
                 frameCount: 5,
                 byteCount: 640,
                 elapsedMilliseconds: 1_000,
-                bounds: bounds
+                bounds: bounds,
+                trackSummary: progressSummary(videoSamples: 5)
             ) { _ in throw HarnessFailure.injectedSave }
             reportedSuccess = true
         } catch HarnessFailure.injectedSave {}
@@ -334,11 +421,12 @@ struct ScreenRecordingOwnerHarness {
                 frameCount: 34,
                 byteCount: 1_024,
                 elapsedMilliseconds: 1_000,
-                bounds: bounds
+                bounds: bounds,
+                trackSummary: progressSummary(videoSamples: 34)
             ) { _ in }
             fatalError("unbounded frame progress accepted")
         } catch AOSOperationCoreError.recordingBoundsExceeded {}
-        print("screen-recording-owner-harness: 22 assertions")
+        print("screen-recording-owner-harness: 24 assertions")
     }
 }
 `
@@ -819,8 +907,8 @@ final class FakeEncoder: AOSScreenRecordingEncoding, @unchecked Sendable {
             audioAvailable: audioAvailable
         )
         return AOSScreenRecordingEncoderProgress(
-            frameCount: started ? frames : 0,
-            byteCount: started ? bytes : 0,
+            frameCount: frames,
+            byteCount: bytes,
             trackSummary: summary,
             sessionStarted: started
         )
@@ -1278,12 +1366,8 @@ struct TerminalLifecycleCustodyHarness {
                     "writer failure lost selected/admitted/available truth")
             require(truth.firstSamplePresent,
                     "writer failure lost positive first-sample truth")
-            require(
-                sessionStarted
-                    ? truth.sampleCount > 0 && truth.sampleByteCount > 0
-                    : truth.sampleCount == 0 && truth.sampleByteCount == 0,
-                "writer failure sample truth drifted"
-            )
+            require(truth.sampleCount > 0 && truth.sampleByteCount > 0,
+                    "writer failure lost admitted positive-byte sample truth")
             require(truth.failureCode == failureCode,
                     "writer failure omitted a selected-track failure")
             require(!truth.drained && !truth.finalized,
@@ -1385,6 +1469,91 @@ struct TerminalLifecycleCustodyHarness {
         require(missing.progress.trackSummary.systemAudio.failureCode
                     == AOSOperationCoreError.recordingSystemAudioNoSamples.code,
                 "silent audio omitted its typed track failure")
+        require(missing.progress.trackSummary.video.firstSamplePresent
+                    && missing.progress.trackSummary.video.sampleCount == 1
+                    && missing.progress.trackSummary.video.sampleByteCount > 0,
+                "video-first truth lost its positive admitted sample")
+        require(missing.progress.trackSummary.video.failureCode == nil,
+                "silent audio falsely failed mandatory video")
+
+        let bothSilentWriter = FakeMultitrackWriter()
+        let bothSilent = try multitrackCoordinator(bothSilentWriter)
+        var bothSilentError: Error?
+        bothSilent.finish(identity: { FakeFiles().identity(summary: $0) }) { result in
+            if case .failure(let error) = result { bothSilentError = error }
+        }
+        require(bothSilentError as? AOSOperationCoreError == .recordingNoFrames,
+                "both-silent settlement did not prefer mandatory video")
+        require(bothSilent.progress.trackSummary.video.failureCode
+                    == AOSOperationCoreError.recordingNoFrames.code,
+                "both-silent settlement omitted video failure")
+        require(bothSilent.progress.trackSummary.systemAudio.failureCode
+                    == AOSOperationCoreError.recordingSystemAudioNoSamples.code,
+                "both-silent settlement omitted audio failure")
+        require(bothSilent.progress.trackSummary.video.available
+                    && bothSilent.progress.trackSummary.systemAudio.available,
+                "both-silent settlement confused registration with samples")
+        require(!bothSilent.progress.trackSummary.video.firstSamplePresent
+                    && !bothSilent.progress.trackSummary.systemAudio.firstSamplePresent,
+                "both-silent settlement invented first samples")
+
+        let backpressuredWriter = FakeMultitrackWriter()
+        backpressuredWriter.setReady(.video, false)
+        let backpressured = try multitrackCoordinator(backpressuredWriter)
+        try backpressured.append(harnessSample(1), track: .video)
+        try backpressured.append(harnessSample(2), track: .systemAudio)
+        let audioProgress = backpressured.progress
+        require(audioProgress.sessionStarted, "backpressured video blocked the common epoch")
+        require(audioProgress.frameCount == 0,
+                "backpressured video falsely advanced global frame progress")
+        require(audioProgress.byteCount > 0,
+                "ready audio did not advance global byte progress")
+        require(audioProgress.trackSummary.video.sampleCount == 1
+                    && audioProgress.trackSummary.video.sampleByteCount > 0,
+                "backpressured video lost admitted sample truth")
+        require(audioProgress.trackSummary.systemAudio.sampleCount == 1
+                    && audioProgress.trackSummary.systemAudio.sampleByteCount > 0,
+                "ready audio lost positive sample truth")
+        _ = try aosPersistScreenRecordingProgress(
+            frameCount: audioProgress.frameCount,
+            byteCount: audioProgress.byteCount,
+            elapsedMilliseconds: 1,
+            bounds: AOSOperationRequestedBounds(
+                durationMilliseconds: 1_000,
+                frameRate: 30,
+                pixelCount: 1_000_000,
+                queueFrames: 3,
+                maximumOutputBytes: 10_000
+            ),
+            trackSummary: audioProgress.trackSummary
+        ) { _ in }
+        backpressuredWriter.setReady(.video, true)
+        try backpressured.append(harnessSample(3), track: .video)
+        require(backpressured.progress.frameCount == 2,
+                "later mandatory video did not drain admitted frames")
+        var backpressuredIdentity: AOSArtifactFileIdentity?
+        backpressured.finish(identity: { FakeFiles().identity(summary: $0) }) { result in
+            if case .success(let value) = result { backpressuredIdentity = value }
+        }
+        require(backpressuredIdentity?.trackSummary?.isSuccessful == true,
+                "later mandatory video did not permit successful finalization")
+
+        let blockedWriter = FakeMultitrackWriter()
+        blockedWriter.setReady(.video, false)
+        let blocked = try multitrackCoordinator(blockedWriter)
+        try blocked.append(harnessSample(1), track: .video)
+        try blocked.append(harnessSample(2), track: .systemAudio)
+        var blockedError: Error?
+        blocked.finish(identity: { FakeFiles().identity(summary: $0) }) { result in
+            if case .failure(let error) = result { blockedError = error }
+        }
+        require(blockedError as? AOSOperationCoreError == .recordingBackpressureExceeded,
+                "permanently backpressured mandatory video falsely succeeded")
+        require(blocked.progress.trackSummary.video.failureCode
+                    == AOSOperationCoreError.recordingBackpressureExceeded.code,
+                "mandatory-video backpressure failure was not persisted")
+        require(blocked.progress.trackSummary.systemAudio.failureCode == nil,
+                "mandatory-video backpressure falsely failed admitted audio")
 
         let zeroByteWriter = FakeMultitrackWriter()
         let zeroByte = try multitrackCoordinator(zeroByteWriter)
@@ -1674,6 +1843,76 @@ struct TerminalLifecycleCustodyHarness {
                 == AOSOperationCoreError.recordingSystemAudioNoSamples.code,
             "bounded silent audio omitted its track failure"
         )
+
+        let bothSilent = try RecordingEnvironment(startupTimeout: 0.04)
+        let bothSilentAdmission = try bothSilent.adapter.start(
+            request: bothSilent.request(systemAudio: true),
+            connectionID: UUID()
+        )
+        try await wait("both-silent start missing") {
+            bothSilent.native.startWasRequested()
+        }
+        bothSilent.native.settleStart(.success(()))
+        try await wait("both-silent settlement did not request retirement") {
+            bothSilent.native.stopCount == 1
+        }
+        bothSilent.native.settleStop(.success(()))
+        try await wait("both-silent settlement did not terminalize") {
+            operation(bothSilentAdmission, in: bothSilent).state == .terminal
+        }
+        let bothSilentOperation = operation(bothSilentAdmission, in: bothSilent)
+        require(bothSilentOperation.failureCode
+                    == AOSOperationCoreError.recordingNoFrames.code,
+                "both-silent terminal code did not prefer mandatory video")
+        require(bothSilentOperation.failureCode == "SCREEN_RECORDING_NO_VIDEO_FRAMES",
+                "mandatory-video public code drifted")
+        require(bothSilentOperation.progress?.trackSummary?.video.failureCode
+                    == AOSOperationCoreError.recordingNoFrames.code,
+                "both-silent operation omitted video failure")
+        require(bothSilentOperation.progress?.trackSummary?.systemAudio.failureCode
+                    == AOSOperationCoreError.recordingSystemAudioNoSamples.code,
+                "both-silent operation omitted audio failure")
+        require(bothSilentOperation.progress?.trackSummary?.video.available == true
+                    && bothSilentOperation.progress?.trackSummary?.systemAudio.available == true,
+                "both-silent operation confused availability with samples")
+        require(bothSilentOperation.progress?.trackSummary?.video.firstSamplePresent == false
+                    && bothSilentOperation.progress?.trackSummary?.systemAudio.firstSamplePresent == false,
+                "both-silent operation invented first samples")
+
+        let audioOnly = try RecordingEnvironment(startupTimeout: 0.05)
+        let audioOnlyAdmission = try audioOnly.adapter.start(
+            request: audioOnly.request(systemAudio: true),
+            connectionID: UUID()
+        )
+        try await wait("audio-only start missing") {
+            audioOnly.native.startWasRequested()
+        }
+        let audioOnlyAccepted = try audioOnly.native.publishAudio()
+        require(audioOnlyAccepted, "audio-only callback rejected")
+        let audioProgress = operation(audioOnlyAdmission, in: audioOnly).progress
+        require(audioProgress?.frameCount == 0 && audioProgress?.byteCount == 128,
+                "audio-only global progress was not persisted")
+        require(audioProgress?.trackSummary?.systemAudio.firstSamplePresent == true
+                    && audioProgress?.trackSummary?.systemAudio.sampleCount == 1
+                    && audioProgress?.trackSummary?.systemAudio.sampleByteCount == 128,
+                "audio-only positive-byte truth was not persisted")
+        audioOnly.native.settleStart(.success(()))
+        try await wait("audio-only video timeout did not request retirement") {
+            audioOnly.native.stopCount == 1
+        }
+        audioOnly.native.settleStop(.success(()))
+        try await wait("audio-only video timeout did not terminalize") {
+            operation(audioOnlyAdmission, in: audioOnly).state == .terminal
+        }
+        let audioOnlyOperation = operation(audioOnlyAdmission, in: audioOnly)
+        require(audioOnlyOperation.failureCode
+                    == AOSOperationCoreError.recordingNoFrames.code,
+                "later mandatory-video absence did not control terminal failure")
+        require(audioOnlyOperation.progress?.trackSummary?.video.failureCode
+                    == AOSOperationCoreError.recordingNoFrames.code,
+                "later mandatory-video failure was not persisted")
+        require(audioOnlyOperation.progress?.trackSummary?.systemAudio.failureCode == nil,
+                "valid audio was falsely failed by missing mandatory video")
     }
 
     static func productionStartupUncertaintyRetainsAuthority() async throws {
@@ -1791,6 +2030,19 @@ struct TerminalLifecycleCustodyHarness {
     }
 
     static func productionCustodyAdmissionIsAtomic() async throws {
+        let retainUnavailable = try RecordingEnvironment()
+        let retainedArtifact = try retainUnavailable.offeredArtifact()
+        do {
+            try retainUnavailable.adapter.retainArtifact(retainedArtifact)
+        } catch AOSOperationCoreError.artifactRetainUnavailable {
+        }
+        require(retainUnavailable.registry.snapshot().artifacts.first {
+            $0.identity == retainedArtifact
+        }?.state == .offered, "retain-unavailable mutated producer custody")
+        require(AOSOperationCoreError.artifactRetainUnavailable.code
+                    == "OPERATION_ARTIFACT_RETAIN_UNAVAILABLE",
+                "retain-unavailable public code drifted")
+
         let releaseWins = try RecordingEnvironment()
         let artifact = try releaseWins.offeredArtifact()
         releaseWins.files.blockAfterLink = true
@@ -2177,7 +2429,7 @@ struct TerminalLifecycleCustodyHarness {
         try await lateStartFailureAfterActiveEvidenceRequiresStop()
         await frameAdmissionClosesAtomically()
         try decoderAndTerminalTruthAreClosed()
-        print("terminal-lifecycle-custody-harness: multitrack=89 adapter-audio=38 production-lifecycle=6 production-terminal=2 production-custody=8 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
+        print("terminal-lifecycle-custody-harness: multitrack=108 adapter-audio=50 production-lifecycle=6 production-terminal=2 production-custody=10 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
     }
 }
 `
@@ -2199,7 +2451,7 @@ test('production request, geometry, timeline, and progress owners reject lossy s
     assert.equal(compile.status, 0, compile.stderr || compile.stdout)
     const run = spawnSync(binary, [], { encoding: 'utf8' })
     assert.equal(run.status, 0, `${run.stderr}\n${run.stdout}`)
-    assert.match(run.stdout, /22 assertions/u)
+    assert.match(run.stdout, /24 assertions/u)
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true })
   }
@@ -2313,7 +2565,7 @@ test('production lifecycle and custody owners close terminal fault phases with f
     assert.equal(compile.status, 0, compile.stderr || compile.stdout)
     const run = spawnSync(binary, [], { encoding: 'utf8', timeout: 5_000 })
     assert.equal(run.status, 0, `${run.stderr}\n${run.stdout}`)
-    assert.match(run.stdout, /multitrack=89 adapter-audio=38 production-lifecycle=6 production-terminal=2 production-custody=8 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6/u)
+    assert.match(run.stdout, /multitrack=108 adapter-audio=50 production-lifecycle=6 production-terminal=2 production-custody=10 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6/u)
 
     const [lifecycle, state, adapter, unified] = await Promise.all([
       readFile(path.join(root, 'src/daemon/desktop-pixel-stream-lifecycle.swift'), 'utf8'),

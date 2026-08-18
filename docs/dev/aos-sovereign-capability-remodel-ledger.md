@@ -5,6 +5,9 @@ Program: `aos-sovereign-capability-substrate-v1`
 Status: Milestone 2 executable control plane plus bounded M3A fixed video and
 M3B optional system-audio recording candidate against accepted authority commit
 `59074238c2c4c43051c7461a6e36487e8914f4a6`.
+The current unpublished M3B candidate closes shared-deadline per-track
+settlement, audio progress under video-input backpressure, capability-specific
+progress/terminal schema truth, and exact retained-custody unavailability.
 
 Canonical target authority is
 `docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md`,
@@ -178,10 +181,17 @@ atomic on the same artifact record. Recording startup has a finite generation-
 bound native owner handoff under one absolute native-start/common-media deadline;
 delayed failure after active evidence still requires one settled stop. Output
 registration availability remains distinct from positive-byte first-sample
-truth, and writer-global failure marks every selected track. Stop closes frame admission and
+truth with positive count and bytes. Shared-deadline settlement classifies every
+missing selected track, with mandatory-video terminal precedence when both are
+silent. Written-video frame count and total artifact bytes validate against the
+exact per-track summary independently, so ready audio can advance byte progress
+under video-input backpressure. Writer-global failure marks every selected
+track. Stop closes frame admission and
 drains only its pre-boundary set, and terminal success requires a nonzero frame
 count plus positive bytes on every selected finalized track and a finalized
-nonempty artifact with the exact selected-track media identity.
+nonempty artifact with the exact selected-track media identity. Public screen
+progress and terminal truth require their exact track summary; failure is typed,
+and retained custody remains exactly unavailable through the public response.
 
 ## Disposition ledger
 

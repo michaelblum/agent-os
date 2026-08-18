@@ -4712,7 +4712,7 @@
           ],
           "depth": "Not hierarchical.",
           "breadth": "One explicitly selected system-audio track paired with mandatory video under one fixed recording operation.",
-          "completeness": "Selection, output-registration availability distinct from positive-byte first-sample truth, admitted samples, monotonic timestamps, bounded backpressure, per-selected-track writer-global failure, drain, finalization, operation result, exact media identity, and custody summary are current for the optional recording track.",
+          "completeness": "Selection, output-registration availability distinct from positive-byte first-sample truth with positive count and bytes, admitted samples, monotonic timestamps, per-track bounded backpressure, audio byte progress independent of written-video frame progress, complete shared-deadline missing-track settlement, per-selected-track writer-global failure, drain, finalization, operation result, exact media identity, and custody summary are current for the optional recording track.",
           "frontier": "No independent system-audio stream or tap, microphone track, mixing, public SDK/Toolkit projection, or live/native acceptance.",
           "state_identity": "Recording operation/stream/artifact generations plus the selected system_audio track and common media epoch."
         },
@@ -4789,7 +4789,7 @@
           "fake": [
             {
               "path": "tests/screen-recording-fake.test.mjs",
-              "claim": "Compiles and executes production request, adapter, registry/store/recovery, and multitrack coordination with fake clock, video/audio callbacks, writer inputs/file, broker, and custody dependencies across both arrival orders, one absolute startup budget, common epoch, registration-versus-first-sample truth, positive-byte admission, monotonicity, bounded backpressure, typed audio and writer-global failures, dual-track drain/finalize, exact media binding, cleanup, and recovery.",
+              "claim": "Compiles and executes production request, adapter, registry/store/recovery, and multitrack coordination with fake clock, video/audio callbacks, writer inputs/file, broker, and custody dependencies across both arrival orders, one absolute startup budget, common epoch, registration-versus-first-sample truth, positive count/byte admission, both-silent and single-missing-track settlement, audio progress under video-input backpressure, later mandatory-video success/failure, monotonicity, typed audio and writer-global failures, dual-track drain/finalize, retained typed unavailability, exact media binding, cleanup, and recovery.",
               "execution_class": "fake",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -5134,7 +5134,7 @@
             "tests/screen-recording-contract.test.mjs",
             "tests/screen-recording-fake.test.mjs"
           ],
-          "summary": "AOS owns one bounded AVAssetWriter QuickTime producer with mandatory H.264 video and explicitly optional AAC-LC system audio. One bounded either-arrival-order barrier selects the earliest media epoch within the remaining single startup budget; output-registration availability is distinct from positive-byte first-sample truth, and each selected track owns independent monotonicity, backpressure, failure, drain, and finalization truth. Writer-global failures mark every selected track. Microphone and general-purpose multitrack muxing remain absent."
+          "summary": "AOS owns one bounded AVAssetWriter QuickTime producer with mandatory H.264 video and explicitly optional AAC-LC system audio. One bounded either-arrival-order barrier selects the earliest media epoch within the remaining single startup budget; output-registration availability is distinct from positive-byte first-sample truth with positive count and bytes, and each selected track owns independent monotonicity, backpressure, failure, drain, and finalization truth. Shared-deadline settlement classifies every missing selected track with mandatory-video terminal precedence, and total artifact bytes may advance from ready audio independently of written-video frame progress. Writer-global failures mark every selected track. Microphone and general-purpose multitrack muxing remain absent."
         },
         "exposure": {
           "cli": {
@@ -5185,7 +5185,7 @@
           ],
           "depth": "Not hierarchical.",
           "breadth": "One fixed recording with mandatory video and explicitly optional system audio; no microphone or arbitrary track set.",
-          "completeness": "Bounded pre-start buffering and backpressure, either arrival order, one common epoch, output-registration availability, positive-byte first-sample and successful-track truth, per-track monotonic append, writer-global failure on every selected track, exactly-once selected-input drain and writer finalization, exact selected-track media/file identity, and cleanup are current.",
+          "completeness": "Bounded pre-start buffering and per-track backpressure, either arrival order, one common epoch, output-registration availability, positive-count/byte first-sample and successful-track truth, independent admitted-track and written-video/global-byte progress, complete shared-deadline missing-track settlement with mandatory-video precedence, per-track monotonic append, writer-global failure on every selected track, exactly-once selected-input drain and writer finalization, exact selected-track media/file identity, and cleanup are current.",
           "frontier": "Microphone inputs, arbitrary track layouts/mixing, and live/native acceptance remain absent.",
           "state_identity": "Operation/stream/artifact generations, selected/finalized tracks, common media epoch, per-track truth, and exact device, inode, byte count, content digest, and media type."
         },
@@ -16880,7 +16880,7 @@
               "path": "shared/schemas/aos-screen-recording-v1.schema.json",
               "kind": "current"
             },
-            "responsibility": "Own the closed fixed mandatory-video and optional-system-audio request/admission/progress/result shapes, request-to-selected/finalized-track coupling, positive-byte successful truth, exact artifact/media binding, hard bounds, topology binding, and custody linkage."
+            "responsibility": "Own the closed fixed mandatory-video and optional-system-audio request/admission/progress/result shapes, request-to-selected/finalized-track coupling, positive-count/byte first-sample and successful truth, exact screen-operation progress/terminal summary and failure/artifact conditionals, exact artifact/media binding, hard bounds, topology binding, and custody linkage."
           },
           {
             "owner_id": "recording-adapter",
@@ -16888,7 +16888,7 @@
               "path": "src/daemon/screen-recording-operation-adapter.swift",
               "kind": "current"
             },
-            "responsibility": "Own one fixed ScreenCaptureKit stream with mandatory screen video and explicitly optional system audio under the operation plane, mark each selected track available only after successful output registration, and spend one absolute deadline across native start and the remaining common-media barrier; no microphone track is current."
+            "responsibility": "Own one fixed ScreenCaptureKit stream with mandatory screen video and explicitly optional system audio under the operation plane, mark each selected track available only after successful output registration, spend one absolute deadline across native start and the remaining common-media barrier, classify every missing selected track with mandatory-video terminal precedence, and persist typed terminal truth; no microphone track is current."
           },
           {
             "owner_id": "recording-encoder",
@@ -16896,7 +16896,7 @@
               "path": "src/daemon/screen-recording-encoder.swift",
               "kind": "current"
             },
-            "responsibility": "Own bounded H.264 plus optional AAC-LC QuickTime production, positive-byte common-epoch start, per-track monotonicity/backpressure/drain/finalization truth, writer-global failure on every selected track, and exact selected-track output media identity validation."
+            "responsibility": "Own bounded H.264 plus optional AAC-LC QuickTime production, positive-count/byte common-epoch admission, independent admitted and written-sample truth under per-track backpressure, drain/finalization truth, writer-global failure on every selected track, and exact selected-track output media identity validation."
           },
           {
             "owner_id": "recording-geometry",
@@ -16904,7 +16904,7 @@
               "path": "src/daemon/screen-recording-geometry.swift",
               "kind": "current"
             },
-            "responsibility": "Own fixed display/window/region geometry and post-admission topology/source drift rejection; followed geometry remains absent."
+            "responsibility": "Own fixed display/window/region geometry, exact global-to-per-track progress bounds that permit audio bytes before written-video frames, and post-admission topology/source drift rejection; followed geometry remains absent."
           },
           {
             "owner_id": "recording-command-source",
@@ -17053,7 +17053,7 @@
             },
             "execution_class": "static",
             "requires_owner_authority": false,
-            "claim": "Validate mandatory video, optional system audio, microphone/follow rejection, request-to-selected/finalized-track coupling, positive-byte successful truth, artifact/outcome/media identity binding, closed per-track truth, fixed geometry identity, bounds, outcomes, and custody linkage."
+            "claim": "Validate mandatory video, optional system audio, microphone/follow rejection, request-to-selected/finalized-track coupling, positive-count/byte first-sample and successful truth, screen-operation progress/terminal summary and typed failure/artifact conditionals, artifact/outcome/media identity binding, closed per-track truth, fixed geometry identity, bounds, outcomes, and custody linkage."
           },
           {
             "path_ref": {
@@ -17073,7 +17073,7 @@
             },
             "execution_class": "fake",
             "requires_owner_authority": false,
-            "claim": "Execute the production adapter, registry/store/recovery, lifecycle, sample admission, multitrack coordinator, terminal truth, and custody owners with fake clock, video/audio callbacks, writer inputs/file, broker, and custody dependencies. Cover video-only and selected audio, both arrival orders, one common epoch, one absolute delayed-native-start/common-media budget, per-track monotonicity, concurrency/backpressure, selected/unselected registration availability and first-sample truth, zero-byte audio, typed unavailable/no-sample failures, writer-global start failure in both orders and post-start failure on every selected track, dual-track stop/drain/finalize, callback loss, cancellation/owner loss/timeout, offline recovery, zero-frame/missing-artifact failure, custody fault phases, cleanup residuals, fixed geometry, bounds, progress persistence, custody binding, and extra-key/type rejection."
+            "claim": "Execute the production adapter, registry/store/recovery, lifecycle, sample admission, multitrack coordinator, terminal truth, and custody owners with fake clock, video/audio callbacks, writer inputs/file, broker, and custody dependencies. Cover video-only and selected audio, both arrival orders, one common epoch, one absolute delayed-native-start/common-media budget, both-silent and single-missing-track settlement with mandatory-video precedence, per-track monotonicity, concurrency/backpressure, audio byte progress while written-video frames remain zero, later mandatory-video completion/failure, selected/unselected registration availability and positive-count/byte first-sample truth, zero-byte audio, typed unavailable/no-sample failures, writer-global start failure in both orders and post-start failure on every selected track, dual-track stop/drain/finalize, callback loss, cancellation/owner loss/timeout, offline recovery, zero-frame/missing-artifact failure, typed retain unavailability, custody fault phases, cleanup residuals, fixed geometry, bounds, progress persistence, custody binding, and extra-key/type rejection."
           }
         ],
         "native": [

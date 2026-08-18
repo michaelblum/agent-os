@@ -163,6 +163,20 @@ test('track summaries are closed and independently bind selection, samples, fail
     { ...trackSummary(true), source_name: 'private' },
     { ...trackSummary(true), video: { ...trackTruth(true), sample_count: -1 } },
     { ...trackSummary(true), video: { ...trackTruth(true), first_sample_present: true } },
+    {
+      ...trackSummary(true),
+      video: {
+        ...trackTruth(true), available: true, first_sample_present: true,
+        sample_count: 0, sample_byte_count: 100,
+      },
+    },
+    {
+      ...trackSummary(true),
+      video: {
+        ...trackTruth(true), available: true, first_sample_present: true,
+        sample_count: 1, sample_byte_count: 0,
+      },
+    },
     { ...trackSummary(true), video: { ...trackTruth(true), finalized: true, drained: false } },
     { ...trackSummary(true), video: { ...trackTruth(true), finalized: true } },
     { ...trackSummary(true, { finalized_tracks: ['video'] }), video: trackTruth(true) },

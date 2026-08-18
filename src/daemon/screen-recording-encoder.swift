@@ -48,6 +48,7 @@ private struct AOSScreenRecordingMutableTrackTruth {
     var firstSamplePresent = false
     var sampleCount: UInt64 = 0
     var sampleByteCount: UInt64 = 0
+    var writtenSampleCount: UInt64 = 0
     var failureCode: String?
     var drained: Bool
     var finalized: Bool
@@ -176,31 +177,19 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
         }
         finishAdmitted = true
         do {
-            if tracks[.systemAudio]?.selected == true,
-               tracks[.systemAudio]?.firstSamplePresent != true {
-                throw recordFailureLocked(
-                    track: .systemAudio,
-                    error: AOSOperationCoreError.recordingSystemAudioNoSamples
-                )
+            if sessionStarted { try drainPendingLocked() }
+            if let missingTrackFailure = recordMissingSelectedTrackFailuresLocked() {
+                throw missingTrackFailure
             }
-            guard tracks[.video]?.firstSamplePresent == true else {
-                throw recordFailureLocked(
-                    track: .video,
-                    error: AOSOperationCoreError.recordingNoFrames
-                )
-            }
-            try drainPendingLocked()
             guard allPendingEmptyLocked() else {
                 throw recordFailureLocked(
                     track: tracks[.systemAudio]?.pending.isEmpty == false ? .systemAudio : .video,
                     error: AOSOperationCoreError.recordingBackpressureExceeded
                 )
             }
-            guard tracks[.video]?.sampleCount ?? 0 > 0,
-                  tracks[.video]?.sampleByteCount ?? 0 > 0,
+            guard tracks[.video]?.writtenSampleCount ?? 0 > 0,
                   tracks[.systemAudio]?.selected != true
-                    || ((tracks[.systemAudio]?.sampleCount ?? 0) > 0
-                        && (tracks[.systemAudio]?.sampleByteCount ?? 0) > 0) else {
+                    || (tracks[.systemAudio]?.writtenSampleCount ?? 0) > 0 else {
                 throw AOSOperationCoreError.recordingEncoderFailed
             }
             markInputsFinishedLocked()
@@ -293,8 +282,6 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
                 error: AOSOperationCoreError.recordingTimestampNonMonotonic
             )
         }
-        state.firstSamplePresent = true
-        state.lastPresentationTime = sample.presentationTime
         guard state.pending.count < maximumPendingSamplesPerTrack else {
             tracks[kind] = state
             throw recordFailureLocked(
@@ -302,6 +289,10 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
                 error: AOSOperationCoreError.recordingBackpressureExceeded
             )
         }
+        state.firstSamplePresent = true
+        state.sampleCount &+= 1
+        state.sampleByteCount &+= sample.sampleByteCount
+        state.lastPresentationTime = sample.presentationTime
         state.pending.append(sample)
         tracks[kind] = state
         if !sessionStarted, allSelectedFirstSamplesPresentLocked() {
@@ -340,8 +331,7 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
                             : AOSOperationCoreError.recordingEncoderFailed
                     )
                 }
-                state.sampleCount &+= 1
-                state.sampleByteCount &+= sample.sampleByteCount
+                state.writtenSampleCount &+= 1
                 tracks[kind] = state
                 do {
                     artifactByteCount = try observeOutputBytes()
@@ -382,7 +372,7 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
 
     private func progressLocked() -> AOSScreenRecordingEncoderProgress {
         AOSScreenRecordingEncoderProgress(
-            frameCount: tracks[.video]?.sampleCount ?? 0,
+            frameCount: tracks[.video]?.writtenSampleCount ?? 0,
             byteCount: artifactByteCount,
             trackSummary: summaryLocked(),
             sessionStarted: sessionStarted
@@ -423,6 +413,25 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
             tracks[kind] = state
         }
         return error
+    }
+
+    private func recordMissingSelectedTrackFailuresLocked() -> AOSOperationCoreError? {
+        var terminalFailure: AOSOperationCoreError?
+        if tracks[.video]?.firstSamplePresent != true {
+            terminalFailure = recordFailureLocked(
+                track: .video,
+                error: AOSOperationCoreError.recordingNoFrames
+            )
+        }
+        if tracks[.systemAudio]?.selected == true,
+           tracks[.systemAudio]?.firstSamplePresent != true {
+            let audioFailure = recordFailureLocked(
+                track: .systemAudio,
+                error: AOSOperationCoreError.recordingSystemAudioNoSamples
+            )
+            if terminalFailure == nil { terminalFailure = audioFailure }
+        }
+        return terminalFailure
     }
 
     private func recordWriterFailureLocked() -> AOSOperationCoreError {

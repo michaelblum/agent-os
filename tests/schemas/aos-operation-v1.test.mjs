@@ -454,6 +454,82 @@ test('operation, lineage, stream, target tap/artifact, recovery, event, and barr
   ]);
 });
 
+test('screen-recording operations require progress and terminal track truth plus success artifact and failure truth', () => {
+  const screenBase = {
+    ...operation,
+    adapter_registration: {
+      adapter_registration_id: 'screen-recording-adapter',
+      adapter_registration_revision: 2,
+    },
+    capability_id: 'screen-recording.video',
+    state: 'terminal',
+    progress: {
+      items: 1,
+      bytes: 100,
+      duration_ms: 20,
+      last_event_sequence: 1,
+      track_summary: videoTrackSummary,
+    },
+    artifacts: [{ id: 'artifact-1', generation: 1 }],
+    cleanup: zeroCleanup,
+    terminal: {
+      outcome: 'succeeded',
+      trigger: 'adapter_complete',
+      blame: 'adapter',
+      duration_ms: 20,
+      completed_at: TIMESTAMP,
+      failure_code: null,
+      track_summary: videoTrackSummary,
+    },
+    started_at: TIMESTAMP,
+  };
+  const failedTrackSummary = {
+    selected_tracks: ['video'],
+    finalized_tracks: [],
+    common_media_epoch_ns: null,
+    video: {
+      selected: true, admitted: true, available: true, first_sample_present: false,
+      sample_count: 0, sample_byte_count: 0,
+      failure_code: 'SCREEN_RECORDING_NO_VIDEO_FRAMES', drained: false, finalized: false,
+    },
+    system_audio: videoTrackSummary.system_audio,
+  };
+  const failed = {
+    ...screenBase,
+    progress: { ...screenBase.progress, items: 0, bytes: 0, track_summary: failedTrackSummary },
+    artifacts: [],
+    terminal: {
+      ...screenBase.terminal,
+      outcome: 'failed',
+      trigger: 'adapter_failure',
+      failure_code: 'SCREEN_RECORDING_NO_VIDEO_FRAMES',
+      track_summary: failedTrackSummary,
+    },
+  };
+  const withoutProgressSummary = structuredClone(screenBase);
+  delete withoutProgressSummary.progress.track_summary;
+  const withoutTerminalSummary = structuredClone(failed);
+  delete withoutTerminalSummary.terminal.track_summary;
+  const withoutTerminalFailure = structuredClone(failed);
+  delete withoutTerminalFailure.terminal.failure_code;
+  assertValidation([
+    target(OPERATION_ID, 'operation_snapshot', screenBase, true, 'screen success'),
+    target(OPERATION_ID, 'operation_snapshot', failed, true, 'screen failure'),
+    target(OPERATION_ID, 'operation_snapshot', withoutProgressSummary, false, 'screen progress summary required'),
+    target(OPERATION_ID, 'operation_snapshot', withoutTerminalSummary, false, 'screen terminal summary required'),
+    target(OPERATION_ID, 'operation_snapshot', withoutTerminalFailure, false, 'screen terminal failure required'),
+    target(OPERATION_ID, 'operation_snapshot', { ...screenBase, artifacts: [] }, false, 'screen success artifact required'),
+    target(OPERATION_ID, 'operation_snapshot', {
+      ...screenBase,
+      terminal: { ...screenBase.terminal, failure_code: 'SCREEN_RECORDING_ENCODER_FAILED' },
+    }, false, 'screen success cannot carry failure'),
+    target(OPERATION_ID, 'operation_snapshot', {
+      ...failed,
+      terminal: { ...failed.terminal, failure_code: null },
+    }, false, 'screen failure must be typed'),
+  ]);
+});
+
 test('tap remains unavailable while artifact roots expose producer custody and typed failures', () => {
   const tapUnavailable = {
     v: 1,
@@ -527,6 +603,7 @@ test('tap remains unavailable while artifact roots expose producer custody and t
   const daemonErrorCodes = daemonResponseSchema.oneOf[1].properties.code.enum;
   assert.ok(daemonErrorCodes.includes('OPERATION_TAP_UNAVAILABLE'));
   assert.ok(daemonErrorCodes.includes('OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE'));
+  assert.ok(daemonErrorCodes.includes('OPERATION_ARTIFACT_RETAIN_UNAVAILABLE'));
 });
 
 test('mechanical lineage and the four server origin variants are exact and closed', () => {

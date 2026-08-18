@@ -77,7 +77,7 @@ enum AOSOperationCoreError: Error, Equatable, CustomStringConvertible {
         case .recordingBoundsExceeded: return "SCREEN_RECORDING_BOUNDS_EXCEEDED"
         case .recordingTargetDrift: return "SCREEN_RECORDING_TARGET_DRIFT"
         case .recordingStartupDeadlineExceeded: return "SCREEN_RECORDING_STARTUP_DEADLINE_EXCEEDED"
-        case .recordingNoFrames: return "SCREEN_RECORDING_NO_FRAMES"
+        case .recordingNoFrames: return "SCREEN_RECORDING_NO_VIDEO_FRAMES"
         case .recordingSystemAudioUnavailable: return "SCREEN_RECORDING_SYSTEM_AUDIO_UNAVAILABLE"
         case .recordingSystemAudioNoSamples: return "SCREEN_RECORDING_SYSTEM_AUDIO_NO_SAMPLES"
         case .recordingSystemAudioFailed: return "SCREEN_RECORDING_SYSTEM_AUDIO_FAILED"

@@ -638,6 +638,91 @@
         {
           "if": {"properties": {"state": {"const": "prepared"}}},
           "then": {"properties": {"started_at": {"type": "null"}}}
+        },
+        {
+          "if": {
+            "required": ["capability_id"],
+            "properties": {"capability_id": {"const": "screen-recording.video"}}
+          },
+          "then": {
+            "properties": {
+              "progress": {"required": ["track_summary"]},
+              "terminal": {
+                "oneOf": [
+                  {"type": "null"},
+                  {
+                    "allOf": [
+                      {"$ref": "#/$defs/terminal_facts"},
+                      {
+                        "required": ["failure_code", "track_summary"],
+                        "properties": {
+                          "track_summary": {
+                            "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/track_summary"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["capability_id", "terminal"],
+            "properties": {
+              "capability_id": {"const": "screen-recording.video"},
+              "terminal": {
+                "type": "object",
+                "required": ["outcome"],
+                "properties": {"outcome": {"const": "succeeded"}}
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "artifacts": {"minItems": 1},
+              "terminal": {
+                "properties": {
+                  "failure_code": {"type": "null"},
+                  "track_summary": {
+                    "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/successful_track_summary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["capability_id", "terminal"],
+            "properties": {
+              "capability_id": {"const": "screen-recording.video"},
+              "terminal": {
+                "type": "object",
+                "required": ["outcome"],
+                "properties": {"outcome": {"const": "failed"}}
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "terminal": {
+                "properties": {
+                  "failure_code": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[A-Z][A-Z0-9_]*$"
+                  },
+                  "track_summary": {
+                    "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/track_summary"
+                  }
+                }
+              }
+            }
+          }
         }
       ]
     },

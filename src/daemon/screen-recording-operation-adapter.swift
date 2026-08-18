@@ -622,13 +622,13 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         }
         do {
             let publicAdmission = admission.publicAdmission
-            var durableProgress = try aosPersistScreenRecordingProgress(
+            let durableProgress = try aosPersistScreenRecordingProgress(
                 frameCount: progress.frameCount,
                 byteCount: progress.byteCount,
                 elapsedMilliseconds: elapsedMilliseconds,
-                bounds: requestedBounds
+                bounds: requestedBounds,
+                trackSummary: progress.trackSummary
             ) { _ in }
-            durableProgress.trackSummary = progress.trackSummary
             _ = try registry.updateOperationProgress(
                 publicAdmission.operation,
                 durableProgress
@@ -1038,17 +1038,24 @@ private func aosScreenRecordingProgress(
     applying failure: Error?
 ) -> AOSScreenRecordingEncoderProgress {
     guard let failure = failure as? AOSOperationCoreError else { return progress }
+    let summary = progress.trackSummary
     let videoFailure: String?
     let audioFailure: String?
     switch failure {
     case .recordingNoFrames:
         videoFailure = failure.code
-        audioFailure = nil
+        audioFailure = summary.systemAudio.selected
+                && !summary.systemAudio.firstSamplePresent
+            ? AOSOperationCoreError.recordingSystemAudioNoSamples.code : nil
     case .recordingSystemAudioUnavailable,
          .recordingSystemAudioNoSamples,
          .recordingSystemAudioFailed:
         videoFailure = nil
         audioFailure = failure.code
+    case .recordingEncoderFailed:
+        videoFailure = failure.code
+        audioFailure = summary.systemAudio.selected
+            ? AOSOperationCoreError.recordingSystemAudioFailed.code : nil
     default:
         return progress
     }
@@ -1068,7 +1075,6 @@ private func aosScreenRecordingProgress(
             finalized: value.finalized
         )
     }
-    let summary = progress.trackSummary
     return AOSScreenRecordingEncoderProgress(
         frameCount: progress.frameCount,
         byteCount: progress.byteCount,
@@ -1081,6 +1087,33 @@ private func aosScreenRecordingProgress(
         ),
         sessionStarted: progress.sessionStarted
     )
+}
+
+private func aosScreenRecordingSettledFailure(
+    _ fallback: Error,
+    summary: AOSScreenRecordingTrackSummary
+) -> AOSOperationCoreError {
+    if !summary.video.firstSamplePresent {
+        return .recordingNoFrames
+    }
+    if summary.systemAudio.selected,
+       !summary.systemAudio.firstSamplePresent {
+        return .recordingSystemAudioNoSamples
+    }
+    if let typed = fallback as? AOSOperationCoreError { return typed }
+    if fallback as? AOSDesktopPixelStreamLifecycleFailure == .startupDeadlineExceeded {
+        return .recordingStartupDeadlineExceeded
+    }
+    return .recordingEncoderFailed
+}
+
+private func aosScreenRecordingTerminalFailure(
+    _ failure: Error?,
+    progress: AOSScreenRecordingEncoderProgress
+) -> AOSOperationCoreError? {
+    guard let failure else { return nil }
+    if let typed = failure as? AOSOperationCoreError { return typed }
+    return aosScreenRecordingSettledFailure(failure, summary: progress.trackSummary)
 }
 
 final class AOSNativeScreenRecordingRuntime:
@@ -1389,12 +1422,7 @@ final class AOSNativeScreenRecordingRuntime:
             )
         } catch {
             let summary = session.encoder.progress.trackSummary
-            if request.tracks.systemAudio,
-               summary.video.firstSamplePresent,
-               !summary.systemAudio.firstSamplePresent {
-                throw AOSOperationCoreError.recordingSystemAudioNoSamples
-            }
-            throw error
+            throw aosScreenRecordingSettledFailure(error, summary: summary)
         }
         installStartupOwner(owner)
         if request.tracks.systemAudio {
@@ -1405,10 +1433,7 @@ final class AOSNativeScreenRecordingRuntime:
                     remaining = try remainingStartupTime(until: deadline.partialValue)
                 } catch {
                     let summary = session.encoder.progress.trackSummary
-                    if !summary.systemAudio.firstSamplePresent {
-                        throw AOSOperationCoreError.recordingSystemAudioNoSamples
-                    }
-                    throw AOSOperationCoreError.recordingNoFrames
+                    throw aosScreenRecordingSettledFailure(error, summary: summary)
                 }
                 try await Task.sleep(
                     nanoseconds: min(1_000_000, UInt64(remaining * 1_000_000_000))
@@ -1481,12 +1506,15 @@ final class AOSNativeScreenRecordingRuntime:
                 encoder.cancel()
             } else {
                 do {
-                    try AOSScreenRecordingTerminalTruth.requireFrames(
-                        encoder.progress.frameCount
-                    )
+                    guard encoder.progress.trackSummary.video.firstSamplePresent else {
+                        throw AOSOperationCoreError.recordingNoFrames
+                    }
                     let finalized: AOSArtifactFileIdentity = try await withCheckedThrowingContinuation { continuation in
                         encoder.finish { continuation.resume(with: $0) }
                     }
+                    try AOSScreenRecordingTerminalTruth.requireFrames(
+                        encoder.progress.frameCount
+                    )
                     try AOSScreenRecordingTerminalTruth.requireFinalizedArtifact(
                         frameCount: encoder.progress.frameCount,
                         artifact: finalized,
@@ -1525,6 +1553,7 @@ final class AOSNativeScreenRecordingRuntime:
             trackSummary: .initial(systemAudioSelected: request.tracks.systemAudio),
             sessionStarted: false
         )
+        failure = aosScreenRecordingTerminalFailure(failure, progress: rawProgress)
         let progress = aosScreenRecordingProgress(rawProgress, applying: failure)
         let elapsedMilliseconds = admittedElapsedMilliseconds()
         adapter?.runtimeDidFinish(
@@ -1602,13 +1631,13 @@ final class AOSNativeScreenRecordingRuntime:
 
     private func persistProgress(_ progress: AOSScreenRecordingEncoderProgress) throws {
         let elapsed = admittedElapsedMilliseconds()
-        var durableProgress = try aosPersistScreenRecordingProgress(
+        let durableProgress = try aosPersistScreenRecordingProgress(
             frameCount: progress.frameCount,
             byteCount: progress.byteCount,
             elapsedMilliseconds: elapsed,
-            bounds: request.requestedBounds
+            bounds: request.requestedBounds,
+            trackSummary: progress.trackSummary
         ) { _ in }
-        durableProgress.trackSummary = progress.trackSummary
         _ = try registry.updateOperationProgress(
             admission.publicAdmission.operation,
             durableProgress

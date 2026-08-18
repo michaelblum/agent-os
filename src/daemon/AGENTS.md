@@ -173,11 +173,17 @@ never follows after admission. A bounded either-arrival-order barrier starts
 both selected tracks at one earliest media epoch. Each track owns independent
 selected, admitted, available, sample, failure, drain, and finalized truth;
 availability begins only after successful native output registration, while a
-positive-byte sample separately establishes first-sample truth. Selected audio
-unavailable, no-sample, or failure cannot silently succeed. Writer-global start
-or post-start failure stamps every selected track before terminalization.
-Media duration spans capture-start through stop admission only, and nonzero
-frame/byte progress plus content-free per-track progress persist durably. One
+positive-byte admitted sample separately establishes first-sample truth with
+positive per-track count and byte truth. Selected audio unavailable, no-sample,
+or failure cannot silently succeed. When the shared startup deadline settles,
+every missing selected track receives its exact failure; missing mandatory video
+is the deterministic terminal failure when both tracks are silent. Writer-global
+start or post-start failure stamps every selected track before terminalization.
+Media duration spans capture-start through stop admission only, and written-video
+frame progress, total artifact bytes, and content-free per-track admission
+progress persist durably. Total bytes may advance from ready audio while video
+input is backpressured; global bounds validate against the exact per-track
+summary without equating zero video frames to zero total bytes. One
 finite absolute startup deadline covers native start and the remaining
 selected-track/common-media barrier budget; it hands off the generation-bound
 native owner before any start request.
@@ -188,9 +194,11 @@ Stop atomically closes sample admission, drains only already-admitted video and
 audio samples, finishes both selected writer inputs and the writer exactly once,
 and requires positive-byte successful truth for every selected track plus a
 finalized, nonempty artifact with the exact video-only or H.264-plus-AAC media
-identity before success. Stop, failure, and boot recovery must settle
-stream authority, drain or cancel the writer, release the broker and operation
-claim, and remove any unoffered file before terminalizing.
+identity before success. Public screen-recording progress and terminal receipts
+require the exact track summary; success also requires artifact presence, while
+failure requires a typed terminal code. Stop, failure, and boot recovery must
+settle stream authority, drain or cancel the writer, release the broker and
+operation claim, and remove any unoffered file before terminalizing.
 Offered artifacts support owner- and generation-bound reveal, remove, and
 same-volume no-overwrite release; release persists the exact generation,
 source, destination, and phase before mutation and recovery resolves only to

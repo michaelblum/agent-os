@@ -52,7 +52,9 @@
           "if": {"properties": {"first_sample_present": {"const": true}}},
           "then": {
             "properties": {
-              "available": {"const": true}
+              "available": {"const": true},
+              "sample_count": {"$ref": "#/$defs/positive_count"},
+              "sample_byte_count": {"$ref": "#/$defs/positive_count"}
             }
           },
           "else": {
