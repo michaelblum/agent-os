@@ -416,7 +416,7 @@
         {
           "id": "screen-recording-contract",
           "command": "bash tests/native-screen-recording-contract.sh",
-          "reason": "Validate mandatory-video and optional-system-audio bounds, common-epoch multitrack coordination, fixed geometry, durable lifecycle, track-bound custody, source/help/schema convergence, and native compile without capture authority."
+          "reason": "Validate mandatory-video and optional-system-audio bounds, one-budget common-epoch multitrack coordination, output-registration versus positive-byte sample truth, every-selected-track writer failure, fixed geometry, durable lifecycle, exact media/track-bound custody, source/help/schema convergence, and native compile without capture authority."
         }
       ],
       "verification": [],

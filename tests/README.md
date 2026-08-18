@@ -112,9 +112,13 @@ sample admission, multitrack coordination, terminal truth, custody coordinator,
 and boot recovery with injected fake clock, video/audio callbacks, writer
 inputs/file, native session, and broker dependencies. It covers both arrival
 orders, one common epoch, per-track monotonicity and truth, bounded backpressure,
-typed selected-audio failures, callback loss, startup stop and task cancellation,
+registration availability distinct from positive-byte first-sample truth,
+zero-byte rejection, writer-global failure on every selected track, typed
+selected-audio failures, one total native-start/common-barrier budget, callback
+loss, startup stop and task cancellation,
 late start failure after active evidence, retirement timeout/false settlement,
-dual-track stop/drain/finalize, zero/missing-artifact cleanup, release/remove
+dual-track stop/drain/finalize, successful-summary/media-identity schema
+coupling, zero/missing-artifact cleanup, release/remove
 races, every release fault phase, restart recovery, and decoder extra-key/type
 rejection. It does not execute
 ScreenCaptureKit, AVAssetWriter, filesystem effects, `./aos`, the daemon, TCC,

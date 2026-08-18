@@ -12,6 +12,7 @@
     "identifier": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"},
     "generation": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
     "count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "positive_count": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
     "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
     "tracks": {
       "type": "object",
@@ -64,9 +65,116 @@
         {
           "if": {"properties": {"finalized": {"const": true}}},
           "then": {"properties": {"drained": {"const": true}}}
+        },
+        {
+          "if": {
+            "properties": {
+              "selected": {"const": true},
+              "finalized": {"const": true}
+            }
+          },
+          "then": {
+            "properties": {
+              "admitted": {"const": true},
+              "available": {"const": true},
+              "first_sample_present": {"const": true},
+              "sample_count": {"$ref": "#/$defs/positive_count"},
+              "sample_byte_count": {"$ref": "#/$defs/positive_count"},
+              "failure_code": {"type": "null"},
+              "drained": {"const": true}
+            }
+          }
         }
       ],
       "additionalProperties": false
+    },
+    "successful_track_summary": {
+      "allOf": [
+        {"$ref": "#/$defs/track_summary"},
+        {
+          "properties": {
+            "common_media_epoch_ns": {"$ref": "#/$defs/count"},
+            "video": {
+              "properties": {
+                "selected": {"const": true},
+                "admitted": {"const": true},
+                "available": {"const": true},
+                "first_sample_present": {"const": true},
+                "sample_count": {"$ref": "#/$defs/positive_count"},
+                "sample_byte_count": {"$ref": "#/$defs/positive_count"},
+                "failure_code": {"type": "null"},
+                "drained": {"const": true},
+                "finalized": {"const": true}
+              }
+            }
+          },
+          "oneOf": [
+            {
+              "properties": {
+                "selected_tracks": {"const": ["video"]},
+                "finalized_tracks": {"const": ["video"]},
+                "system_audio": {
+                  "properties": {
+                    "selected": {"const": false},
+                    "admitted": {"const": false},
+                    "available": {"const": false},
+                    "first_sample_present": {"const": false},
+                    "sample_count": {"const": 0},
+                    "sample_byte_count": {"const": 0},
+                    "failure_code": {"type": "null"},
+                    "drained": {"const": true},
+                    "finalized": {"const": true}
+                  }
+                }
+              }
+            },
+            {
+              "properties": {
+                "selected_tracks": {"const": ["video", "system_audio"]},
+                "finalized_tracks": {"const": ["video", "system_audio"]},
+                "system_audio": {
+                  "properties": {
+                    "selected": {"const": true},
+                    "admitted": {"const": true},
+                    "available": {"const": true},
+                    "first_sample_present": {"const": true},
+                    "sample_count": {"$ref": "#/$defs/positive_count"},
+                    "sample_byte_count": {"$ref": "#/$defs/positive_count"},
+                    "failure_code": {"type": "null"},
+                    "drained": {"const": true},
+                    "finalized": {"const": true}
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "tracks_summary_binding": {
+      "if": {
+        "properties": {
+          "tracks": {
+            "properties": {"system_audio": {"const": true}}
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "track_summary": {
+            "properties": {
+              "selected_tracks": {"const": ["video", "system_audio"]}
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "track_summary": {
+            "properties": {"selected_tracks": {"const": ["video"]}}
+          }
+        }
+      }
     },
     "selected_track_set": {
       "oneOf": [
@@ -107,6 +215,12 @@
                 "properties": {
                   "selected": {"const": false},
                   "admitted": {"const": false},
+                  "available": {"const": false},
+                  "first_sample_present": {"const": false},
+                  "sample_count": {"const": 0},
+                  "sample_byte_count": {"const": 0},
+                  "failure_code": {"type": "null"},
+                  "drained": {"const": true},
                   "finalized": {"const": true}
                 }
               }
@@ -273,6 +387,7 @@
         "codec": {"const": "h264"},
         "container": {"const": "quicktime"}
       },
+      "allOf": [{"$ref": "#/$defs/tracks_summary_binding"}],
       "additionalProperties": false
     },
     "progress": {
@@ -291,6 +406,7 @@
         "tracks": {"$ref": "#/$defs/tracks"},
         "track_summary": {"$ref": "#/$defs/track_summary"}
       },
+      "allOf": [{"$ref": "#/$defs/tracks_summary_binding"}],
       "additionalProperties": false
     },
     "completion_result": {
@@ -313,6 +429,31 @@
         "container": {"const": "quicktime"},
         "cleanup_result": {"enum": ["zero_residuals", "residuals_present"]}
       },
+      "allOf": [
+        {"$ref": "#/$defs/tracks_summary_binding"},
+        {
+          "if": {"not": {"properties": {"artifact": {"type": "null"}}}},
+          "then": {
+            "properties": {
+              "frame_count": {"$ref": "#/$defs/positive_count"},
+              "byte_count": {"$ref": "#/$defs/positive_count"},
+              "track_summary": {"$ref": "#/$defs/successful_track_summary"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"outcome": {"const": "succeeded"}}},
+          "then": {
+            "properties": {
+              "artifact": {"$ref": "#/$defs/artifact_selector"},
+              "frame_count": {"$ref": "#/$defs/positive_count"},
+              "byte_count": {"$ref": "#/$defs/positive_count"},
+              "track_summary": {"$ref": "#/$defs/successful_track_summary"},
+              "cleanup_result": {"const": "zero_residuals"}
+            }
+          }
+        }
+      ],
       "additionalProperties": false
     }
   }

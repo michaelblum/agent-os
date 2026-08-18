@@ -12,6 +12,7 @@ struct AOSScreenRecordingEncoderProgress: Equatable {
 
 protocol AOSScreenRecordingEncoding: AnyObject {
     var progress: AOSScreenRecordingEncoderProgress { get }
+    func markAvailable(_ track: AOSScreenRecordingTrackKind) throws
     func append(
         _ sampleBuffer: CMSampleBuffer,
         track: AOSScreenRecordingTrackKind
@@ -121,6 +122,19 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
         return progressLocked()
     }
 
+    func markAvailable(_ kind: AOSScreenRecordingTrackKind) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !finishAdmitted, !cancelled,
+              var state = tracks[kind], state.selected, state.admitted else {
+            throw kind == .systemAudio
+                ? AOSOperationCoreError.recordingSystemAudioUnavailable
+                : AOSOperationCoreError.recordingEncoderFailed
+        }
+        state.available = true
+        tracks[kind] = state
+    }
+
     func append(
         _ sampleBuffer: CMSampleBuffer,
         track kind: AOSScreenRecordingTrackKind
@@ -135,6 +149,7 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
             )
         }
         let bytes = AOSScreenRecordingEncoder.sampleByteCount(sampleBuffer, track: kind)
+        guard bytes > 0 else { return }
         lock.lock()
         do {
             try appendLocked(AOSScreenRecordingPendingSample(
@@ -182,8 +197,10 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
                 )
             }
             guard tracks[.video]?.sampleCount ?? 0 > 0,
+                  tracks[.video]?.sampleByteCount ?? 0 > 0,
                   tracks[.systemAudio]?.selected != true
-                    || (tracks[.systemAudio]?.sampleCount ?? 0) > 0 else {
+                    || ((tracks[.systemAudio]?.sampleCount ?? 0) > 0
+                        && (tracks[.systemAudio]?.sampleByteCount ?? 0) > 0) else {
                 throw AOSOperationCoreError.recordingEncoderFailed
             }
             markInputsFinishedLocked()
@@ -261,6 +278,14 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
               var state = tracks[kind], state.selected, state.admitted else {
             throw AOSOperationCoreError.recordingEncoderFailed
         }
+        guard state.available else {
+            throw recordFailureLocked(
+                track: kind,
+                error: kind == .systemAudio
+                    ? AOSOperationCoreError.recordingSystemAudioUnavailable
+                    : AOSOperationCoreError.recordingEncoderFailed
+            )
+        }
         if let previous = state.lastPresentationTime,
            CMTimeCompare(sample.presentationTime, previous) < 0 {
             throw recordFailureLocked(
@@ -268,7 +293,6 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
                 error: AOSOperationCoreError.recordingTimestampNonMonotonic
             )
         }
-        state.available = true
         state.firstSamplePresent = true
         state.lastPresentationTime = sample.presentationTime
         guard state.pending.count < maximumPendingSamplesPerTrack else {
@@ -284,13 +308,13 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
             let firstTimes = AOSScreenRecordingTrackKind.allCases.compactMap {
                 tracks[$0]?.selected == true ? tracks[$0]?.pending.first?.presentationTime : nil
             }
-            guard let epoch = firstTimes.min(by: { CMTimeCompare($0, $1) < 0 }),
-                  writer.startWriting() else {
+            guard let epoch = firstTimes.min(by: { CMTimeCompare($0, $1) < 0 }) else {
                 throw recordFailureLocked(
                     track: kind,
                     error: AOSOperationCoreError.recordingEncoderFailed
                 )
             }
+            guard writer.startWriting() else { throw recordWriterFailureLocked() }
             writer.startSession(epoch)
             commonEpoch = epoch
             sessionStarted = true
@@ -299,9 +323,10 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
     }
 
     private func drainPendingLocked() throws {
-        guard sessionStarted, writer.isWriting() else {
+        guard sessionStarted else {
             throw AOSOperationCoreError.recordingEncoderFailed
         }
+        guard writer.isWriting() else { throw recordWriterFailureLocked() }
         for kind in AOSScreenRecordingTrackKind.allCases {
             guard var state = tracks[kind], state.selected, let input = inputs[kind] else { continue }
             while !state.pending.isEmpty, input.isReady() {
@@ -400,6 +425,21 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
         return error
     }
 
+    private func recordWriterFailureLocked() -> AOSOperationCoreError {
+        _ = recordFailureLocked(
+            track: .video,
+            error: AOSOperationCoreError.recordingEncoderFailed
+        )
+        guard tracks[.systemAudio]?.selected == true else {
+            return AOSOperationCoreError.recordingEncoderFailed
+        }
+        _ = recordFailureLocked(
+            track: .systemAudio,
+            error: AOSOperationCoreError.recordingSystemAudioFailed
+        )
+        return AOSOperationCoreError.recordingSystemAudioFailed
+    }
+
     private static func nanoseconds(_ time: CMTime) -> UInt64? {
         guard time.isNumeric, time.value >= 0, time.timescale > 0 else { return nil }
         let converted = CMTimeConvertScale(time, timescale: 1_000_000_000, method: .default)
@@ -493,6 +533,10 @@ final class AOSScreenRecordingEncoder: AOSScreenRecordingEncoding,
 
     var progress: AOSScreenRecordingEncoderProgress { coordinator.progress }
 
+    func markAvailable(_ track: AOSScreenRecordingTrackKind) throws {
+        try coordinator.markAvailable(track)
+    }
+
     func append(
         _ sampleBuffer: CMSampleBuffer,
         track: AOSScreenRecordingTrackKind
@@ -546,9 +590,7 @@ final class AOSScreenRecordingEncoder: AOSScreenRecordingEncoding,
             inode: UInt64(metadata.st_ino),
             byteCount: UInt64(metadata.st_size),
             contentDigest: SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined(),
-            mediaType: trackSummary.selectedSystemAudio
-                ? "video/quicktime; codecs=avc1,mp4a.40.2"
-                : "video/quicktime; codecs=avc1",
+            mediaType: trackSummary.expectedMediaType,
             trackSummary: trackSummary
         )
     }

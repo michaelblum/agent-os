@@ -172,17 +172,23 @@ audio preserves exact video-only output, microphone is rejected, and geometry
 never follows after admission. A bounded either-arrival-order barrier starts
 both selected tracks at one earliest media epoch. Each track owns independent
 selected, admitted, available, sample, failure, drain, and finalized truth;
-selected audio unavailable, no-sample, or failure cannot silently succeed.
+availability begins only after successful native output registration, while a
+positive-byte sample separately establishes first-sample truth. Selected audio
+unavailable, no-sample, or failure cannot silently succeed. Writer-global start
+or post-start failure stamps every selected track before terminalization.
 Media duration spans capture-start through stop admission only, and nonzero
-frame/byte progress plus content-free per-track progress persist durably. A finite startup
-deadline hands off the generation-bound native owner before any start request;
+frame/byte progress plus content-free per-track progress persist durably. One
+finite absolute startup deadline covers native start and the remaining
+selected-track/common-media barrier budget; it hands off the generation-bound
+native owner before any start request.
 callback loss, startup stop, or cancellation retains that owner until native
 retirement is proven. First-frame evidence remains active even if its delayed
 start callback fails, so exactly one stop must settle before authority release.
 Stop atomically closes sample admission, drains only already-admitted video and
 audio samples, finishes both selected writer inputs and the writer exactly once,
-and requires successful selected-track truth plus a finalized, nonempty artifact
-before success. Stop, failure, and boot recovery must settle
+and requires positive-byte successful truth for every selected track plus a
+finalized, nonempty artifact with the exact video-only or H.264-plus-AAC media
+identity before success. Stop, failure, and boot recovery must settle
 stream authority, drain or cancel the writer, release the broker and operation
 claim, and remove any unoffered file before terminalizing.
 Offered artifacts support owner- and generation-bound reveal, remove, and

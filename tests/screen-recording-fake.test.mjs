@@ -500,13 +500,19 @@ func harnessTrackSummary(
     systemAudio: Bool,
     videoSamples: UInt64 = 1,
     audioSamples: UInt64 = 0,
-    finalized: Bool = true
+    finalized: Bool = true,
+    videoAvailable: Bool? = nil,
+    audioAvailable: Bool? = nil
 ) -> AOSScreenRecordingTrackSummary {
-    func truth(selected: Bool, samples: UInt64) -> AOSScreenRecordingTrackTruth {
+    func truth(
+        selected: Bool,
+        samples: UInt64,
+        available: Bool?
+    ) -> AOSScreenRecordingTrackTruth {
         AOSScreenRecordingTrackTruth(
             selected: selected,
             admitted: selected,
-            available: samples > 0,
+            available: available ?? (samples > 0),
             firstSamplePresent: samples > 0,
             sampleCount: samples,
             sampleByteCount: samples * 128,
@@ -521,8 +527,16 @@ func harnessTrackSummary(
             ? (systemAudio ? ["video", "system_audio"] : ["video"]) : [],
         commonMediaEpochNanoseconds: videoSamples > 0 && (!systemAudio || audioSamples > 0)
             ? 1_000_000 : nil,
-        video: truth(selected: true, samples: videoSamples),
-        systemAudio: truth(selected: systemAudio, samples: audioSamples)
+        video: truth(
+            selected: true,
+            samples: videoSamples,
+            available: videoAvailable
+        ),
+        systemAudio: truth(
+            selected: systemAudio,
+            samples: audioSamples,
+            available: audioAvailable
+        )
     )
 }
 
@@ -785,6 +799,8 @@ final class FakeEncoder: AOSScreenRecordingEncoding, @unchecked Sendable {
     private var audioSamples: UInt64 = 0
     private var bytes: UInt64 = 0
     private var systemAudioSelected = false
+    private var videoAvailable = false
+    private var audioAvailable = false
     private var finalized = false
     var finishFilePresent = true
     private(set) var cancelCount = 0
@@ -796,9 +812,11 @@ final class FakeEncoder: AOSScreenRecordingEncoding, @unchecked Sendable {
         let started = frames > 0 && (!systemAudioSelected || audioSamples > 0)
         let summary = harnessTrackSummary(
             systemAudio: systemAudioSelected,
-            videoSamples: started ? frames : 0,
-            audioSamples: started ? audioSamples : 0,
-            finalized: finalized
+            videoSamples: frames,
+            audioSamples: audioSamples,
+            finalized: finalized,
+            videoAvailable: videoAvailable,
+            audioAvailable: audioAvailable
         )
         return AOSScreenRecordingEncoderProgress(
             frameCount: started ? frames : 0,
@@ -810,6 +828,12 @@ final class FakeEncoder: AOSScreenRecordingEncoding, @unchecked Sendable {
 
     func configure(_ tracks: AOSScreenRecordingTracks) {
         lock.lock(); systemAudioSelected = tracks.systemAudio; lock.unlock()
+    }
+
+    func markAvailable(_ track: AOSScreenRecordingTrackKind) throws {
+        lock.lock()
+        if track == .video { videoAvailable = true } else { audioAvailable = true }
+        lock.unlock()
     }
 
     func record(_ track: AOSScreenRecordingTrackKind) {
@@ -836,7 +860,9 @@ final class FakeEncoder: AOSScreenRecordingEncoding, @unchecked Sendable {
             systemAudio: systemAudioSelected,
             videoSamples: frames,
             audioSamples: audioSamples,
-            finalized: true
+            finalized: true,
+            videoAvailable: videoAvailable,
+            audioAvailable: audioAvailable
         )
         lock.unlock()
         files.setSourcePresent(finishFilePresent)
@@ -867,6 +893,8 @@ final class FakeNativeSession: @unchecked Sendable {
     func factory() -> AOSScreenRecordingSessionFactory {
         { [self] tracks, gate, progress, _ in
             encoder.configure(tracks)
+            try encoder.markAvailable(.video)
+            if tracks.systemAudio { try encoder.markAvailable(.systemAudio) }
             lock.lock(); frameGate = gate; self.progress = progress; lock.unlock()
             return AOSScreenRecordingNativeSession(
                 encoder: encoder,
@@ -938,7 +966,8 @@ final class RecordingEnvironment {
     init(
         store existingStore: AOSInMemoryOperationStateStore? = nil,
         files existingFiles: FakeFiles? = nil,
-        sessionFailure: AOSOperationCoreError? = nil
+        sessionFailure: AOSOperationCoreError? = nil,
+        startupTimeout: TimeInterval = aosDesktopPixelStreamRetirementTimeout
     ) throws {
         files = existingFiles ?? FakeFiles()
         native = FakeNativeSession(files: files)
@@ -985,7 +1014,8 @@ final class RecordingEnvironment {
                 )
             },
             files: files.dependencies(),
-            sessionFactory: selectedFactory
+            sessionFactory: selectedFactory,
+            startupTimeout: startupTimeout
         )
         try registry.installRuntimeAdapters([adapter])
     }
@@ -1056,6 +1086,7 @@ final class FakeMultitrackWriter: @unchecked Sendable {
     ]
     private(set) var sessionEpoch: CMTime?
     private(set) var startCount = 0
+    var startSucceeds = true
     var finishSucceeds = true
     private var writing = false
 
@@ -1063,13 +1094,17 @@ final class FakeMultitrackWriter: @unchecked Sendable {
         lock.lock(); ready[kind] = value; lock.unlock()
     }
 
+    func forceNotWriting() {
+        lock.lock(); writing = false; lock.unlock()
+    }
+
     func writerDependencies() -> AOSScreenRecordingWriterDependencies {
         AOSScreenRecordingWriterDependencies(
             startWriting: { [self] in
                 lock.lock(); defer { lock.unlock() }
                 startCount += 1
-                writing = true
-                return true
+                writing = startSucceeds
+                return startSucceeds
             },
             startSession: { [self] epoch in
                 lock.lock(); sessionEpoch = epoch; lock.unlock()
@@ -1107,16 +1142,16 @@ final class FakeMultitrackWriter: @unchecked Sendable {
     }
 }
 
-func harnessSample(_ value: Int64) -> CMSampleBuffer {
+func harnessSample(_ value: Int64, byteCount: Int = 16) -> CMSampleBuffer {
     var block: CMBlockBuffer?
     let blockStatus = CMBlockBufferCreateWithMemoryBlock(
         allocator: kCFAllocatorDefault,
         memoryBlock: nil,
-        blockLength: 16,
+        blockLength: max(byteCount, 1),
         blockAllocator: kCFAllocatorDefault,
         customBlockSource: nil,
         offsetToData: 0,
-        dataLength: 16,
+        dataLength: max(byteCount, 1),
         flags: 0,
         blockBufferOut: &block
     )
@@ -1126,7 +1161,7 @@ func harnessSample(_ value: Int64) -> CMSampleBuffer {
         presentationTimeStamp: CMTime(value: value, timescale: 1_000),
         decodeTimeStamp: .invalid
     )
-    var size = 16
+    var size = byteCount
     var sample: CMSampleBuffer?
     let sampleStatus = CMSampleBufferCreateReady(
         allocator: kCFAllocatorDefault,
@@ -1153,13 +1188,16 @@ func multitrackCoordinator(
         .video: writer.input(.video),
     ]
     if !omitAudioInput { inputs[.systemAudio] = writer.input(.systemAudio) }
-    return try AOSScreenRecordingMultitrackCoordinator(
+    let coordinator = try AOSScreenRecordingMultitrackCoordinator(
         systemAudioSelected: systemAudio,
         maximumPendingSamplesPerTrack: maximumPending,
         writer: writer.writerDependencies(),
         inputs: inputs,
         observeOutputBytes: { 512 }
     )
+    try coordinator.markAvailable(.video)
+    if systemAudio { try coordinator.markAvailable(.systemAudio) }
+    return coordinator
 }
 
 @main
@@ -1220,6 +1258,37 @@ struct TerminalLifecycleCustodyHarness {
         environment.registry.snapshot().operations.first {
             $0.identity == admission.operation
         }!
+    }
+
+    static func requireWriterFailureTruth(
+        _ summary: AOSScreenRecordingTrackSummary,
+        sessionStarted: Bool
+    ) {
+        require(summary.selectedTracks == ["video", "system_audio"],
+                "writer failure lost the selected set")
+        require(summary.finalizedTracks.isEmpty,
+                "writer failure claimed finalized tracks")
+        require((summary.commonMediaEpochNanoseconds != nil) == sessionStarted,
+                "writer failure common-epoch truth drifted")
+        for (truth, failureCode) in [
+            (summary.video, AOSOperationCoreError.recordingEncoderFailed.code),
+            (summary.systemAudio, AOSOperationCoreError.recordingSystemAudioFailed.code),
+        ] {
+            require(truth.selected && truth.admitted && truth.available,
+                    "writer failure lost selected/admitted/available truth")
+            require(truth.firstSamplePresent,
+                    "writer failure lost positive first-sample truth")
+            require(
+                sessionStarted
+                    ? truth.sampleCount > 0 && truth.sampleByteCount > 0
+                    : truth.sampleCount == 0 && truth.sampleByteCount == 0,
+                "writer failure sample truth drifted"
+            )
+            require(truth.failureCode == failureCode,
+                    "writer failure omitted a selected-track failure")
+            require(!truth.drained && !truth.finalized,
+                    "writer failure claimed drain or finalization")
+        }
     }
 
     static func productionMultitrackCoordination() throws {
@@ -1307,6 +1376,70 @@ struct TerminalLifecycleCustodyHarness {
         }
         require(missingError as? AOSOperationCoreError == .recordingSystemAudioNoSamples,
                 "missing selected audio was not typed")
+        require(missing.progress.trackSummary.systemAudio.available,
+                "registered silent audio was marked unavailable")
+        require(!missing.progress.trackSummary.systemAudio.firstSamplePresent,
+                "silent audio claimed a first sample")
+        require(missing.progress.trackSummary.systemAudio.sampleCount == 0,
+                "silent audio claimed a sample count")
+        require(missing.progress.trackSummary.systemAudio.failureCode
+                    == AOSOperationCoreError.recordingSystemAudioNoSamples.code,
+                "silent audio omitted its typed track failure")
+
+        let zeroByteWriter = FakeMultitrackWriter()
+        let zeroByte = try multitrackCoordinator(zeroByteWriter)
+        try zeroByte.append(harnessSample(1, byteCount: 0), track: .systemAudio)
+        try zeroByte.append(harnessSample(2), track: .video)
+        require(!zeroByte.progress.sessionStarted,
+                "zero-byte audio opened the common epoch")
+        var zeroByteError: Error?
+        zeroByte.finish(identity: { FakeFiles().identity(summary: $0) }) { result in
+            if case .failure(let error) = result { zeroByteError = error }
+        }
+        require(zeroByteError as? AOSOperationCoreError == .recordingSystemAudioNoSamples,
+                "zero-byte audio did not terminalize as no samples")
+        require(zeroByte.progress.trackSummary.systemAudio.available,
+                "zero-byte registered audio became unavailable")
+        require(!zeroByte.progress.trackSummary.systemAudio.firstSamplePresent,
+                "zero-byte audio established first-sample truth")
+        require(zeroByte.progress.trackSummary.systemAudio.sampleByteCount == 0,
+                "zero-byte audio established byte truth")
+
+        for audioFirst in [true, false] {
+            let writer = FakeMultitrackWriter()
+            writer.startSucceeds = false
+            let coordinator = try multitrackCoordinator(writer)
+            do {
+                if audioFirst {
+                    try coordinator.append(harnessSample(2), track: .systemAudio)
+                    try coordinator.append(harnessSample(1), track: .video)
+                } else {
+                    try coordinator.append(harnessSample(1), track: .video)
+                    try coordinator.append(harnessSample(2), track: .systemAudio)
+                }
+                fatalError("writer start failure was accepted")
+            } catch AOSOperationCoreError.recordingSystemAudioFailed {
+            }
+            requireWriterFailureTruth(
+                coordinator.progress.trackSummary,
+                sessionStarted: false
+            )
+        }
+
+        let stoppedWriter = FakeMultitrackWriter()
+        let stopped = try multitrackCoordinator(stoppedWriter)
+        try stopped.append(harnessSample(1), track: .video)
+        try stopped.append(harnessSample(2), track: .systemAudio)
+        stoppedWriter.forceNotWriting()
+        do {
+            try stopped.append(harnessSample(3), track: .video)
+            fatalError("post-start writer failure was accepted")
+        } catch AOSOperationCoreError.recordingSystemAudioFailed {
+        }
+        requireWriterFailureTruth(
+            stopped.progress.trackSummary,
+            sessionStarted: true
+        )
 
         let finalWriter = FakeMultitrackWriter()
         let final = try multitrackCoordinator(finalWriter)
@@ -1484,6 +1617,10 @@ struct TerminalLifecycleCustodyHarness {
                 == AOSOperationCoreError.recordingSystemAudioUnavailable.code,
             "audio unavailability was omitted from track truth"
         )
+        require(
+            unavailableOperation.progress?.trackSummary?.systemAudio.available == false,
+            "unregistered audio was marked available"
+        )
         let unavailableArtifact = unavailable.registry.snapshot().artifacts.first {
             $0.identity == unavailableAdmission.artifact
         }
@@ -1491,6 +1628,51 @@ struct TerminalLifecycleCustodyHarness {
             unavailableArtifact?.trackSummary?.systemAudio.failureCode
                 == AOSOperationCoreError.recordingSystemAudioUnavailable.code,
             "audio unavailability was omitted from artifact truth"
+        )
+        require(
+            unavailableArtifact?.trackSummary?.systemAudio.available == false,
+            "unavailable artifact truth claimed registered audio"
+        )
+
+        let bounded = try RecordingEnvironment(startupTimeout: 0.05)
+        let boundedStartedAt = DispatchTime.now().uptimeNanoseconds
+        let boundedAdmission = try bounded.adapter.start(
+            request: bounded.request(systemAudio: true),
+            connectionID: UUID()
+        )
+        try await wait("bounded audio start missing") {
+            bounded.native.startWasRequested()
+        }
+        let boundedVideo = try bounded.native.publishFrame()
+        require(boundedVideo, "bounded audio video callback rejected")
+        try await Task.sleep(nanoseconds: 30_000_000)
+        bounded.native.settleStart(.success(()))
+        try await wait("bounded audio timeout did not request retirement") {
+            bounded.native.stopCount == 1
+        }
+        let boundedElapsed = DispatchTime.now().uptimeNanoseconds - boundedStartedAt
+        require(boundedElapsed < 70_000_000,
+                "native startup and media barrier received separate budgets")
+        bounded.native.settleStop(.success(()))
+        try await wait("bounded audio timeout did not terminalize") {
+            operation(boundedAdmission, in: bounded).state == .terminal
+        }
+        let boundedOperation = operation(boundedAdmission, in: bounded)
+        require(
+            boundedOperation.failureCode
+                == AOSOperationCoreError.recordingSystemAudioNoSamples.code,
+            "bounded silent audio lost its typed failure"
+        )
+        require(boundedOperation.progress?.trackSummary?.systemAudio.available == true,
+                "bounded silent audio lost registration availability")
+        require(boundedOperation.progress?.trackSummary?.systemAudio.firstSamplePresent == false,
+                "bounded silent audio claimed a first sample")
+        require(boundedOperation.progress?.trackSummary?.systemAudio.sampleCount == 0,
+                "bounded silent audio claimed samples")
+        require(
+            boundedOperation.progress?.trackSummary?.systemAudio.failureCode
+                == AOSOperationCoreError.recordingSystemAudioNoSamples.code,
+            "bounded silent audio omitted its track failure"
         )
     }
 
@@ -1995,7 +2177,7 @@ struct TerminalLifecycleCustodyHarness {
         try await lateStartFailureAfterActiveEvidenceRequiresStop()
         await frameAdmissionClosesAtomically()
         try decoderAndTerminalTruthAreClosed()
-        print("terminal-lifecycle-custody-harness: multitrack=40 adapter-audio=26 production-lifecycle=6 production-terminal=2 production-custody=8 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
+        print("terminal-lifecycle-custody-harness: multitrack=89 adapter-audio=38 production-lifecycle=6 production-terminal=2 production-custody=8 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
     }
 }
 `
@@ -2016,7 +2198,7 @@ test('production request, geometry, timeline, and progress owners reject lossy s
     ], { encoding: 'utf8' })
     assert.equal(compile.status, 0, compile.stderr || compile.stdout)
     const run = spawnSync(binary, [], { encoding: 'utf8' })
-    assert.equal(run.status, 0, run.stderr || run.stdout)
+    assert.equal(run.status, 0, `${run.stderr}\n${run.stdout}`)
     assert.match(run.stdout, /22 assertions/u)
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true })
@@ -2072,18 +2254,25 @@ base = {
   "path": "/tmp/artifact.mov"
 }
 assert validator.is_valid(base)
+audio = copy.deepcopy(base)
+audio["media_type"] = "video/quicktime; codecs=avc1,mp4a.40.2"
+audio["track_summary"]["selected_tracks"] = ["video", "system_audio"]
+audio["track_summary"]["finalized_tracks"] = ["video", "system_audio"]
+audio["track_summary"]["system_audio"] = track(True, 1, True)
+assert validator.is_valid(audio)
 bad = []
 value = copy.deepcopy(base); value.update(action="remove", state="offered"); value.pop("path"); bad.append(value)
 value = copy.deepcopy(base); value.update(action="remove", state="removed"); bad.append(value)
 value = copy.deepcopy(base); value.update(action="release", state="removed"); bad.append(value)
 value = copy.deepcopy(base); value.pop("path"); bad.append(value)
 value = copy.deepcopy(base); value["media_type"] = "video/quicktime; codecs=hevc"; bad.append(value)
+value = copy.deepcopy(audio); value["media_type"] = "video/quicktime; codecs=avc1"; bad.append(value)
 assert all(not validator.is_valid(value) for value in bad)
-print("custody-schema: 1 positive, 5 negative")
+print("custody-schema: 2 positive, 6 negative")
 `
   const result = spawnSync('python3', ['-c', python, schemaPath, recordingSchemaPath], { encoding: 'utf8' })
   assert.equal(result.status, 0, result.stderr || result.stdout)
-  assert.match(result.stdout, /1 positive, 5 negative/u)
+  assert.match(result.stdout, /2 positive, 6 negative/u)
 })
 
 test('production lifecycle and custody owners close terminal fault phases with fake dependencies', async () => {
@@ -2123,8 +2312,8 @@ test('production lifecycle and custody owners close terminal fault phases with f
     ], { encoding: 'utf8' })
     assert.equal(compile.status, 0, compile.stderr || compile.stdout)
     const run = spawnSync(binary, [], { encoding: 'utf8', timeout: 5_000 })
-    assert.equal(run.status, 0, run.stderr || run.stdout)
-    assert.match(run.stdout, /multitrack=40 adapter-audio=26 production-lifecycle=6 production-terminal=2 production-custody=8 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6/u)
+    assert.equal(run.status, 0, `${run.stderr}\n${run.stdout}`)
+    assert.match(run.stdout, /multitrack=89 adapter-audio=38 production-lifecycle=6 production-terminal=2 production-custody=8 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6/u)
 
     const [lifecycle, state, adapter, unified] = await Promise.all([
       readFile(path.join(root, 'src/daemon/desktop-pixel-stream-lifecycle.swift'), 'utf8'),

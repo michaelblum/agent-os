@@ -600,6 +600,12 @@ struct AOSScreenRecordingTrackSummary: Codable, Equatable {
 
     var selectedSystemAudio: Bool { systemAudio.selected }
 
+    var expectedMediaType: String {
+        selectedSystemAudio
+            ? "video/quicktime; codecs=avc1,mp4a.40.2"
+            : "video/quicktime; codecs=avc1"
+    }
+
     var isSuccessful: Bool {
         selectedTracks == (systemAudio.selected ? ["video", "system_audio"] : ["video"])
             && commonMediaEpochNanoseconds != nil
@@ -608,6 +614,7 @@ struct AOSScreenRecordingTrackSummary: Codable, Equatable {
             && video.available
             && video.firstSamplePresent
             && video.sampleCount > 0
+            && video.sampleByteCount > 0
             && video.failureCode == nil
             && video.drained
             && video.finalized
@@ -616,6 +623,7 @@ struct AOSScreenRecordingTrackSummary: Codable, Equatable {
                     && systemAudio.available
                     && systemAudio.firstSamplePresent
                     && systemAudio.sampleCount > 0
+                    && systemAudio.sampleByteCount > 0
                     && systemAudio.failureCode == nil
                     && systemAudio.drained
                     && systemAudio.finalized
@@ -687,6 +695,7 @@ enum AOSScreenRecordingTerminalTruth {
               artifact.byteCount > 0,
               filePresent,
               artifact.trackSummary == expectedSummary,
+              artifact.mediaType == expectedSummary.expectedMediaType,
               expectedSummary.isSuccessful else {
             throw AOSOperationCoreError.recordingArtifactMissing
         }

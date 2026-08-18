@@ -175,10 +175,13 @@ persists its exact generation, source identity, destination path/parent
 identity, and phase before mutation, then deterministically recovers as
 released, rolled back, or explicit residual truth. Release/remove admission is
 atomic on the same artifact record. Recording startup has a finite generation-
-bound native owner handoff; delayed failure after active evidence still requires
-one settled stop. Stop closes frame admission and
+bound native owner handoff under one absolute native-start/common-media deadline;
+delayed failure after active evidence still requires one settled stop. Output
+registration availability remains distinct from positive-byte first-sample
+truth, and writer-global failure marks every selected track. Stop closes frame admission and
 drains only its pre-boundary set, and terminal success requires a nonzero frame
-count plus a finalized nonempty artifact.
+count plus positive bytes on every selected finalized track and a finalized
+nonempty artifact with the exact selected-track media identity.
 
 ## Disposition ledger
 

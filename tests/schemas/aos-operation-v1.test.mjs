@@ -271,6 +271,18 @@ const videoTrackSummary = {
   },
 };
 
+const audioTrackSummary = {
+  selected_tracks: ['video', 'system_audio'],
+  finalized_tracks: ['video', 'system_audio'],
+  common_media_epoch_ns: 1,
+  video: videoTrackSummary.video,
+  system_audio: {
+    selected: true, admitted: true, available: true, first_sample_present: true,
+    sample_count: 1, sample_byte_count: 100, failure_code: null,
+    drained: true, finalized: true,
+  },
+};
+
 const artifactIdentity = {
   containment_root_digest: SHA_A,
   relative_locator_digest: SHA_B,
@@ -501,7 +513,9 @@ test('tap remains unavailable while artifact roots expose producer custody and t
     target(ARTIFACT_ID, 'artifact_custody_result', { ...releasedArtifactResult, state: 'removed' }, false, 'release must report released'),
     target(ARTIFACT_ID, 'artifact_custody_result', { ...artifactResult, path: undefined }, false, 'reveal requires a path'),
     target(ARTIFACT_ID, 'artifact_custody_result', { ...artifactResult, media_type: 'video/quicktime; codecs=vp09' }, false, 'custody media type and codec are exact'),
+    target(ARTIFACT_ID, 'artifact_custody_result', { ...artifactResult, track_summary: audioTrackSummary }, false, 'AAC summary requires the exact AAC media identity'),
     target(ARTIFACT_ID, 'artifact_snapshot', { ...artifact, identity: { ...artifactIdentity, media_type: 'video/quicktime' } }, false, 'snapshot media type requires the exact avc1 parameter'),
+    target(ARTIFACT_ID, 'artifact_snapshot', { ...artifact, identity: { ...artifactIdentity, track_summary: audioTrackSummary } }, false, 'AAC artifact identity requires the exact AAC media identity'),
     target(
       ARTIFACT_ID,
       null,

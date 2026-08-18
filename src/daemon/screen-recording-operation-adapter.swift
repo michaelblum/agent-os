@@ -244,6 +244,7 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
     private let reconcileHostBarrier: () -> Void
     private let registry: AOSOperationRegistry
     private let sessionFactory: AOSScreenRecordingSessionFactory?
+    private let startupTimeout: TimeInterval
     private var runtimes: [AOSOperationIdentity: AOSScreenRecordingRuntimeControlling] = [:]
 
     static func makeRegistration() throws -> AOSOperationAdapterRegistration {
@@ -270,9 +271,13 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         contextResolver: @escaping ContextResolver,
         files: AOSScreenRecordingFileDependencies = .live,
         sessionFactory: AOSScreenRecordingSessionFactory? = nil,
+        startupTimeout: TimeInterval = aosDesktopPixelStreamRetirementTimeout,
         reconcileHostBarrier: @escaping () -> Void = {}
     ) throws {
-        guard registration == (try Self.makeRegistration()) else {
+        guard registration == (try Self.makeRegistration()),
+              startupTimeout.isFinite,
+              startupTimeout > 0,
+              startupTimeout <= aosDesktopPixelStreamRetirementTimeout else {
             throw AOSOperationCoreError.adapterRegistryConflict
         }
         self.registry = registry
@@ -283,6 +288,7 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         self.files = files
         self.reconcileHostBarrier = reconcileHostBarrier
         self.sessionFactory = sessionFactory
+        self.startupTimeout = startupTimeout
     }
 
     func start(
@@ -305,7 +311,8 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
             geometry: geometry,
             registry: registry,
             request: request,
-            sessionFactory: sessionFactory
+            sessionFactory: sessionFactory,
+            startupTimeout: startupTimeout
         )
         lock.lock()
         runtimes[claimAdmission.publicAdmission.operation] = runtime
@@ -1093,6 +1100,7 @@ final class AOSNativeScreenRecordingRuntime:
     private let registry: AOSOperationRegistry
     private let request: AOSScreenRecordingRequest
     private let sessionFactory: AOSScreenRecordingSessionFactory?
+    private let startupTimeout: TimeInterval
     private var progressTimeline: AOSScreenRecordingProgressTimeline
     private var finishStarted = false
     private var producerLease: AOSDesktopPixelExclusiveProducerLease?
@@ -1112,7 +1120,8 @@ final class AOSNativeScreenRecordingRuntime:
         geometry: AOSScreenRecordingGeometry,
         registry: AOSOperationRegistry,
         request: AOSScreenRecordingRequest,
-        sessionFactory: AOSScreenRecordingSessionFactory? = nil
+        sessionFactory: AOSScreenRecordingSessionFactory? = nil,
+        startupTimeout: TimeInterval = aosDesktopPixelStreamRetirementTimeout
     ) {
         self.adapter = adapter
         self.admission = admission
@@ -1123,6 +1132,7 @@ final class AOSNativeScreenRecordingRuntime:
         self.registry = registry
         self.request = request
         self.sessionFactory = sessionFactory
+        self.startupTimeout = startupTimeout
         self.progressTimeline = AOSScreenRecordingProgressTimeline(
             maximumDurationMilliseconds: request.durationMilliseconds
         )
@@ -1322,10 +1332,12 @@ final class AOSNativeScreenRecordingRuntime:
         let stream = SCStream(filter: filter, configuration: configuration, delegate: output)
         let videoQueue = DispatchQueue(label: "com.aos.screen-recording.video")
         try stream.addStreamOutput(output, type: .screen, sampleHandlerQueue: videoQueue)
+        try encoder.markAvailable(.video)
         if request.tracks.systemAudio {
             let audioQueue = DispatchQueue(label: "com.aos.screen-recording.system-audio")
             do {
                 try stream.addStreamOutput(output, type: .audio, sampleHandlerQueue: audioQueue)
+                try encoder.markAvailable(.systemAudio)
             } catch {
                 throw AOSOperationCoreError.recordingSystemAudioUnavailable
             }
@@ -1349,12 +1361,18 @@ final class AOSNativeScreenRecordingRuntime:
     }
 
     private func startSession(_ session: AOSScreenRecordingNativeSession) async throws {
+        let startedAt = DispatchTime.now().uptimeNanoseconds
+        let budgetNanoseconds = UInt64(startupTimeout * 1_000_000_000)
+        let deadline = startedAt.addingReportingOverflow(budgetNanoseconds)
+        guard !deadline.overflow else {
+            throw AOSOperationCoreError.recordingEncoderFailed
+        }
         let owner: AOSDesktopPixelStartupOwner
         do {
             owner = try await aosStartDesktopPixelStreams(
                 signals: [session.signal],
                 lifecycles: [session.lifecycle],
-                settlementTimeout: aosDesktopPixelStreamRetirementTimeout,
+                settlementTimeout: try remainingStartupTime(until: deadline.partialValue),
                 ownerGeneration: admission.publicAdmission.operation.generation,
                 ownerReady: { [weak self] owner in
                     self?.installStartupOwner(owner)
@@ -1380,25 +1398,32 @@ final class AOSNativeScreenRecordingRuntime:
         }
         installStartupOwner(owner)
         if request.tracks.systemAudio {
-            let timeoutNanoseconds = UInt64(
-                aosDesktopPixelStreamRetirementTimeout * 1_000_000_000
-            )
-            let startedAt = DispatchTime.now().uptimeNanoseconds
             while !session.encoder.progress.sessionStarted {
                 try requireStartupNotCancelled()
-                let now = DispatchTime.now().uptimeNanoseconds
-                guard now >= startedAt,
-                      now - startedAt < timeoutNanoseconds else {
+                let remaining: TimeInterval
+                do {
+                    remaining = try remainingStartupTime(until: deadline.partialValue)
+                } catch {
                     let summary = session.encoder.progress.trackSummary
                     if !summary.systemAudio.firstSamplePresent {
                         throw AOSOperationCoreError.recordingSystemAudioNoSamples
                     }
                     throw AOSOperationCoreError.recordingNoFrames
                 }
-                try await Task.sleep(nanoseconds: 1_000_000)
+                try await Task.sleep(
+                    nanoseconds: min(1_000_000, UInt64(remaining * 1_000_000_000))
+                )
             }
         }
         try requireStartupNotCancelled()
+    }
+
+    private func remainingStartupTime(until deadline: UInt64) throws -> TimeInterval {
+        let now = DispatchTime.now().uptimeNanoseconds
+        guard now < deadline else {
+            throw AOSDesktopPixelStreamLifecycleFailure.startupDeadlineExceeded
+        }
+        return TimeInterval(deadline - now) / 1_000_000_000
     }
 
     private func finish(intent: AOSStopIntent) async {

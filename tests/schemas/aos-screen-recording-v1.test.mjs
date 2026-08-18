@@ -77,6 +77,19 @@ const trackSummary = (systemAudio, overrides = {}) => ({
   ...overrides,
 })
 
+const successfulTrackSummary = (systemAudio) => trackSummary(systemAudio, {
+  finalized_tracks: systemAudio ? ['video', 'system_audio'] : ['video'],
+  common_media_epoch_ns: 1_000_000,
+  video: trackTruth(true, {
+    available: true, first_sample_present: true, sample_count: 3,
+    sample_byte_count: 300, drained: true, finalized: true,
+  }),
+  system_audio: trackTruth(systemAudio, systemAudio ? {
+    available: true, first_sample_present: true, sample_count: 5,
+    sample_byte_count: 500, drained: true, finalized: true,
+  } : {}),
+})
+
 test('screen-recording schema accepts exact fixed video-only and optional-system-audio shapes', () => {
   assert.deepEqual(validate('request', base), [])
   assert.deepEqual(validate('request', {
@@ -96,6 +109,10 @@ test('screen-recording schema accepts exact fixed video-only and optional-system
     container: 'quicktime',
   }
   assert.deepEqual(validate('admission_result', admission), [])
+  assert.ok(validate('admission_result', {
+    ...admission,
+    tracks: { ...base.tracks, system_audio: true },
+  }).length > 0)
 })
 
 test('screen-recording schema rejects microphone, implicit or malformed tracks, follow extras, and bounds breaches', () => {
@@ -122,7 +139,10 @@ test('screen-recording schema rejects microphone, implicit or malformed tracks, 
 test('track summaries are closed and independently bind selection, samples, failures, drain, and finalization', () => {
   assert.deepEqual(validate('track_summary', trackSummary(false)), [])
   assert.deepEqual(validate('track_summary', trackSummary(true, {
-    video: trackTruth(true, { available: true, first_sample_present: true }),
+    video: trackTruth(true, {
+      available: true, first_sample_present: true,
+      sample_count: 1, sample_byte_count: 100,
+    }),
   })), [])
   assert.deepEqual(validate('track_summary', trackSummary(true, {
     finalized_tracks: ['video', 'system_audio'],
@@ -150,9 +170,60 @@ test('track summaries are closed and independently bind selection, samples, fail
       ...trackSummary(true),
       system_audio: { ...trackTruth(true), selected: false, admitted: false, finalized: true },
     },
+    {
+      ...trackSummary(false),
+      system_audio: { ...trackTruth(false), available: true },
+    },
     { ...trackSummary(true), system_audio: { ...trackTruth(true), failure_code: 'private detail' } },
   ]
   for (const value of invalid) assert.ok(validate('track_summary', value).length > 0)
+})
+
+test('successful results bind request tracks, nonempty finalized truth, and artifact presence', () => {
+  const completion = {
+    schema_version: 'aos.screen-recording.result.v1',
+    operation: { operation_id: 'operation-1', operation_generation: 1 },
+    artifact: { artifact_id: 'artifact-1', artifact_generation: 2 },
+    outcome: 'succeeded',
+    frame_count: 3,
+    byte_count: 800,
+    duration_ms: 1_000,
+    tracks: base.tracks,
+    track_summary: successfulTrackSummary(false),
+    codec: 'h264',
+    container: 'quicktime',
+    cleanup_result: 'zero_residuals',
+  }
+  assert.deepEqual(validate('completion_result', completion), [])
+  const invalid = [
+    { ...completion, artifact: null },
+    {
+      ...completion,
+      tracks: { ...base.tracks, system_audio: true },
+    },
+    {
+      ...completion,
+      track_summary: {
+        ...successfulTrackSummary(false),
+        video: {
+          ...successfulTrackSummary(false).video,
+          sample_byte_count: 0,
+        },
+      },
+    },
+    {
+      ...completion,
+      tracks: { ...base.tracks, system_audio: true },
+      track_summary: {
+        ...successfulTrackSummary(true),
+        system_audio: {
+          ...successfulTrackSummary(true).system_audio,
+          sample_byte_count: 0,
+        },
+      },
+    },
+  ]
+  for (const value of invalid) assert.ok(validate('completion_result', value).length > 0)
 })
 
 test('display, window, and single-display global region are the complete target set', () => {
