@@ -165,18 +165,24 @@ redaction, persistence, and GPU delivery belong to downstream adapters.
 recording producer. It acquires the exact exclusive operation resource and
 broker producer lease before ScreenCaptureKit/file authority, then records one
 fixed display, exact window, or single-display global region as H.264 QuickTime
-video. It retains and revalidates the exact admitted canonical topology before
-filter creation and every frame. Its closed track contract is video-only: system
-audio and microphone are false, and it never follows geometry after admission.
+video with explicitly optional AAC-LC system audio in one writer and one
+SCStream. It retains and revalidates the exact admitted canonical topology
+before filter creation and every sample. Video is mandatory, omitted system
+audio preserves exact video-only output, microphone is rejected, and geometry
+never follows after admission. A bounded either-arrival-order barrier starts
+both selected tracks at one earliest media epoch. Each track owns independent
+selected, admitted, available, sample, failure, drain, and finalized truth;
+selected audio unavailable, no-sample, or failure cannot silently succeed.
 Media duration spans capture-start through stop admission only, and nonzero
-frame/byte progress plus terminal progress persist durably. A finite startup
+frame/byte progress plus content-free per-track progress persist durably. A finite startup
 deadline hands off the generation-bound native owner before any start request;
 callback loss, startup stop, or cancellation retains that owner until native
 retirement is proven. First-frame evidence remains active even if its delayed
 start callback fails, so exactly one stop must settle before authority release.
-Stop atomically closes frame admission, drains only
-already-admitted frames, and requires at least one frame plus a finalized,
-nonempty artifact before success. Stop, failure, and boot recovery must settle
+Stop atomically closes sample admission, drains only already-admitted video and
+audio samples, finishes both selected writer inputs and the writer exactly once,
+and requires successful selected-track truth plus a finalized, nonempty artifact
+before success. Stop, failure, and boot recovery must settle
 stream authority, drain or cancel the writer, release the broker and operation
 claim, and remove any unoffered file before terminalizing.
 Offered artifacts support owner- and generation-bound reveal, remove, and
@@ -184,7 +190,8 @@ same-volume no-overwrite release; release persists the exact generation,
 source, destination, and phase before mutation and recovery resolves only to
 released, rolled back, or explicit residual truth. Release and remove admission
 CAS the same offered artifact; no generic transition may clear a live release.
-Retain is typed unavailable.
+Retain is typed unavailable. Artifact identity and every custody result bind
+the exact selected-track summary.
 Every artifact action is decoded against its action-specific exact key and type
 set before registry or custody effects. Offline schema, an executable compiled
 production-owner lifecycle/custody harness with fake dependencies, and native

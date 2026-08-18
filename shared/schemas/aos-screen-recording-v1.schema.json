@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json",
-  "title": "AOS fixed video-only screen recording v1",
+  "title": "AOS fixed screen recording with optional system audio v1",
   "oneOf": [
     {"$ref": "#/$defs/request"},
     {"$ref": "#/$defs/admission_result"},
@@ -18,9 +18,141 @@
       "required": ["video", "system_audio", "microphone"],
       "properties": {
         "video": {"const": true},
-        "system_audio": {"const": false},
+        "system_audio": {"type": "boolean"},
         "microphone": {"const": false}
       },
+      "additionalProperties": false
+    },
+    "track_name": {"enum": ["video", "system_audio"]},
+    "track_truth": {
+      "type": "object",
+      "required": [
+        "selected", "admitted", "available", "first_sample_present",
+        "sample_count", "sample_byte_count", "failure_code", "drained", "finalized"
+      ],
+      "properties": {
+        "selected": {"type": "boolean"},
+        "admitted": {"type": "boolean"},
+        "available": {"type": "boolean"},
+        "first_sample_present": {"type": "boolean"},
+        "sample_count": {"$ref": "#/$defs/count"},
+        "sample_byte_count": {"$ref": "#/$defs/count"},
+        "failure_code": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Z][A-Z0-9_]*$"}
+          ]
+        },
+        "drained": {"type": "boolean"},
+        "finalized": {"type": "boolean"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"first_sample_present": {"const": true}}},
+          "then": {
+            "properties": {
+              "available": {"const": true}
+            }
+          },
+          "else": {
+            "properties": {
+              "sample_count": {"const": 0},
+              "sample_byte_count": {"const": 0}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"finalized": {"const": true}}},
+          "then": {"properties": {"drained": {"const": true}}}
+        }
+      ],
+      "additionalProperties": false
+    },
+    "selected_track_set": {
+      "oneOf": [
+        {"const": ["video"]},
+        {"const": ["video", "system_audio"]}
+      ]
+    },
+    "track_set": {
+      "oneOf": [
+        {"const": []},
+        {"const": ["video"]},
+        {"const": ["video", "system_audio"]}
+      ]
+    },
+    "track_summary": {
+      "type": "object",
+      "required": [
+        "selected_tracks", "finalized_tracks", "common_media_epoch_ns",
+        "video", "system_audio"
+      ],
+      "properties": {
+        "selected_tracks": {"$ref": "#/$defs/selected_track_set"},
+        "finalized_tracks": {"$ref": "#/$defs/track_set"},
+        "common_media_epoch_ns": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/$defs/count"}]
+        },
+        "video": {"$ref": "#/$defs/track_truth"},
+        "system_audio": {"$ref": "#/$defs/track_truth"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"selected_tracks": {"const": ["video"]}}},
+          "then": {
+            "properties": {
+              "finalized_tracks": {"enum": [[], ["video"]]},
+              "video": {"properties": {"selected": {"const": true}, "admitted": {"const": true}}},
+              "system_audio": {
+                "properties": {
+                  "selected": {"const": false},
+                  "admitted": {"const": false},
+                  "finalized": {"const": true}
+                }
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "video": {"properties": {"selected": {"const": true}, "admitted": {"const": true}}},
+              "system_audio": {"properties": {"selected": {"const": true}, "admitted": {"const": true}}}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"finalized_tracks": {"const": []}}},
+          "then": {
+            "properties": {
+              "video": {"properties": {"finalized": {"const": false}}},
+              "system_audio": {
+                "if": {"properties": {"selected": {"const": true}}},
+                "then": {"properties": {"finalized": {"const": false}}}
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"finalized_tracks": {"const": ["video"]}}},
+          "then": {
+            "properties": {
+              "video": {"properties": {"finalized": {"const": true}}},
+              "system_audio": {
+                "if": {"properties": {"selected": {"const": true}}},
+                "then": {"properties": {"finalized": {"const": false}}}
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"finalized_tracks": {"const": ["video", "system_audio"]}}},
+          "then": {
+            "properties": {
+              "video": {"properties": {"finalized": {"const": true}}},
+              "system_audio": {"properties": {"finalized": {"const": true}}}
+            }
+          }
+        }
+      ],
       "additionalProperties": false
     },
     "bounds": {
@@ -127,7 +259,7 @@
       "type": "object",
       "required": [
         "schema_version", "operation", "stream", "artifact", "daemon_generation",
-        "geometry_binding_digest", "tracks", "codec", "container"
+        "geometry_binding_digest", "tracks", "track_summary", "codec", "container"
       ],
       "properties": {
         "schema_version": {"const": "aos.screen-recording.admission-result.v1"},
@@ -137,6 +269,7 @@
         "daemon_generation": {"$ref": "#/$defs/generation"},
         "geometry_binding_digest": {"$ref": "#/$defs/sha256"},
         "tracks": {"$ref": "#/$defs/tracks"},
+        "track_summary": {"$ref": "#/$defs/track_summary"},
         "codec": {"const": "h264"},
         "container": {"const": "quicktime"}
       },
@@ -146,7 +279,7 @@
       "type": "object",
       "required": [
         "schema_version", "operation", "frame_count", "byte_count", "elapsed_ms",
-        "dropped_frame_count", "tracks"
+        "dropped_frame_count", "tracks", "track_summary"
       ],
       "properties": {
         "schema_version": {"const": "aos.screen-recording.progress.v1"},
@@ -155,7 +288,8 @@
         "byte_count": {"$ref": "#/$defs/count"},
         "elapsed_ms": {"$ref": "#/$defs/count"},
         "dropped_frame_count": {"const": 0},
-        "tracks": {"$ref": "#/$defs/tracks"}
+        "tracks": {"$ref": "#/$defs/tracks"},
+        "track_summary": {"$ref": "#/$defs/track_summary"}
       },
       "additionalProperties": false
     },
@@ -163,7 +297,7 @@
       "type": "object",
       "required": [
         "schema_version", "operation", "artifact", "outcome", "frame_count", "byte_count",
-        "duration_ms", "tracks", "codec", "container", "cleanup_result"
+        "duration_ms", "tracks", "track_summary", "codec", "container", "cleanup_result"
       ],
       "properties": {
         "schema_version": {"const": "aos.screen-recording.result.v1"},
@@ -174,6 +308,7 @@
         "byte_count": {"$ref": "#/$defs/count"},
         "duration_ms": {"$ref": "#/$defs/count"},
         "tracks": {"$ref": "#/$defs/tracks"},
+        "track_summary": {"$ref": "#/$defs/track_summary"},
         "codec": {"const": "h264"},
         "container": {"const": "quicktime"},
         "cleanup_result": {"enum": ["zero_residuals", "residuals_present"]}

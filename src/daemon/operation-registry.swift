@@ -174,6 +174,7 @@ final class AOSOperationRegistry {
                 state: .prepared,
                 stopIntent: nil,
                 outcome: nil,
+                failureCode: nil,
                 residualDigest: nil,
                 requestedBounds: requestedBounds,
                 progress: requestedBounds.map { _ in AOSOperationProgress(
@@ -256,7 +257,10 @@ final class AOSOperationRegistry {
         }
     }
 
-    func prepareArtifact(parent: AOSOperationIdentity) throws -> AOSArtifactRecord {
+    func prepareArtifact(
+        parent: AOSOperationIdentity,
+        trackSummary: AOSScreenRecordingTrackSummary? = nil
+    ) throws -> AOSArtifactRecord {
         let now = clock()
         return try mutateDurably { state in
             guard let operation = state.operations.first(where: { $0.identity == parent }),
@@ -272,6 +276,7 @@ final class AOSOperationRegistry {
                 recoveryDisposition: nil,
                 custodyDigest: nil,
                 fileIdentity: nil,
+                trackSummary: trackSummary,
                 pendingAction: nil,
                 release: nil,
                 custodyReceipt: nil,
@@ -286,6 +291,7 @@ final class AOSOperationRegistry {
         _ identity: AOSOperationIdentity,
         state newState: AOSArtifactLifecycleState,
         fileIdentity: AOSArtifactFileIdentity? = nil,
+        trackSummary: AOSScreenRecordingTrackSummary? = nil,
         pendingAction: AOSArtifactPendingAction? = nil,
         custodyReceipt: AOSArtifactCustodyReceipt? = nil,
         custodyDigest: String? = nil
@@ -301,6 +307,7 @@ final class AOSOperationRegistry {
             }
             durable.artifacts[index].state = newState
             if let fileIdentity { durable.artifacts[index].fileIdentity = fileIdentity }
+            if let trackSummary { durable.artifacts[index].trackSummary = trackSummary }
             durable.artifacts[index].pendingAction = pendingAction
             if let custodyReceipt { durable.artifacts[index].custodyReceipt = custodyReceipt }
             if let custodyDigest { durable.artifacts[index].custodyDigest = custodyDigest }
@@ -464,7 +471,8 @@ final class AOSOperationRegistry {
     func terminalizeOperationAfterVerifiedCleanup(
         _ identity: AOSOperationIdentity,
         stopIntent: AOSStopIntent?,
-        outcome: AOSOperationOutcome
+        outcome: AOSOperationOutcome,
+        failureCode: String? = nil
     ) throws -> AOSOperationRecord {
         let now = clock()
         return try mutateDurably { state in
@@ -481,6 +489,7 @@ final class AOSOperationRegistry {
             state.operations[index].state = .terminal
             if let stopIntent { state.operations[index].stopIntent = stopIntent }
             state.operations[index].outcome = outcome
+            state.operations[index].failureCode = failureCode
             state.operations[index].residualDigest = nil
             state.operations[index].updatedAtNanoseconds = now
             return state.operations[index]

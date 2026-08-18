@@ -21,6 +21,10 @@ const schemas = Object.fromEntries(schemaNames.map((name) => {
   const schema = JSON.parse(fs.readFileSync(path.join(schemaDirectory, name), 'utf8'));
   return [schema.$id, schema];
 }));
+const recordingSchema = JSON.parse(fs.readFileSync(
+  path.join(schemaDirectory, 'aos-screen-recording-v1.schema.json'),
+  'utf8',
+));
 const ids = Object.keys(schemas);
 const byName = Object.fromEntries(schemaNames.map((name) => [
   name,
@@ -74,7 +78,7 @@ function validateCases(cases) {
   const result = spawnSync('python3', ['-c', pythonValidator], {
     cwd: repoRoot,
     encoding: 'utf8',
-    input: JSON.stringify({ schemas: Object.values(schemas), cases }),
+    input: JSON.stringify({ schemas: [...Object.values(schemas), recordingSchema], cases }),
     timeout: 20_000,
   });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
@@ -251,6 +255,22 @@ const tap = {
   updated_at: TIMESTAMP,
 };
 
+const videoTrackSummary = {
+  selected_tracks: ['video'],
+  finalized_tracks: ['video'],
+  common_media_epoch_ns: 1,
+  video: {
+    selected: true, admitted: true, available: true, first_sample_present: true,
+    sample_count: 1, sample_byte_count: 100, failure_code: null,
+    drained: true, finalized: true,
+  },
+  system_audio: {
+    selected: false, admitted: false, available: false, first_sample_present: false,
+    sample_count: 0, sample_byte_count: 0, failure_code: null,
+    drained: true, finalized: true,
+  },
+};
+
 const artifactIdentity = {
   containment_root_digest: SHA_A,
   relative_locator_digest: SHA_B,
@@ -259,6 +279,7 @@ const artifactIdentity = {
   size_bytes: 100,
   content_digest: SHA_C,
   media_type: 'video/quicktime; codecs=avc1',
+  track_summary: videoTrackSummary,
 };
 
 const artifact = {
@@ -450,6 +471,7 @@ test('tap remains unavailable while artifact roots expose producer custody and t
     byte_count: 100,
     content_digest: SHA_A,
     media_type: 'video/quicktime; codecs=avc1',
+    track_summary: videoTrackSummary,
     path: '/private/tmp/artifact.mov',
   };
   const removedArtifactResult = {

@@ -396,7 +396,7 @@
     },
     {
       "id": "screen-recording",
-      "summary": "Fixed video-only screen-recording producer, contract, custody, command, or proof changed.",
+      "summary": "Fixed mandatory-video and optional-system-audio screen-recording producer, contract, custody, command, or proof changed.",
       "patterns": [
         "src/commands/record.swift",
         "src/daemon/screen-recording-*.swift",
@@ -416,7 +416,7 @@
         {
           "id": "screen-recording-contract",
           "command": "bash tests/native-screen-recording-contract.sh",
-          "reason": "Validate exact video-only bounds, fixed geometry, durable lifecycle, custody, source/help/schema convergence, and native compile without capture authority."
+          "reason": "Validate mandatory-video and optional-system-audio bounds, common-epoch multitrack coordination, fixed geometry, durable lifecycle, track-bound custody, source/help/schema convergence, and native compile without capture authority."
         }
       ],
       "verification": [],

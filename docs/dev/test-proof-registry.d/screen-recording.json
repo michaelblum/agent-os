@@ -1,7 +1,7 @@
 {
   "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
   "schema_version": 1,
-  "summary": "Proof-worth entries for the bounded fixed video-only recording producer.",
+  "summary": "Proof-worth entries for the bounded fixed recording producer with optional system audio.",
   "entries": [
     {
       "id": "screen-recording-producer-proof",
@@ -19,12 +19,12 @@
       "fixture_patterns": [],
       "owner": "operation-control",
       "harness_level": "model_unit",
-      "proof_kind": "fixed_video_screen_recording_contract",
-      "contract": "One exact fixed display, window, or single-display global region retains its admitted canonical topology before an H.264 QuickTime video-only producer acquires native or file authority and before every admitted frame. A finite generation-bound startup owner survives callback loss, stop, cancellation, retirement timeout, false settlement, and delayed start failure after active evidence; stop closes frame admission and drains its pre-boundary set; success requires a nonzero frame count and finalized nonempty artifact; exact artifact-action decoding precedes effects; and atomic release/remove admission plus a durable exact-identity release phase recover only to released, rolled back, or explicit residual truth.",
-      "worth": "This catches topology scale, rotation, or peer drift; startup callback loss and cancellation authority leaks; post-stop frame admission; false zero-frame or missing-artifact success; release fault-phase ambiguity and cleanup residue; Boolean, fractional, overflow, malformed-identifier, extra-key, wrong-type, or oversized-destination admission; suppressed progress-save failures; audio widening; help/schema drift; and native type errors without acquiring Screen Recording permission or recording pixels.",
+      "proof_kind": "fixed_multitrack_screen_recording_contract",
+      "contract": "One exact fixed display, window, or single-display global region retains its admitted canonical topology before one H.264 plus explicitly optional AAC-LC system-audio QuickTime producer acquires native or file authority and before every admitted sample. Video is mandatory, microphone and follow remain rejected, omission is exact video-only, and selected tracks start at one bounded common epoch under either arrival order. Each track preserves independent monotonic sample, failure, drain, and finalization truth through operation result, artifact identity, and custody. A finite generation-bound startup owner survives callback loss, stop, cancellation, retirement timeout, false settlement, and delayed start failure after active evidence; stop closes sample admission and drains its pre-boundary set; success requires selected-track samples and a finalized nonempty artifact; exact artifact-action decoding precedes effects; and atomic release/remove admission plus a durable exact-identity release phase recover only to released, rolled back, or explicit residual truth.",
+      "worth": "This catches topology scale, rotation, or peer drift; startup callback loss and cancellation authority leaks; audio-first or video-first epoch divergence; nonmonotonic timestamps; unbounded backpressure; silent selected-audio omission; post-stop sample admission; false zero-frame or missing-artifact success; release fault-phase ambiguity and cleanup residue; Boolean, fractional, overflow, malformed-identifier, extra-key, wrong-type, or oversized-destination admission; suppressed progress-save failures; track-summary drift; help/schema drift; and native type errors without acquiring Screen Recording permission or recording pixels or audio.",
       "command": "bash tests/native-screen-recording-contract.sh",
       "replaces": [],
-      "guard": "schema and static source checks; an executable deterministic compiled harness runs the production recording adapter, registry, in-memory store, lifecycle, frame-admission, terminal-truth, custody coordinator, and boot recovery with fake clock, native session, encoder/file, and broker dependencies; runtime custody-schema validation; and whole-source Swift compile only. ScreenCaptureKit, AVAssetWriter, filesystem effects, daemon, raw repo build, native UI, TCC, pixels, and media do not execute",
+      "guard": "schema and static source checks; an executable deterministic compiled harness runs the production recording adapter, registry, in-memory store, lifecycle, sample admission, multitrack coordinator, terminal truth, custody coordinator, and boot recovery with fake clock, video/audio callbacks, writer inputs/file, native session, and broker dependencies; runtime custody-schema validation; and whole-source Swift compile only. ScreenCaptureKit, AVAssetWriter, filesystem effects, daemon, raw repo build, native UI, TCC, pixels, audio, and media do not execute",
       "status": "active"
     }
   ]

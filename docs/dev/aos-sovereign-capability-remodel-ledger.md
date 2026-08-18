@@ -2,8 +2,8 @@
 
 Program: `aos-sovereign-capability-substrate-v1`
 
-Status: Milestone 2 executable control plane plus bounded M3A fixed video-only
-recording candidate against accepted authority commit
+Status: Milestone 2 executable control plane plus bounded M3A fixed video and
+M3B optional system-audio recording candidate against accepted authority commit
 `59074238c2c4c43051c7461a6e36487e8914f4a6`.
 
 Canonical target authority is
@@ -31,8 +31,9 @@ state is `landed` at reviewed Sigil revision
 `227382c1bcbdab56f551a85a69b0609eebbdfa0c`; the path is external metadata,
 not an AOS-local repository path. The AOS-first paired publication sequence is
 complete. The operation plane currently registers microphone plus the bounded
-M3A fixed display/window/region video-only adapter. It does not implement system
-audio, recording microphone tracks, followed geometry, full M3, M6 SDK, M7
+M3A/M3B fixed display/window/region adapter with mandatory video and optional
+system audio. It does not implement recording microphone tracks, followed
+geometry, full M3, M6 SDK, M7
 managed-tool, or Sigil workflow capabilities.
 
 ## Milestone 1 capability ledger
@@ -300,8 +301,9 @@ burn-down entry only when its exit gate is met.
 5. M2 adapts the existing microphone owner to authenticated peer identity and
    the shared operation registry/control plane; ships daemon IPC and CLI,
    internal status break-glass, and internal Canvas control; and leaves public
-   SDK projections for M6. M3A adds fixed H.264 QuickTime screen video without
-   audio or followed geometry; later M3 work adds remaining recording tracks;
+   SDK projections for M6. M3A adds fixed H.264 QuickTime screen video; M3B adds
+   optional AAC-LC system audio to the same operation, writer, and artifact;
+   later M3 work adds microphone tracks and followed geometry;
    M4 completes AX and input surfaces; M5 unifies privileged streams; M6
    publishes canonical protocols and maintained SDKs; M7 exposes managed
    external tools; M8 converges installable skills; M9 composes Sigil flagship
@@ -314,14 +316,16 @@ burn-down entry only when its exit gate is met.
 ## Publication and preservation boundary
 
 Milestone 2 publishes the operation registry, operation CLI/IPC,
-status/Canvas projections, and microphone adapter described above. M3A adds the
-bounded fixed video-only producer and producer-backed recording artifact
-custody. It does not publish audio tracks, followed geometry, full M3, full
+status/Canvas projections, and microphone adapter described above. M3A/M3B add
+the bounded fixed mandatory-video/optional-system-audio producer and
+producer-backed recording artifact custody. It does not publish microphone
+tracks, followed geometry, full M3, full
 Playwright grammar, a public SDK, or changed TCC policy. Pre-0044 ADR bodies,
 archives, reports, the frozen v0 schema, and frozen fixtures remain unchanged.
 The deterministic recording proof executes the compiled production adapter,
-registry, in-memory durable store, lifecycle/frame admission, terminal truth,
-custody coordinator, and boot recovery with injected fake dependencies. Native
+registry, in-memory durable store, lifecycle/sample admission, multitrack
+coordination, terminal truth, custody coordinator, and boot recovery with
+injected fake dependencies. Native
 capture/writer, filesystem effects, daemon, TCC, MOV, and crash acceptance
 remain separately gated.
 

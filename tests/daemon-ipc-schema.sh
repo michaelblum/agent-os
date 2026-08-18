@@ -171,6 +171,7 @@ good_requests = [
     {"v":1,"service":"operation","action":"cancel","data":{**operation_request,"selector":operation_selector}},
     {"v":1,"service":"operation","action":"kill_owner","data":{**operation_request,"filters":{"agent_id":"agent-1","project_id":"project-1"}}},
     {"v":1,"service":"operation","action":"record_screen","data":screen_recording_request},
+    {"v":1,"service":"operation","action":"record_screen","data":{**screen_recording_request,"tracks":{"video":True,"system_audio":True,"microphone":False}}},
     {"v":1,"service":"operation","action":"tap","data":operation_request},
     {"v":1,"service":"operation","action":"artifact_reveal","data":{**operation_request,"selector":artifact_selector}},
     {"v":1,"service":"operation","action":"artifact_remove","data":{**operation_request,"selector":artifact_selector}},
@@ -243,7 +244,8 @@ bad_requests = [
     {"v":1,"service":"operation","action":"artifact_release","data":{**operation_request,"selector":artifact_selector}},  # release requires a destination
     {"v":1,"service":"operation","action":"artifact_release","data":{**operation_request,"selector":artifact_selector,"destination":"/private/tmp/x.mov","extra":True}},  # release data is closed
     {"v":1,"service":"operation","action":"artifact_release","data":{**operation_request,"selector":artifact_selector,"destination":7}},  # release destination type is exact
-    {"v":1,"service":"operation","action":"record_screen","data":{**screen_recording_request,"tracks":{"video":True,"system_audio":True,"microphone":False}}},  # audio tracks are closed off
+    {"v":1,"service":"operation","action":"record_screen","data":{**screen_recording_request,"tracks":{"video":True,"system_audio":False,"microphone":True}}},  # microphone remains structurally rejected
+    {"v":1,"service":"operation","action":"record_screen","data":{**screen_recording_request,"tracks":{"video":True,"system_audio":"yes","microphone":False}}},  # system audio selection is exact Boolean
     {"v":1,"service":"operation","action":"stop_all","data":{**operation_request,"schema_version":"aos.host-stop-barrier.stop-all-request.v1","action":"stop_all"}},  # stop-all requires exact barrier CAS
     {"v":1,"service":"operation","action":"barrier_status","data":{**operation_request,"schema_version":"aos.host-stop-barrier.status-request.v1","action":"barrier_status","caller_origin":"status_item_host"}},  # origin evidence is server-attached
     {"v":1,"service":"operation","action":"recent","data":{**operation_request,"task_id":"task-1"}},  # filters are a closed nested object

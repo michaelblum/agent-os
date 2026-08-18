@@ -86,7 +86,8 @@
         "items": {"$ref": "#/$defs/nonnegative_integer"},
         "bytes": {"$ref": "#/$defs/nonnegative_integer"},
         "duration_ms": {"$ref": "#/$defs/nonnegative_integer"},
-        "last_event_sequence": {"$ref": "#/$defs/nonnegative_integer"}
+        "last_event_sequence": {"$ref": "#/$defs/nonnegative_integer"},
+        "track_summary": {"$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/track_summary"}
       },
       "additionalProperties": false
     },
@@ -171,7 +172,19 @@
           "enum": ["caller", "adapter", "aos_control_plane", "platform", "permission", "external_tool", "host_shutdown", "unknown"]
         },
         "duration_ms": {"$ref": "#/$defs/nonnegative_integer"},
-        "completed_at": {"$ref": "#/$defs/timestamp"}
+        "completed_at": {"$ref": "#/$defs/timestamp"},
+        "failure_code": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Z][A-Z0-9_]*$"}
+          ]
+        },
+        "track_summary": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/track_summary"}
+          ]
+        }
       },
       "additionalProperties": false
     },

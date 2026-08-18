@@ -35,6 +35,11 @@ enum AOSOperationCoreError: Error, Equatable, CustomStringConvertible {
     case recordingTargetDrift
     case recordingStartupDeadlineExceeded
     case recordingNoFrames
+    case recordingSystemAudioUnavailable
+    case recordingSystemAudioNoSamples
+    case recordingSystemAudioFailed
+    case recordingTimestampNonMonotonic
+    case recordingBackpressureExceeded
     case recordingArtifactMissing
     case recordingEncoderFailed
     case recordingCleanupRequired
@@ -73,6 +78,11 @@ enum AOSOperationCoreError: Error, Equatable, CustomStringConvertible {
         case .recordingTargetDrift: return "SCREEN_RECORDING_TARGET_DRIFT"
         case .recordingStartupDeadlineExceeded: return "SCREEN_RECORDING_STARTUP_DEADLINE_EXCEEDED"
         case .recordingNoFrames: return "SCREEN_RECORDING_NO_FRAMES"
+        case .recordingSystemAudioUnavailable: return "SCREEN_RECORDING_SYSTEM_AUDIO_UNAVAILABLE"
+        case .recordingSystemAudioNoSamples: return "SCREEN_RECORDING_SYSTEM_AUDIO_NO_SAMPLES"
+        case .recordingSystemAudioFailed: return "SCREEN_RECORDING_SYSTEM_AUDIO_FAILED"
+        case .recordingTimestampNonMonotonic: return "SCREEN_RECORDING_TIMESTAMP_NON_MONOTONIC"
+        case .recordingBackpressureExceeded: return "SCREEN_RECORDING_BACKPRESSURE_EXCEEDED"
         case .recordingArtifactMissing: return "SCREEN_RECORDING_ARTIFACT_MISSING"
         case .recordingEncoderFailed: return "SCREEN_RECORDING_ENCODER_FAILED"
         case .recordingCleanupRequired: return "SCREEN_RECORDING_CLEANUP_REQUIRED"
@@ -462,6 +472,7 @@ struct AOSOperationRecord: Codable, Equatable {
     var state: AOSOperationLifecycleState
     var stopIntent: AOSStopIntent?
     var outcome: AOSOperationOutcome?
+    var failureCode: String?
     var residualDigest: String?
     var requestedBounds: AOSOperationRequestedBounds?
     var progress: AOSOperationProgress?
@@ -515,6 +526,112 @@ struct AOSOperationProgress: Codable, Equatable {
     var byteCount: UInt64
     var elapsedMilliseconds: UInt64
     var droppedFrameCount: UInt64
+    var trackSummary: AOSScreenRecordingTrackSummary?
+
+    init(
+        frameCount: UInt64,
+        byteCount: UInt64,
+        elapsedMilliseconds: UInt64,
+        droppedFrameCount: UInt64,
+        trackSummary: AOSScreenRecordingTrackSummary? = nil
+    ) {
+        self.frameCount = frameCount
+        self.byteCount = byteCount
+        self.elapsedMilliseconds = elapsedMilliseconds
+        self.droppedFrameCount = droppedFrameCount
+        self.trackSummary = trackSummary
+    }
+}
+
+enum AOSScreenRecordingTrackKind: String, Codable, CaseIterable {
+    case video
+    case systemAudio = "system_audio"
+}
+
+struct AOSScreenRecordingTrackTruth: Codable, Equatable {
+    let selected: Bool
+    let admitted: Bool
+    let available: Bool
+    let firstSamplePresent: Bool
+    let sampleCount: UInt64
+    let sampleByteCount: UInt64
+    let failureCode: String?
+    let drained: Bool
+    let finalized: Bool
+}
+
+struct AOSScreenRecordingTrackSummary: Codable, Equatable {
+    let selectedTracks: [String]
+    let finalizedTracks: [String]
+    let commonMediaEpochNanoseconds: UInt64?
+    let video: AOSScreenRecordingTrackTruth
+    let systemAudio: AOSScreenRecordingTrackTruth
+
+    static func initial(systemAudioSelected: Bool) -> Self {
+        let pending = AOSScreenRecordingTrackTruth(
+            selected: true,
+            admitted: true,
+            available: false,
+            firstSamplePresent: false,
+            sampleCount: 0,
+            sampleByteCount: 0,
+            failureCode: nil,
+            drained: false,
+            finalized: false
+        )
+        return Self(
+            selectedTracks: systemAudioSelected ? ["video", "system_audio"] : ["video"],
+            finalizedTracks: [],
+            commonMediaEpochNanoseconds: nil,
+            video: pending,
+            systemAudio: AOSScreenRecordingTrackTruth(
+                selected: systemAudioSelected,
+                admitted: systemAudioSelected,
+                available: false,
+                firstSamplePresent: false,
+                sampleCount: 0,
+                sampleByteCount: 0,
+                failureCode: nil,
+                drained: !systemAudioSelected,
+                finalized: !systemAudioSelected
+            )
+        )
+    }
+
+    var selectedSystemAudio: Bool { systemAudio.selected }
+
+    var isSuccessful: Bool {
+        selectedTracks == (systemAudio.selected ? ["video", "system_audio"] : ["video"])
+            && commonMediaEpochNanoseconds != nil
+            && video.selected
+            && video.admitted
+            && video.available
+            && video.firstSamplePresent
+            && video.sampleCount > 0
+            && video.failureCode == nil
+            && video.drained
+            && video.finalized
+            && (!systemAudio.selected || (
+                systemAudio.admitted
+                    && systemAudio.available
+                    && systemAudio.firstSamplePresent
+                    && systemAudio.sampleCount > 0
+                    && systemAudio.failureCode == nil
+                    && systemAudio.drained
+                    && systemAudio.finalized
+            ))
+            && (systemAudio.selected || (
+                !systemAudio.admitted
+                    && !systemAudio.available
+                    && !systemAudio.firstSamplePresent
+                    && systemAudio.sampleCount == 0
+                    && systemAudio.sampleByteCount == 0
+                    && systemAudio.failureCode == nil
+                    && systemAudio.drained
+                    && systemAudio.finalized
+            ))
+            && finalizedTracks == selectedTracks
+    }
 }
 
 enum AOSArtifactPendingAction: String, Codable {
@@ -529,6 +646,27 @@ struct AOSArtifactFileIdentity: Codable, Equatable {
     let byteCount: UInt64
     let contentDigest: String
     let mediaType: String
+    let trackSummary: AOSScreenRecordingTrackSummary?
+
+    init(
+        rootIdentityDigest: String,
+        relativeLocatorDigest: String,
+        device: UInt64,
+        inode: UInt64,
+        byteCount: UInt64,
+        contentDigest: String,
+        mediaType: String,
+        trackSummary: AOSScreenRecordingTrackSummary? = nil
+    ) {
+        self.rootIdentityDigest = rootIdentityDigest
+        self.relativeLocatorDigest = relativeLocatorDigest
+        self.device = device
+        self.inode = inode
+        self.byteCount = byteCount
+        self.contentDigest = contentDigest
+        self.mediaType = mediaType
+        self.trackSummary = trackSummary
+    }
 }
 
 enum AOSScreenRecordingTerminalTruth {
@@ -541,12 +679,15 @@ enum AOSScreenRecordingTerminalTruth {
     static func requireFinalizedArtifact(
         frameCount: UInt64,
         artifact: AOSArtifactFileIdentity?,
-        filePresent: Bool
+        filePresent: Bool,
+        expectedSummary: AOSScreenRecordingTrackSummary
     ) throws {
         try requireFrames(frameCount)
         guard let artifact,
               artifact.byteCount > 0,
-              filePresent else {
+              filePresent,
+              artifact.trackSummary == expectedSummary,
+              expectedSummary.isSuccessful else {
             throw AOSOperationCoreError.recordingArtifactMissing
         }
     }
@@ -682,6 +823,7 @@ struct AOSArtifactRecord: Codable, Equatable {
     var recoveryDisposition: AOSArtifactRecoveryDisposition?
     var custodyDigest: String?
     var fileIdentity: AOSArtifactFileIdentity?
+    var trackSummary: AOSScreenRecordingTrackSummary?
     var pendingAction: AOSArtifactPendingAction?
     var release: AOSArtifactReleaseRecord? = nil
     var custodyReceipt: AOSArtifactCustodyReceipt?

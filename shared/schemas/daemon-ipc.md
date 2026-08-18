@@ -106,7 +106,7 @@ Error response:
 | `operation.cancel` | Request cooperative cancellation of one exact owned operation. | `request_id`, `canonical_parameter_digest`, `selector`. |
 | `operation.kill` | Force-stop one exact owned operation and retain cleanup visibility. | `request_id`, `canonical_parameter_digest`, `selector`. |
 | `operation.kill_owner` | Stop the authenticated owner-set intersection selected by optional attribution/capability filters. | `request_id`, `canonical_parameter_digest`, `filters`. |
-| `operation.record_screen` | Admit one bounded fixed display/window/region H.264 QuickTime video-only producer. | Closed `aos.screen-recording.request.v1` data, including canonical topology, target, hard bounds, `tracks={video:true,system_audio:false,microphone:false}`, codec, and container. |
+| `operation.record_screen` | Admit one bounded fixed display/window/region H.264 plus optional AAC-LC system-audio QuickTime producer. | Closed `aos.screen-recording.request.v1` data, including canonical topology, target, hard bounds, `tracks={video:true,system_audio:<bool>,microphone:false}`, codec, and container. |
 | `operation.tap` | Return current typed tap unavailability without opening or sampling a tap. | `request_id`, `canonical_parameter_digest`. |
 | `operation.artifact_reveal\|artifact_remove\|artifact_retain` | Act on one exact producer-backed artifact generation; retain is typed unavailable. | `request_id`, `canonical_parameter_digest`, `selector`. |
 | `operation.artifact_release` | Transfer one exact producer-backed artifact generation without overwrite. | `request_id`, `canonical_parameter_digest`, `selector`, `destination`. |
@@ -192,9 +192,12 @@ producer-backed artifact fails closed instead of gaining custody behavior.
 ScreenCaptureKit, or file effects. It durably prepares one operation, stream,
 artifact, and exclusive `screen_capture_native_session` claim before native
 startup. Admission returns exact identities and a geometry-binding digest;
-progress and terminal operation events remain content-free. The wire contract
-has no system-audio, microphone-track, followed-geometry, dry-run, or raw-media
-field.
+progress and terminal operation events remain content-free. Video is mandatory;
+system audio is explicitly optional and omission remains exact video-only.
+Selected audio must be available and produce samples before success, and its
+independent selected/admitted/available/sample/failure/drain/finalized summary
+is bound through progress, terminal result, artifact identity, and custody.
+Microphone tracks, followed geometry, dry-run, and raw-media fields are absent.
 
 The private `operation.external_spawn_intent`,
 `operation.external_spawn_child_admit`, `operation.external_spawn_abandon`, and

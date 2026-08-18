@@ -14833,7 +14833,7 @@
       "forms" : [
         {
           "id" : "record-screen",
-          "usage" : "aos record screen [--display <main|external|ordinal>] [--window-id <id> | --region <x,y,width,height>] --duration-ms <1...300000> [--frame-rate <1...60>] [--max-pixel-count <4...33177600>] [--max-queue-frames <1...8>] [--max-output-bytes <1024...1073741824>] --json",
+          "usage" : "aos record screen [--display <main|external|ordinal>] [--window-id <id> | --region <x,y,width,height>] --duration-ms <1...300000> [--system-audio] [--frame-rate <1...60>] [--max-pixel-count <4...33177600>] [--max-queue-frames <1...8>] [--max-output-bytes <1024...1073741824>] --json",
           "args" : [
             {
               "id" : "screen",
@@ -14874,6 +14874,14 @@
               "required" : true,
               "value_type" : "integer",
               "summary" : "Hard duration bound: 1 through 300000 milliseconds"
+            },
+            {
+              "id" : "system-audio",
+              "kind" : "flag",
+              "token" : "--system-audio",
+              "required" : false,
+              "value_type" : "bool",
+              "summary" : "Select the optional same-stream AAC-LC system-audio track"
             },
             {
               "id" : "frame-rate",
@@ -14918,7 +14926,8 @@
           ],
           "examples" : [
             "aos record screen --display main --duration-ms 10000 --json",
-            "aos record screen --display 1 --region 0,0,1280,720 --duration-ms 5000 --frame-rate 30 --json"
+            "aos record screen --display 1 --region 0,0,1280,720 --duration-ms 5000 --frame-rate 30 --json",
+            "aos record screen --display main --duration-ms 10000 --system-audio --json"
           ],
           "execution" : {
             "auto_starts_daemon" : true,

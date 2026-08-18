@@ -6,7 +6,7 @@ import test from 'node:test'
 const root = path.resolve(import.meta.dirname, '..')
 const read = (file) => readFile(path.join(root, file), 'utf8')
 
-test('recording producer pins exact caps, media pair, target drift, and no audio output', async () => {
+test('recording producer pins exact caps, fixed targets, and one optional same-stream AAC-LC track', async () => {
   const [geometry, encoder, adapter] = await Promise.all([
     read('src/daemon/screen-recording-geometry.swift'),
     read('src/daemon/screen-recording-encoder.swift'),
@@ -17,10 +17,14 @@ test('recording producer pins exact caps, media pair, target drift, and no audio
   }
   assert.match(encoder, /AVVideoCodecType\.h264/u)
   assert.match(encoder, /AVAssetWriter\(outputURL: outputURL, fileType: \.mov\)/u)
-  assert.equal((encoder.match(/AVAssetWriterInput\(/gu) ?? []).length, 1)
-  assert.doesNotMatch(encoder, /mediaType:\s*\.audio|AVAudio|audioSettings/u)
-  assert.match(adapter, /configuration\.capturesAudio = false/u)
-  assert.doesNotMatch(adapter, /addStreamOutput\([^\n]+type:\s*\.audio/u)
+  assert.equal((encoder.match(/AVAssetWriterInput\(/gu) ?? []).length, 2)
+  assert.match(encoder, /mediaType:\s*\.audio/u)
+  assert.match(encoder, /kAudioFormatMPEG4AAC/u)
+  assert.match(encoder, /AVSampleRateKey:\s*48_000/u)
+  assert.match(adapter, /configuration\.capturesAudio = request\.tracks\.systemAudio/u)
+  assert.match(adapter, /addStreamOutput\(output, type: \.audio/u)
+  assert.equal((adapter.match(/let stream = SCStream\(/gu) ?? []).length, 1)
+  assert.match(adapter, /resourceKey = "screen_capture_native_session"/u)
   assert.match(adapter, /validateCurrentBinding/u)
   assert.match(geometry, /let admittedTopology: AOSDisplayTopologySnapshot/u)
   assert.match(geometry, /canonicalTopologyData\(observedTopology\)[\s\S]*canonicalTopologyData\(geometry\.admittedTopology\)/u)
@@ -33,7 +37,7 @@ test('recording producer pins exact caps, media pair, target drift, and no audio
   const filterValidation = adapter.lastIndexOf('AOSScreenRecordingGeometryValidator.validateCurrentBinding(', adapter.indexOf('let filter: SCContentFilter'))
   assert.ok(filterValidation >= 0 && filterValidation < adapter.indexOf('let filter: SCContentFilter'))
   const frameValidation = adapter.indexOf('try validateBinding()')
-  const frameAppend = adapter.indexOf('try encoder.append(sampleBuffer)')
+  const frameAppend = adapter.indexOf('try encoder.append(sampleBuffer, track: track)')
   assert.ok(frameValidation >= 0 && frameValidation < frameAppend)
 })
 

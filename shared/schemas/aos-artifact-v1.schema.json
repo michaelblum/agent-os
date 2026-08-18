@@ -89,7 +89,7 @@
     },
     "artifact_custody_result": {
       "type": "object",
-      "required": ["schema_version", "action", "artifact", "state", "byte_count", "content_digest", "media_type"],
+      "required": ["schema_version", "action", "artifact", "state", "byte_count", "content_digest", "media_type", "track_summary"],
       "properties": {
         "schema_version": {"const": "aos.artifact.custody-result.v1"},
         "action": {"enum": ["reveal", "remove", "release"]},
@@ -97,7 +97,8 @@
         "state": {"enum": ["offered", "removed", "released"]},
         "byte_count": {"$ref": "#/$defs/nonnegative_integer"},
         "content_digest": {"$ref": "#/$defs/sha256"},
-        "media_type": {"const": "video/quicktime; codecs=avc1"},
+        "media_type": {"enum": ["video/quicktime; codecs=avc1", "video/quicktime; codecs=avc1,mp4a.40.2"]},
+        "track_summary": {"$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/track_summary"},
         "path": {"type": "string", "pattern": "^/", "maxLength": 4096}
       },
       "additionalProperties": false,
@@ -134,7 +135,8 @@
         "inode",
         "size_bytes",
         "content_digest",
-        "media_type"
+        "media_type",
+        "track_summary"
       ],
       "properties": {
         "containment_root_digest": {"$ref": "#/$defs/sha256"},
@@ -143,7 +145,8 @@
         "inode": {"$ref": "#/$defs/nonnegative_integer"},
         "size_bytes": {"$ref": "#/$defs/nonnegative_integer"},
         "content_digest": {"$ref": "#/$defs/sha256"},
-        "media_type": {"const": "video/quicktime; codecs=avc1"}
+        "media_type": {"enum": ["video/quicktime; codecs=avc1", "video/quicktime; codecs=avc1,mp4a.40.2"]},
+        "track_summary": {"$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/track_summary"}
       },
       "additionalProperties": false
     },

@@ -138,7 +138,9 @@ struct AOSScreenRecordingTracks: Codable, Equatable {
     let systemAudio: Bool
     let microphone: Bool
 
-    static let videoOnly = Self(video: true, systemAudio: false, microphone: false)
+    static func fixed(systemAudio: Bool) -> Self {
+        Self(video: true, systemAudio: systemAudio, microphone: false)
+    }
 }
 
 enum AOSScreenRecordingTargetKind: String, Codable {
@@ -214,7 +216,7 @@ struct AOSScreenRecordingRequest: Codable, Equatable {
               let tracksValue = value["tracks"] as? [String: Any],
               Set(tracksValue.keys) == ["video", "system_audio", "microphone"],
               tracksValue["video"] as? Bool == true,
-              tracksValue["system_audio"] as? Bool == false,
+              let systemAudio = tracksValue["system_audio"] as? Bool,
               tracksValue["microphone"] as? Bool == false,
               value["codec"] as? String == codec,
               value["container"] as? String == container,
@@ -242,7 +244,7 @@ struct AOSScreenRecordingRequest: Codable, Equatable {
             maximumPixelCount: maximumPixels,
             maximumQueueFrames: queueFrames,
             maximumOutputBytes: maximumBytes,
-            tracks: .videoOnly,
+            tracks: .fixed(systemAudio: systemAudio),
             codec: codec,
             container: container
         )
@@ -377,7 +379,8 @@ struct AOSScreenRecordingRequest: Codable, Equatable {
 
 enum AOSScreenRecordingGeometryValidator {
     static func resolve(_ request: AOSScreenRecordingRequest) throws -> AOSScreenRecordingGeometry {
-        guard request.tracks == .videoOnly,
+        guard request.tracks.video,
+              !request.tracks.microphone,
               request.codec == AOSScreenRecordingRequest.codec,
               request.container == AOSScreenRecordingRequest.container,
               let display = request.topology.displays.first(where: {

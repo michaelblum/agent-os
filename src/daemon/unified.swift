@@ -3893,9 +3893,12 @@ class UnifiedDaemon {
                         "geometry_binding_digest": admission.geometryBindingDigest,
                         "tracks": [
                             "video": true,
-                            "system_audio": false,
+                            "system_audio": request.tracks.systemAudio,
                             "microphone": false,
                         ],
+                        "track_summary": aosScreenRecordingTrackSummaryValue(
+                            .initial(systemAudioSelected: request.tracks.systemAudio)
+                        ),
                         "codec": AOSScreenRecordingRequest.codec,
                         "container": AOSScreenRecordingRequest.container,
                     ],
@@ -4775,6 +4778,15 @@ class UnifiedDaemon {
             ? operationTerminalFacts(operation) : NSNull()
         let startedAt: Any = operation.state == .prepared
             ? NSNull() : operationTimestamp(operation.updatedAtNanoseconds)
+        var progress: [String: Any] = [
+            "items": operation.progress?.frameCount ?? 0,
+            "bytes": operation.progress?.byteCount ?? 0,
+            "duration_ms": operation.progress?.elapsedMilliseconds ?? 0,
+            "last_event_sequence": operation.progress?.frameCount ?? 0,
+        ]
+        if let summary = operation.progress?.trackSummary {
+            progress["track_summary"] = aosScreenRecordingTrackSummaryValue(summary)
+        }
         return [
             "schema_version": "aos.operation.v1",
             "operation_id": operation.identity.id,
@@ -4798,12 +4810,7 @@ class UnifiedDaemon {
                     "max_bytes": $0.maximumOutputBytes,
                 ]
             } ?? [:],
-            "progress": [
-                "items": operation.progress?.frameCount ?? 0,
-                "bytes": operation.progress?.byteCount ?? 0,
-                "duration_ms": operation.progress?.elapsedMilliseconds ?? 0,
-                "last_event_sequence": operation.progress?.frameCount ?? 0,
-            ],
+            "progress": progress,
             "claim_set_transactions": transactions.map {
                 operationClaimSetTransaction($0, state: state)
             },
@@ -5125,6 +5132,9 @@ class UnifiedDaemon {
             "duration_ms": (operation.updatedAtNanoseconds - operation.createdAtNanoseconds)
                 / 1_000_000,
             "completed_at": operationTimestamp(operation.updatedAtNanoseconds),
+            "failure_code": operation.failureCode ?? NSNull(),
+            "track_summary": operation.progress?.trackSummary
+                .map(aosScreenRecordingTrackSummaryValue) ?? NSNull(),
         ]
     }
 

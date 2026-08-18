@@ -385,7 +385,7 @@ try proveDirectTerminalRejectsChild(
             identity: AOSOperationIdentity(id: "artifact-child", generation: state.allocateGeneration()),
             parentOperation: operation,
             daemonGeneration: state.daemonGeneration,
-            state: .published,
+            state: .transient,
             recoveryOriginState: nil,
             recoveryDisposition: nil,
             custodyDigest: String(repeating: "e", count: 64)

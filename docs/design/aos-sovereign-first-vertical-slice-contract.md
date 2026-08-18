@@ -2,8 +2,9 @@
 
 Program: `aos-sovereign-capability-substrate-v1`
 
-Status: Milestone 2 executable control plane plus bounded M3A fixed video-only
-recording candidate and implementation-routing contract. Current source,
+Status: Milestone 2 executable control plane plus bounded M3A fixed video and
+M3B optional system-audio recording candidate and implementation-routing
+contract. Current source,
 command-source manifests, generated help, IPC schemas, API docs, Toolkit, tests,
 and runtime readback own executable truth; unimplemented M3 remainder and M4-M10
 sections remain target design merely because they are specified here.
@@ -31,9 +32,11 @@ Milestone 2 implements the shared operation registry/control plane, exact owner
 root and same-UID host barrier, resource claims, durable recovery, daemon IPC and
 CLI, one microphone adapter, and internal status/Canvas projections. It adds no
 public SDK root, managed Playwright grammar, or TCC policy change. M3A adds one
-fixed display/window/region H.264 QuickTime video-only recording producer and
-producer-backed reveal/remove/release custody. Audio tracks, followed geometry,
-and native-live acceptance remain later work.
+fixed display/window/region H.264 QuickTime video recording producer and
+producer-backed reveal/remove/release custody. M3B adds an explicitly optional
+AAC-LC system-audio track to that same stream, operation, writer, resource, and
+artifact. Microphone tracks, followed geometry, and native-live acceptance
+remain later work.
 
 ## Contract owners
 
@@ -660,17 +663,17 @@ ScreenCaptureKit video is public on macOS 12.3. Its system-audio output
 ScreenCaptureKit microphone capture and `SCRecordingOutput` are macOS 15
 paths. `AVAssetWriter` is the public custom multitrack alternative when
 deployment floor, separate tracks, codecs, timing, or custody requires a
-writer AOS owns. The implementation decision must remain explicit and
-compiler-verified; no row in the M1 ledger claims that AOS currently records
-screen video or system audio.
+writer AOS owns. The current bounded implementation selects that writer for
+mandatory H.264 video and explicitly optional AAC-LC system audio in one
+QuickTime artifact; its deterministic proof remains compile/fake only.
 
 A recording request identifies:
 
 - exact display/window/region source and canonical topology observation;
 - video dimensions, scale, frame-rate/time bounds, codec/container choice, and
   maximum output bytes;
-- independently selected system-audio and microphone tracks plus exact TCC
-  facts;
+- mandatory video, independently selected system-audio, and later microphone
+  tracks plus exact platform facts;
 - geometry mode;
 - transient stream and artifact ownership;
 - operation owner, lineage, status, cancellation, blame, cleanup, and residual
@@ -937,10 +940,11 @@ non-v2 source; neither may preserve or rewrap stale command objects. No dual
 reader or parallel aggregate exists.
 
 The operation schema owns the closed resource records; no ninth M2 schema is
-implied. M3A owner paths are the current desktop-pixel source/lifecycle,
-recording schema, video-only adapter, encoder, fixed-geometry owner, AOS command
-source, external route, and generated aggregates/help. Remaining audio,
-followed-geometry, and native-live owners stay proposed. Later-milestone
+implied. M3A/M3B owner paths are the current desktop-pixel source/lifecycle,
+recording schema, optional-system-audio adapter, multitrack encoder,
+fixed-geometry owner, AOS command source, external route, and generated
+aggregates/help. Remaining microphone-track, followed-geometry, and native-live
+owners stay proposed. Later-milestone
 `proposed` paths are not claimed to exist in current truth.
 
 M2 has 23 exact proof refs: the five-lane schema/static/fake/native-compile/
@@ -950,9 +954,10 @@ and internal Toolkit runtime/model/component proofs, plus frozen-v0 and active-
 v1 manifest schema, generation, broad-dispatch, proof-index, workflow-router,
 and installed-projection proofs. The command-surface proof fragment owns the
 manifest schema/generation/dispatch group; the operation-control fragment owns
-only operation-binding proofs. M3A uses static schema/source/manifest proof,
-fake video-only lifecycle/control/custody/failure proof, and native compile
-proof that acquires no live authority. The separately authorized native-live
+only operation-binding proofs. M3A/M3B use static schema/source/manifest proof,
+fake video-only and optional-system-audio multitrack
+lifecycle/control/custody/failure proof, and native compile proof that acquires
+no live authority. The separately authorized native-live
 lane remains proposed and is not TCC, pixel, file, status, artifact, or crash
 acceptance until actually run.
 
@@ -964,8 +969,8 @@ hashes—enforce graph reachability, terminal sinks, cyclic quiescence, durable
 blocked recovery, exact outcome-transition resolution, milestone ref closure,
 exposure reachability, proof attribution, and current-path truth.
 
-The command snapshot contains exactly 102 functional binding occurrences and
-108 functional selector occurrences. A reverse-closure scan parses authored
+The command snapshot contains exactly 103 functional binding occurrences and
+109 functional selector occurrences. A reverse-closure scan parses authored
 AOS help and external route manifests, then requires the unique authored tuple
 set on every bound route to equal the disjoint union of functional selectors
 and six explicit fail-closed selectors. Prefix dispatch requires a literal
@@ -1105,11 +1110,12 @@ M2 starts offline and deterministic:
   atomically and that no target claim outruns current executable truth. M2
   claims no maintained public SDK or skill implementation.
 
-The current M3A ladder adds static ScreenCaptureKit/AVAssetWriter/schema and
-generated-grammar binding, fake video-only encoder/fixed-geometry/custody/failure
-tests, and native compile proof with no capture authority. Later M3 proof adds
-audio-track and followed-geometry fakes plus separately authorized live
-screen/audio/microphone/TCC/status/artifact/crash acceptance.
+The current M3A/M3B ladder adds static ScreenCaptureKit/AVAssetWriter/schema and
+generated-grammar binding, fake video-only and optional-system-audio multitrack
+encoder/fixed-geometry/custody/failure tests, and native compile proof with no
+capture authority. Later M3 proof adds microphone-track and followed-geometry
+fakes plus separately authorized live screen/audio/microphone/TCC/status/
+artifact/crash acceptance.
 
 Live microphone, screen capture, browser, native UI, TCC, build, packaging, and
 installation proof remain separately gated by later owner authority.

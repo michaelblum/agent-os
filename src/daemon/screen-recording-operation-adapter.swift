@@ -35,7 +35,12 @@ protocol AOSScreenRecordingBrokerControlling: AnyObject {
 extension AOSDesktopPixelBroker: AOSScreenRecordingBrokerControlling {}
 
 struct AOSScreenRecordingFileDependencies {
-    let validateArtifact: (URL, URL, UInt64) throws -> AOSArtifactFileIdentity
+    let validateArtifact: (
+        URL,
+        URL,
+        UInt64,
+        AOSScreenRecordingTrackSummary
+    ) throws -> AOSArtifactFileIdentity
     let destinationIdentity: (
         URL,
         URL,
@@ -78,10 +83,36 @@ typealias AOSScreenRecordingProgressSink = @Sendable (
 ) throws -> Void
 typealias AOSScreenRecordingFailureSink = @Sendable (Error) -> Void
 typealias AOSScreenRecordingSessionFactory = @Sendable (
+    AOSScreenRecordingTracks,
     AOSDesktopPixelFrameAdmissionGate,
     @escaping AOSScreenRecordingProgressSink,
     @escaping AOSScreenRecordingFailureSink
 ) async throws -> AOSScreenRecordingNativeSession
+
+func aosScreenRecordingTrackSummaryValue(
+    _ summary: AOSScreenRecordingTrackSummary
+) -> [String: Any] {
+    func track(_ value: AOSScreenRecordingTrackTruth) -> [String: Any] {
+        [
+            "selected": value.selected,
+            "admitted": value.admitted,
+            "available": value.available,
+            "first_sample_present": value.firstSamplePresent,
+            "sample_count": value.sampleCount,
+            "sample_byte_count": value.sampleByteCount,
+            "failure_code": value.failureCode ?? NSNull(),
+            "drained": value.drained,
+            "finalized": value.finalized,
+        ]
+    }
+    return [
+        "selected_tracks": summary.selectedTracks,
+        "finalized_tracks": summary.finalizedTracks,
+        "common_media_epoch_ns": summary.commonMediaEpochNanoseconds ?? NSNull(),
+        "video": track(summary.video),
+        "system_audio": track(summary.systemAudio),
+    ]
+}
 
 private func aosScreenRecordingReleaseDestinationIdentity(
     _ destination: URL,
@@ -329,7 +360,13 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
             throw AOSOperationCoreError.invalidTransition
         }
         let url = artifactURL(selector)
-        guard try files.validateArtifact(url, artifactRootURL, expected.byteCount) == expected else {
+        guard let summary = expected.trackSummary,
+              try files.validateArtifact(
+                url,
+                artifactRootURL,
+                expected.byteCount,
+                summary
+              ) == expected else {
             throw AOSOperationCoreError.artifactIdentityMismatch
         }
         return artifactResult("reveal", record: record, path: url.path)
@@ -344,7 +381,13 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
             throw AOSOperationCoreError.invalidTransition
         }
         let url = artifactURL(selector)
-        guard try files.validateArtifact(url, artifactRootURL, expected.byteCount) == expected else {
+        guard let summary = expected.trackSummary,
+              try files.validateArtifact(
+                url,
+                artifactRootURL,
+                expected.byteCount,
+                summary
+              ) == expected else {
             throw AOSOperationCoreError.artifactIdentityMismatch
         }
         _ = try registry.updateArtifact(selector, state: .removing, pendingAction: .remove)
@@ -381,7 +424,13 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
             throw AOSOperationCoreError.invalidTransition
         }
         let source = artifactURL(selector)
-        guard try files.validateArtifact(source, artifactRootURL, expected.byteCount) == expected else {
+        guard let summary = expected.trackSummary,
+              try files.validateArtifact(
+                source,
+                artifactRootURL,
+                expected.byteCount,
+                summary
+              ) == expected else {
             throw AOSOperationCoreError.artifactIdentityMismatch
         }
         let destination = URL(fileURLWithPath: validatedDestinationPath)
@@ -566,28 +615,30 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         }
         do {
             let publicAdmission = admission.publicAdmission
-            try aosPersistScreenRecordingProgress(
+            var durableProgress = try aosPersistScreenRecordingProgress(
                 frameCount: progress.frameCount,
                 byteCount: progress.byteCount,
                 elapsedMilliseconds: elapsedMilliseconds,
                 bounds: requestedBounds
-            ) { durableProgress in
-                _ = try registry.updateOperationProgress(
-                    publicAdmission.operation,
-                    durableProgress
-                )
-            }
+            ) { _ in }
+            durableProgress.trackSummary = progress.trackSummary
+            _ = try registry.updateOperationProgress(
+                publicAdmission.operation,
+                durableProgress
+            )
             if let artifactIdentity {
                 _ = try registry.updateArtifact(
                     publicAdmission.artifact,
                     state: .offered,
                     fileIdentity: artifactIdentity,
+                    trackSummary: progress.trackSummary,
                     custodyDigest: artifactIdentity.contentDigest
                 )
             } else {
                 _ = try? registry.updateArtifact(
                     publicAdmission.artifact,
                     state: .removing,
+                    trackSummary: progress.trackSummary,
                     pendingAction: .remove
                 )
                 let artifactURL = self.artifactURL(publicAdmission.artifact)
@@ -642,7 +693,8 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
             _ = try registry.terminalizeOperationAfterVerifiedCleanup(
                 publicAdmission.operation,
                 stopIntent: intent,
-                outcome: outcome
+                outcome: outcome,
+                failureCode: (failure as? AOSOperationCoreError)?.code
             )
         } catch {
             markCleanupRequired(admission.publicAdmission.operation)
@@ -680,7 +732,13 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         )
         do {
             let stream = try registry.prepareStream(parent: operation.identity)
-            let artifact = try registry.prepareArtifact(parent: operation.identity)
+            let initialTrackSummary = AOSScreenRecordingTrackSummary.initial(
+                systemAudioSelected: request.tracks.systemAudio
+            )
+            let artifact = try registry.prepareArtifact(
+                parent: operation.identity,
+                trackSummary: initialTrackSummary
+            )
             let generation = initial.resourceClaims
                 .filter { $0.resourceKey == Self.resourceKey }
                 .map(\.resourceGeneration).max() ?? 0
@@ -721,6 +779,15 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
                   }) else {
                 throw AOSOperationCoreError.resourceDeclarationConflict
             }
+            var initialProgress = AOSOperationProgress(
+                frameCount: 0,
+                byteCount: 0,
+                elapsedMilliseconds: 0,
+                droppedFrameCount: 0,
+                trackSummary: initialTrackSummary
+            )
+            initialProgress.trackSummary = initialTrackSummary
+            _ = try registry.updateOperationProgress(operation.identity, initialProgress)
             _ = try registry.transitionOperation(operation.identity, to: .starting)
             _ = try registry.transitionStream(stream.identity, to: .starting)
             return AOSScreenRecordingClaimAdmission(
@@ -807,6 +874,7 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
             "byte_count": record.fileIdentity?.byteCount ?? 0,
             "content_digest": record.fileIdentity?.contentDigest ?? NSNull(),
             "media_type": record.fileIdentity?.mediaType ?? NSNull(),
+            "track_summary": record.trackSummary.map(aosScreenRecordingTrackSummaryValue) ?? NSNull(),
         ]
         if let path { result["path"] = path }
         return result
@@ -873,7 +941,6 @@ private final class AOSScreenRecordingStreamOutput: NSObject,
     private let encoder: AOSScreenRecordingEncoding
     private let frameAdmission: AOSDesktopPixelFrameAdmissionGate
     private var failure: Error?
-    private var firstFrame = false
     private let lock = NSLock()
     private let retirement = AOSDesktopPixelRetirementLatch()
     private let startup: AOSDesktopPixelStartupSignal
@@ -904,21 +971,24 @@ private final class AOSScreenRecordingStreamOutput: NSObject,
     ) {
         guard let admission = frameAdmission.admit() else { return }
         defer { admission.complete() }
-        guard outputType == .screen,
-              CMSampleBufferIsValid(sampleBuffer),
-              CMSampleBufferGetImageBuffer(sampleBuffer) != nil else { return }
+        let track: AOSScreenRecordingTrackKind
+        switch outputType {
+        case .screen:
+            guard CMSampleBufferIsValid(sampleBuffer),
+                  CMSampleBufferGetImageBuffer(sampleBuffer) != nil else { return }
+            track = .video
+        case .audio:
+            guard CMSampleBufferIsValid(sampleBuffer) else { return }
+            track = .systemAudio
+        default:
+            return
+        }
         do {
-            try validateBinding()
-            try encoder.append(sampleBuffer)
+            if track == .video { try validateBinding() }
+            try encoder.append(sampleBuffer, track: track)
             let progress = encoder.progress
-            if progress.frameCount > 0, progress.byteCount > 0 {
-                try persistProgress(progress)
-            }
-            lock.lock()
-            let publishStartup = !firstFrame
-            firstFrame = true
-            lock.unlock()
-            if publishStartup { startup.succeed() }
+            try persistProgress(progress)
+            if progress.sessionStarted { startup.succeed() }
         } catch {
             fail(error)
         }
@@ -933,7 +1003,7 @@ private final class AOSScreenRecordingStreamOutput: NSObject,
         lock.lock()
         defer { lock.unlock() }
         if let failure { throw failure }
-        return firstFrame
+        return encoder.progress.sessionStarted
     }
 
     func admitExplicitStop() -> AOSDesktopPixelStopAdmission { retirement.admitExplicitStop() }
@@ -954,6 +1024,56 @@ private final class AOSScreenRecordingStreamOutput: NSObject,
         startup.fail(error)
         didFail(error)
     }
+}
+
+private func aosScreenRecordingProgress(
+    _ progress: AOSScreenRecordingEncoderProgress,
+    applying failure: Error?
+) -> AOSScreenRecordingEncoderProgress {
+    guard let failure = failure as? AOSOperationCoreError else { return progress }
+    let videoFailure: String?
+    let audioFailure: String?
+    switch failure {
+    case .recordingNoFrames:
+        videoFailure = failure.code
+        audioFailure = nil
+    case .recordingSystemAudioUnavailable,
+         .recordingSystemAudioNoSamples,
+         .recordingSystemAudioFailed:
+        videoFailure = nil
+        audioFailure = failure.code
+    default:
+        return progress
+    }
+    func truth(
+        _ value: AOSScreenRecordingTrackTruth,
+        failureCode: String?
+    ) -> AOSScreenRecordingTrackTruth {
+        AOSScreenRecordingTrackTruth(
+            selected: value.selected,
+            admitted: value.admitted,
+            available: value.available,
+            firstSamplePresent: value.firstSamplePresent,
+            sampleCount: value.sampleCount,
+            sampleByteCount: value.sampleByteCount,
+            failureCode: value.failureCode ?? failureCode,
+            drained: value.drained,
+            finalized: value.finalized
+        )
+    }
+    let summary = progress.trackSummary
+    return AOSScreenRecordingEncoderProgress(
+        frameCount: progress.frameCount,
+        byteCount: progress.byteCount,
+        trackSummary: AOSScreenRecordingTrackSummary(
+            selectedTracks: summary.selectedTracks,
+            finalizedTracks: summary.finalizedTracks,
+            commonMediaEpochNanoseconds: summary.commonMediaEpochNanoseconds,
+            video: truth(summary.video, failureCode: videoFailure),
+            systemAudio: truth(summary.systemAudio, failureCode: audioFailure)
+        ),
+        sessionStarted: progress.sessionStarted
+    )
 }
 
 final class AOSNativeScreenRecordingRuntime:
@@ -979,6 +1099,7 @@ final class AOSNativeScreenRecordingRuntime:
     private let startupCancellation = AOSDesktopPixelStartupCancellation()
     private var startupSettled = false
     private var startupOwner: AOSDesktopPixelStartupOwner?
+    private var terminalFailure: Error?
     private var stopIntent: AOSStopIntent?
     private var stream: SCStream?
 
@@ -1026,9 +1147,14 @@ final class AOSNativeScreenRecordingRuntime:
     }
 
     func stop(intent: AOSStopIntent) {
+        stop(intent: intent, failure: nil)
+    }
+
+    private func stop(intent: AOSStopIntent, failure: Error?) {
         lock.lock()
         _ = frameAdmission.close()
         _ = progressTimeline.admitStop(atNanoseconds: registry.now())
+        if terminalFailure == nil { terminalFailure = failure }
         if stopIntent == nil { stopIntent = intent }
         let cancelStartup = !startupSettled
         guard startupSettled, !finishStarted else {
@@ -1058,6 +1184,7 @@ final class AOSNativeScreenRecordingRuntime:
     private func settleStartup(failure: Error?) -> AOSStopIntent? {
         lock.lock()
         startupSettled = true
+        if terminalFailure == nil { terminalFailure = failure }
         if failure != nil, stopIntent == nil {
             stopIntent = failure is AOSOperationCoreError ? .adapterFailed : .permissionRevoked
         }
@@ -1079,6 +1206,7 @@ final class AOSNativeScreenRecordingRuntime:
         try requireStartupNotCancelled()
         if let sessionFactory {
             let session = try await sessionFactory(
+                request.tracks,
                 frameAdmission,
                 { [weak self] progress in
                     guard let self else {
@@ -1086,7 +1214,9 @@ final class AOSNativeScreenRecordingRuntime:
                     }
                     try self.persistProgress(progress)
                 },
-                { [weak self] _ in self?.stop(intent: .adapterFailed) }
+                { [weak self] error in
+                    self?.stop(intent: .adapterFailed, failure: error)
+                }
             )
             installEncoder(session.encoder)
             try await startSession(session)
@@ -1105,7 +1235,9 @@ final class AOSNativeScreenRecordingRuntime:
             outputURL: outputURL,
             rootURL: artifactRootURL,
             geometry: geometry,
-            maximumOutputBytes: request.maximumOutputBytes
+            maximumOutputBytes: request.maximumOutputBytes,
+            maximumPendingSamplesPerTrack: Int(request.maximumQueueFrames),
+            systemAudioSelected: request.tracks.systemAudio
         )
         installEncoder(encoder)
         try requireStartupNotCancelled()
@@ -1151,7 +1283,11 @@ final class AOSNativeScreenRecordingRuntime:
         )
         configuration.queueDepth = Int(request.maximumQueueFrames)
         configuration.pixelFormat = kCVPixelFormatType_32BGRA
-        configuration.capturesAudio = false
+        configuration.capturesAudio = request.tracks.systemAudio
+        if request.tracks.systemAudio {
+            configuration.sampleRate = 48_000
+            configuration.channelCount = 2
+        }
         configuration.showsCursor = true
         if geometry.target.kind == .region {
             configuration.sourceRect = CGRect(
@@ -1179,11 +1315,21 @@ final class AOSNativeScreenRecordingRuntime:
                 }
                 try self.persistProgress(progress)
             },
-            didFail: { [weak self] _ in self?.stop(intent: .adapterFailed) }
+            didFail: { [weak self] error in
+                self?.stop(intent: .adapterFailed, failure: error)
+            }
         )
         let stream = SCStream(filter: filter, configuration: configuration, delegate: output)
-        let queue = DispatchQueue(label: "com.aos.screen-recording.sample")
-        try stream.addStreamOutput(output, type: .screen, sampleHandlerQueue: queue)
+        let videoQueue = DispatchQueue(label: "com.aos.screen-recording.video")
+        try stream.addStreamOutput(output, type: .screen, sampleHandlerQueue: videoQueue)
+        if request.tracks.systemAudio {
+            let audioQueue = DispatchQueue(label: "com.aos.screen-recording.system-audio")
+            do {
+                try stream.addStreamOutput(output, type: .audio, sampleHandlerQueue: audioQueue)
+            } catch {
+                throw AOSOperationCoreError.recordingSystemAudioUnavailable
+            }
+        }
         installStream(stream)
         try await startSession(AOSScreenRecordingNativeSession(
             encoder: encoder,
@@ -1203,23 +1349,55 @@ final class AOSNativeScreenRecordingRuntime:
     }
 
     private func startSession(_ session: AOSScreenRecordingNativeSession) async throws {
-        let owner = try await aosStartDesktopPixelStreams(
-            signals: [session.signal],
-            lifecycles: [session.lifecycle],
-            settlementTimeout: aosDesktopPixelStreamRetirementTimeout,
-            ownerGeneration: admission.publicAdmission.operation.generation,
-            ownerReady: { [weak self] owner in
-                self?.installStartupOwner(owner)
-            },
-            cancellation: startupCancellation,
-            lateFailure: { [weak self] _ in self?.stop(intent: .adapterFailed) },
-            start: { [weak self] _, completion in
-                self?.admitCaptureStartAndScheduleDeadline()
-                session.start(completion)
-            },
-            stop: { _, completion in session.stop(completion) }
-        )
+        let owner: AOSDesktopPixelStartupOwner
+        do {
+            owner = try await aosStartDesktopPixelStreams(
+                signals: [session.signal],
+                lifecycles: [session.lifecycle],
+                settlementTimeout: aosDesktopPixelStreamRetirementTimeout,
+                ownerGeneration: admission.publicAdmission.operation.generation,
+                ownerReady: { [weak self] owner in
+                    self?.installStartupOwner(owner)
+                },
+                cancellation: startupCancellation,
+                lateFailure: { [weak self] error in
+                    self?.stop(intent: .adapterFailed, failure: error)
+                },
+                start: { [weak self] _, completion in
+                    self?.admitCaptureStartAndScheduleDeadline()
+                    session.start(completion)
+                },
+                stop: { _, completion in session.stop(completion) }
+            )
+        } catch {
+            let summary = session.encoder.progress.trackSummary
+            if request.tracks.systemAudio,
+               summary.video.firstSamplePresent,
+               !summary.systemAudio.firstSamplePresent {
+                throw AOSOperationCoreError.recordingSystemAudioNoSamples
+            }
+            throw error
+        }
         installStartupOwner(owner)
+        if request.tracks.systemAudio {
+            let timeoutNanoseconds = UInt64(
+                aosDesktopPixelStreamRetirementTimeout * 1_000_000_000
+            )
+            let startedAt = DispatchTime.now().uptimeNanoseconds
+            while !session.encoder.progress.sessionStarted {
+                try requireStartupNotCancelled()
+                let now = DispatchTime.now().uptimeNanoseconds
+                guard now >= startedAt,
+                      now - startedAt < timeoutNanoseconds else {
+                    let summary = session.encoder.progress.trackSummary
+                    if !summary.systemAudio.firstSamplePresent {
+                        throw AOSOperationCoreError.recordingSystemAudioNoSamples
+                    }
+                    throw AOSOperationCoreError.recordingNoFrames
+                }
+                try await Task.sleep(nanoseconds: 1_000_000)
+            }
+        }
         try requireStartupNotCancelled()
     }
 
@@ -1272,32 +1450,41 @@ final class AOSNativeScreenRecordingRuntime:
         lease: AOSDesktopPixelExclusiveProducerLease?
     ) async {
         var artifact: AOSArtifactFileIdentity?
-        var failure: Error?
+        var failure = terminalFailureSnapshot()
         if let encoder {
-            do {
-                try AOSScreenRecordingTerminalTruth.requireFrames(
-                    encoder.progress.frameCount
-                )
-                let finalized: AOSArtifactFileIdentity = try await withCheckedThrowingContinuation { continuation in
-                    encoder.finish { continuation.resume(with: $0) }
-                }
-                try AOSScreenRecordingTerminalTruth.requireFinalizedArtifact(
-                    frameCount: encoder.progress.frameCount,
-                    artifact: finalized,
-                    filePresent: files.exists(artifactURL())
-                )
-                artifact = finalized
-            } catch {
-                let artifactURL = self.artifactURL()
-                if error as? AOSOperationCoreError == .recordingNoFrames {
-                    failure = error
-                } else {
-                    failure = files.exists(artifactURL)
-                        ? error : AOSOperationCoreError.recordingArtifactMissing
-                }
+            if failure != nil {
                 encoder.cancel()
+            } else {
+                do {
+                    try AOSScreenRecordingTerminalTruth.requireFrames(
+                        encoder.progress.frameCount
+                    )
+                    let finalized: AOSArtifactFileIdentity = try await withCheckedThrowingContinuation { continuation in
+                        encoder.finish { continuation.resume(with: $0) }
+                    }
+                    try AOSScreenRecordingTerminalTruth.requireFinalizedArtifact(
+                        frameCount: encoder.progress.frameCount,
+                        artifact: finalized,
+                        filePresent: files.exists(artifactURL()),
+                        expectedSummary: encoder.progress.trackSummary
+                    )
+                    artifact = finalized
+                } catch {
+                    let artifactURL = self.artifactURL()
+                    switch error as? AOSOperationCoreError {
+                    case .recordingNoFrames,
+                         .recordingSystemAudioUnavailable,
+                         .recordingSystemAudioNoSamples,
+                         .recordingSystemAudioFailed:
+                        failure = error
+                    default:
+                        failure = files.exists(artifactURL)
+                            ? error : AOSOperationCoreError.recordingArtifactMissing
+                    }
+                    encoder.cancel()
+                }
             }
-        } else {
+        } else if failure == nil {
             failure = AOSOperationCoreError.recordingNoFrames
         }
         let leaseReleased = lease.map(broker.releaseExclusiveProducer) ?? true
@@ -1307,10 +1494,13 @@ final class AOSNativeScreenRecordingRuntime:
             )
             return
         }
-        let progress = encoder?.progress ?? AOSScreenRecordingEncoderProgress(
+        let rawProgress = encoder?.progress ?? AOSScreenRecordingEncoderProgress(
             frameCount: 0,
-            byteCount: 0
+            byteCount: 0,
+            trackSummary: .initial(systemAudioSelected: request.tracks.systemAudio),
+            sessionStarted: false
         )
+        let progress = aosScreenRecordingProgress(rawProgress, applying: failure)
         let elapsedMilliseconds = admittedElapsedMilliseconds()
         adapter?.runtimeDidFinish(
             admission,
@@ -1322,6 +1512,12 @@ final class AOSNativeScreenRecordingRuntime:
             authorityAbsent: true,
             failure: failure
         )
+    }
+
+    private func terminalFailureSnapshot() -> Error? {
+        lock.lock()
+        defer { lock.unlock() }
+        return terminalFailure
     }
 
     private func retainUntilAuthoritativeRetirement(intent: AOSStopIntent) {
@@ -1381,17 +1577,17 @@ final class AOSNativeScreenRecordingRuntime:
 
     private func persistProgress(_ progress: AOSScreenRecordingEncoderProgress) throws {
         let elapsed = admittedElapsedMilliseconds()
-        try aosPersistScreenRecordingProgress(
+        var durableProgress = try aosPersistScreenRecordingProgress(
             frameCount: progress.frameCount,
             byteCount: progress.byteCount,
             elapsedMilliseconds: elapsed,
             bounds: request.requestedBounds
-        ) { durableProgress in
-            _ = try registry.updateOperationProgress(
-                admission.publicAdmission.operation,
-                durableProgress
-            )
-        }
+        ) { _ in }
+        durableProgress.trackSummary = progress.trackSummary
+        _ = try registry.updateOperationProgress(
+            admission.publicAdmission.operation,
+            durableProgress
+        )
     }
 
     private func installProducerLease(_ lease: AOSDesktopPixelExclusiveProducerLease) {
