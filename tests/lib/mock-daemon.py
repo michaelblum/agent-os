@@ -73,10 +73,15 @@ def handle_request(line: bytes, args: argparse.Namespace) -> bytes:
     action = req.get("action")
     ref = req.get("ref")
     if (svc, action) == ("system", "ping"):
+        if args.ping_delay_ms > 0:
+            time.sleep(args.ping_delay_ms / 1000)
+        payload = build_ping_payload(args)
+        if args.malformed_health:
+            payload["input_tap"] = {"status": payload["input_tap"]["status"]}
         resp: dict[str, Any] = {
             "v": 1,
             "status": "success",
-            "data": build_ping_payload(args),
+            "data": payload,
         }
         if ref is not None:
             resp["ref"] = ref
@@ -135,6 +140,10 @@ def main() -> None:
                         choices=("active", "retrying", "unavailable"))
     parser.add_argument("--ready-after-pings", type=int, default=0,
                         help="After this many system.ping calls, report an active input tap.")
+    parser.add_argument("--ping-delay-ms", type=int, default=0,
+                        help="Delay each system.ping response by this many milliseconds.")
+    parser.add_argument("--malformed-health", action="store_true",
+                        help="Return an incomplete input_tap block for system.ping.")
     parser.add_argument("--attempts", type=int, default=1)
     parser.add_argument("--listen-access", default="true")
     parser.add_argument("--post-access", default="true")

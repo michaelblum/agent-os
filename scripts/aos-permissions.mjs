@@ -119,7 +119,7 @@ function runCheck() {
   const effective = effectivePermissionView(daemon.comparable, cli);
   const effectivePermissions = effectivePermissionsFor(daemon.comparable, cli);
   const evaluation = readyEvaluationSnake(evaluateReadyForTesting(daemon.comparable, cli, facts.setup));
-  const notes = permissionCheckNotes(cli, facts.setup, daemon.comparable, mode);
+  const notes = permissionCheckNotes(cli, facts.setup, daemon.comparable, mode, daemon.block.reachable);
   const disagreement = disagreementFor(daemon.comparable, cli);
   const directCapture = normalizeDirectCaptureStatus(
     facts.daemonHealth?.permissions?.screen_capture_direct,

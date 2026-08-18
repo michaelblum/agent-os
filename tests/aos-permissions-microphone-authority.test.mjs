@@ -6,9 +6,11 @@ import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { readyBlockers } from '../scripts/lib/aos-readiness.mjs';
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-function runCheck({ microphone = false, microphoneState } = {}) {
+function runCheck({ microphone = false, microphoneState, daemonHealth } = {}) {
   const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'aos-permissions-microphone-'));
   const fakeAOS = path.join(tempRoot, 'aos');
   const healthPermissions = { accessibility: true, microphone };
@@ -18,6 +20,16 @@ function runCheck({ microphone = false, microphoneState } = {}) {
     status: 'ready',
     capture_persisted: false,
     error_code: null,
+  };
+  const health = daemonHealth ?? {
+    reachable: true,
+    input_tap: {
+      status: 'active',
+      attempts: 1,
+      listen_access: true,
+      post_access: true,
+    },
+    permissions: healthPermissions,
   };
   writeFileSync(fakeAOS, `#!/usr/bin/env node
 const args = process.argv.slice(2).join(' ');
@@ -38,16 +50,7 @@ const responses = {
     bundle_matches_current: true,
     setup_completed: true,
   })},
-  '__daemon health --json': ${JSON.stringify({
-    reachable: true,
-    input_tap: {
-      status: 'active',
-      attempts: 1,
-      listen_access: true,
-      post_access: true,
-    },
-    permissions: healthPermissions,
-  })},
+  '__daemon health --json': ${JSON.stringify(health)},
 };
 if (!(args in responses)) {
   process.stderr.write(JSON.stringify({ code: 'UNEXPECTED_AOS', args }) + '\\n');
@@ -372,6 +375,68 @@ test('incomplete daemon health without microphone state fails closed', () => {
   assert.equal(result.response.ready_for_testing, false);
   assert.deepEqual(result.response.missing_permissions, ['microphone']);
   assert.equal(result.response.notes.some((note) => note.includes('unknown')), true);
+});
+
+test('reachable daemon without structured health remains reachable and fails microphone closed', () => {
+  const result = runCheck({ daemonHealth: { reachable: true } });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(result.response.daemon_view, { reachable: true });
+  assert.equal(result.response.cli_view.microphone, true);
+  assert.equal(result.response.permissions.microphone, false);
+  assert.equal(result.response.ready_for_testing, false);
+  assert.deepEqual(result.response.missing_permissions, ['microphone']);
+  assert.equal(
+    result.response.notes.some((note) => note.includes('structured daemon health is unavailable')),
+    true,
+  );
+  assert.equal(result.response.notes.some((note) => /daemon.*unreachable/i.test(note)), false);
+});
+
+test('absent daemon socket alone reports unreachable and fails microphone closed', () => {
+  const result = runCheck({ daemonHealth: { reachable: false } });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(result.response.daemon_view, { reachable: false });
+  assert.equal(result.response.cli_view.microphone, true);
+  assert.equal(result.response.permissions.microphone, false);
+  assert.equal(result.response.ready_for_testing, false);
+  assert.deepEqual(result.response.missing_permissions, ['microphone']);
+  assert.equal(result.response.notes.some((note) => /daemon.*unreachable/i.test(note)), true);
+});
+
+test('general readiness microphone blocker distinguishes unavailable health from an unreachable daemon', () => {
+  const common = {
+    ownership_state: 'managed',
+    daemon_running: true,
+  };
+  const input = {
+    daemon: null,
+    permissions: {
+      accessibility: true,
+      screen_recording: true,
+      listen_access: true,
+      post_access: true,
+      microphone: true,
+    },
+    setup: { setup_completed: true },
+    cleanReport: { stale_daemons: [] },
+  };
+
+  const reachable = readyBlockers({
+    ...input,
+    runtime: { ...common, socket_reachable: true },
+  }, 'repo').find((blocker) => blocker.id === 'microphone');
+  assert.ok(reachable);
+  assert.match(reachable.message, /structured daemon health is unavailable/i);
+  assert.doesNotMatch(reachable.message, /daemon.*unreachable/i);
+
+  const unreachable = readyBlockers({
+    ...input,
+    runtime: { ...common, socket_reachable: false },
+  }, 'repo').find((blocker) => blocker.id === 'microphone');
+  assert.ok(unreachable);
+  assert.match(unreachable.message, /daemon.*unreachable/i);
 });
 
 test('daemon microphone readiness requires an exact authorized state and granted boolean', () => {

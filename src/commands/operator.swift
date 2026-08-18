@@ -969,20 +969,21 @@ private func launchdProcessID(label: String) -> Int? {
     return nil
 }
 
-private func fetchDaemonHealthResponse(socketPath: String, budgetMs: Int = 250) -> [String: Any]? {
-    let deadline = Date().addingTimeInterval(Double(budgetMs) / 1000.0)
-    repeat {
-        if let response = sendEnvelopeRequest(service: "system", action: "ping", data: [:], socketPath: socketPath, timeoutMs: 250),
-           parseDaemonHealthView(from: response) != nil {
-            return response
-        }
-        usleep(50_000)
-    } while Date() < deadline
-    return nil
+private func fetchDaemonHealthResponse(socketPath: String) -> [String: Any]? {
+    guard let response = sendEnvelopeRequest(
+        service: "system",
+        action: "ping",
+        data: [:],
+        socketPath: socketPath,
+        timeoutMs: 1_000
+    ), parseDaemonHealthView(from: response) != nil else {
+        return nil
+    }
+    return response
 }
 
-private func fetchDaemonHealth(socketPath: String, budgetMs: Int = 250) -> DaemonHealthState? {
-    guard let response = fetchDaemonHealthResponse(socketPath: socketPath, budgetMs: budgetMs),
+private func fetchDaemonHealth(socketPath: String) -> DaemonHealthState? {
+    guard let response = fetchDaemonHealthResponse(socketPath: socketPath),
           let view = parseDaemonHealthView(from: response) else {
         return nil
     }

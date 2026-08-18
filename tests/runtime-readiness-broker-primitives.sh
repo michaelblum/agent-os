@@ -27,25 +27,15 @@ trap cleanup EXIT
 
 start_mock() {
   local status="$1"
-  local legacy="${2:-}"
-  if [[ -n "$legacy" ]]; then
-    python3 tests/lib/mock-daemon.py \
-      --socket "$SOCK" \
-      --tap-status "$status" \
-      --listen-access false \
-      --post-access true \
-      --accessibility false \
-      "$legacy" \
-      >"$STATE_ROOT/mock.stdout" 2>"$STATE_ROOT/mock.stderr" &
-  else
-    python3 tests/lib/mock-daemon.py \
-      --socket "$SOCK" \
-      --tap-status "$status" \
-      --listen-access false \
-      --post-access true \
-      --accessibility false \
-      >"$STATE_ROOT/mock.stdout" 2>"$STATE_ROOT/mock.stderr" &
-  fi
+  shift
+  python3 tests/lib/mock-daemon.py \
+    --socket "$SOCK" \
+    --tap-status "$status" \
+    --listen-access false \
+    --post-access true \
+    --accessibility false \
+    "$@" \
+    >"$STATE_ROOT/mock.stdout" 2>"$STATE_ROOT/mock.stderr" &
   MOCK_PID=$!
 
   for _ in $(seq 1 50); do
@@ -143,5 +133,67 @@ assert tap.get("post_access") is True, tap
 assert d.get("permissions", {}).get("accessibility") is True, d
 PY
 echo "PASS: __daemon health --json current structured health"
+
+stop_mock
+start_mock active --ping-delay-ms 400
+
+HEALTH_JSON="$(./aos __daemon health --json)"
+python3 - "$HEALTH_JSON" <<'PY'
+import json
+import sys
+
+d = json.loads(sys.argv[1])
+assert d.get("reachable") is True, d
+assert d.get("input_tap", {}).get("status") == "active", d
+assert d.get("permissions", {}).get("microphone_state") == "authorized", d
+PY
+echo "PASS: __daemon health accepts delayed structured health within 1000 ms"
+
+stop_mock
+start_mock active --ping-delay-ms 1200
+
+HEALTH_JSON="$(./aos __daemon health --json)"
+python3 - "$HEALTH_JSON" <<'PY'
+import json
+import sys
+
+d = json.loads(sys.argv[1])
+assert d.get("socket_exists") is True, d
+assert d.get("reachable") is True, d
+assert "input_tap" not in d, d
+assert d.get("permissions") == {}, d
+PY
+echo "PASS: __daemon health preserves reachability beyond the response deadline"
+
+stop_mock
+start_mock active --malformed-health
+
+HEALTH_JSON="$(./aos __daemon health --json)"
+python3 - "$HEALTH_JSON" <<'PY'
+import json
+import sys
+
+d = json.loads(sys.argv[1])
+assert d.get("socket_exists") is True, d
+assert d.get("reachable") is True, d
+assert "input_tap" not in d, d
+assert d.get("permissions") == {}, d
+PY
+echo "PASS: __daemon health preserves reachability for malformed structured health"
+
+stop_mock
+
+HEALTH_JSON="$(./aos __daemon health --json)"
+python3 - "$HEALTH_JSON" <<'PY'
+import json
+import sys
+
+d = json.loads(sys.argv[1])
+assert d.get("socket_exists") is False, d
+assert d.get("reachable") is False, d
+assert "input_tap" not in d, d
+assert d.get("permissions") == {}, d
+PY
+echo "PASS: __daemon health reports unreachable only for an absent socket"
 
 echo "PASS"

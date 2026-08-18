@@ -45,8 +45,11 @@ export function daemonView(daemonHealth) {
 }
 
 export function daemonViewFromHealth(health) {
-  if (!health?.reachable || !health.input_tap) {
+  if (!health?.reachable) {
     return { comparable: null, block: { reachable: false } };
+  }
+  if (!health.input_tap) {
+    return { comparable: null, block: { reachable: true } };
   }
 
   const tap = {
