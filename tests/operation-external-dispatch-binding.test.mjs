@@ -9,6 +9,8 @@ const repoRoot = path.resolve(import.meta.dirname, '..')
 const stateSource = path.join(repoRoot, 'src/daemon/operation-state.swift')
 const ownerSource = path.join(repoRoot, 'src/daemon/operation-owner-root.swift')
 const spawnSource = path.join(repoRoot, 'src/daemon/operation-spawn-record.swift')
+const dispatchSource = path.join(repoRoot, 'src/shared/external-command-dispatch.swift')
+const unifiedSource = path.join(repoRoot, 'src/daemon/unified.swift')
 
 async function compileAndRunHarness(source) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'aos-operation-spawn-binding-'))
@@ -313,4 +315,59 @@ test('durable external-dispatch shapes expose digest fields and no raw script ca
   assert.match(source, /scriptIdentityDigest/u)
   assert.match(source, /canonicalArgvShapeDigest/u)
   assert.match(source, /reviewedDependencySetDigest/u)
+})
+
+test('registered microphone spawn preserves only reviewed admission rejection codes', async () => {
+  const source = await readFile(dispatchSource, 'utf8')
+  const intent = source.match(/private func prepareExternalSpawnIntent\([\s\S]*?\n\}/u)?.[0]
+  assert.ok(intent)
+  assert.match(intent, /\["OPERATION_BARRIER_CLOSED", "OPERATION_RESOURCE_BUSY"\]\.contains/u)
+  assert.match(intent, /\? \$0 : nil/u)
+  assert.match(intent, /\?\? "EXTERNAL_SPAWN_INTENT_FAILED"/u)
+  assert.match(intent, /code: reviewedCode/u)
+  assert.doesNotMatch(intent, /code: response\["code"\]/u)
+})
+
+test('registered microphone attribution is validated before spawn and never becomes connection state', async () => {
+  const [dispatch, unified, state] = await Promise.all([
+    readFile(dispatchSource, 'utf8'),
+    readFile(unifiedSource, 'utf8'),
+    readFile(stateSource, 'utf8'),
+  ])
+  const fields = [
+    ['--client-id', 'client_id'], ['--agent-id', 'agent_id'],
+    ['--project-id', 'project_id'], ['--task-id', 'task_id'],
+    ['--run-id', 'run_id'], ['--skill-id', 'skill_id'],
+    ['--target-id', 'target_id'], ['--capability-label', 'capability_label'],
+    ['--retry-id', 'retry_id'],
+  ]
+  for (const [flag, wire] of fields) {
+    assert.match(dispatch, new RegExp(`${flag.replaceAll('-', '\\-')}.*${wire}`, 's'))
+    assert.match(state, new RegExp(`"${wire}"`))
+  }
+  assert.match(dispatch, /"asserted_attribution": assertedAttribution/u)
+  assert.match(dispatch, /guard externalCommandActivatesSpawnRegistration\(forwardedArguments\) else/u)
+  assert.match(dispatch, /Invalid registered microphone invocation/u)
+  assert.match(unified, /service == "operation" && action == "external_spawn_intent"/u)
+  assert.match(unified, /operationContext\(for: connectionID, attribution: attribution\)/u)
+  assert.doesNotMatch(unified, /var operationAttribution:/u)
+})
+
+test('generated microphone help exposes exactly the generic asserted attribution flags', async () => {
+  const registry = JSON.parse(await readFile(
+    path.join(repoRoot, 'manifests/commands/aos-commands.json'),
+    'utf8',
+  ))
+  const listen = registry.commands.find((command) => command.path.join(' ') === 'listen')
+  const forms = new Map(listen.forms.map((form) => [form.id, form]))
+  const expected = [
+    '--client-id', '--agent-id', '--project-id', '--task-id', '--run-id',
+    '--skill-id', '--target-id', '--capability-label', '--retry-id',
+  ]
+  for (const id of ['listen-microphone', 'listen-microphone-segmented']) {
+    const tokens = forms.get(id).args.map((argument) => argument.token).filter(Boolean)
+    assert.deepEqual(tokens.filter((token) => expected.includes(token)), expected)
+  }
+  const hotkeyTokens = forms.get('listen-hotkey').args.map((argument) => argument.token).filter(Boolean)
+  assert.equal(hotkeyTokens.some((token) => expected.includes(token)), false)
 })

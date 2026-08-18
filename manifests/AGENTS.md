@@ -43,6 +43,8 @@ developer command surfaces.
   source schema version 1. The stable generated external aggregate uses wire
   schema version 2, exactly `source/external/15-listen.json` owns
   the optional closed generation-bound microphone spawn registration, and the
+  authored microphone forms reuse the operation-filter attribution flag names
+  for descriptive, invocation-scoped operation creation. The
   generator, Swift dispatcher, help proxy, command-surface proofs, workflow
   routing, and installed projections are v1-only. Do not add v1 fields to v0,
   hand-edit the aggregate, introduce a dual reader or translation layer, or

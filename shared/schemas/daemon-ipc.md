@@ -16,6 +16,14 @@ Request:
 {"v":1,"service":"tell","action":"send","data":{"audience":["human"],"text":"hi"},"ref":"r-42"}
 ```
 
+The optional top-level `asserted_attribution` object is admitted only on
+`operation.external_spawn_intent`. Its closed fields are `client_id`,
+`agent_id`, `project_id`, `task_id`, `run_id`, `skill_id`, `target_id`,
+`capability_label`, and `retry_id`. Omission is an empty attribution. These
+caller assertions describe the operation created by that invocation; they do
+not supply or alter owner, peer, PID-generation, executable, spawn, claim, or
+control authority.
+
 Success response:
 ```json
 {"v":1,"status":"success","data":{"routes":[{"audience":"human","route":"voice","delivered":true}]},"ref":"r-42"}
@@ -98,8 +106,8 @@ Error response:
 | `operation.cancel` | Request cooperative cancellation of one exact owned operation. | `request_id`, `canonical_parameter_digest`, `selector`. |
 | `operation.kill` | Force-stop one exact owned operation and retain cleanup visibility. | `request_id`, `canonical_parameter_digest`, `selector`. |
 | `operation.kill_owner` | Stop the authenticated owner-set intersection selected by optional attribution/capability filters. | `request_id`, `canonical_parameter_digest`, `filters`. |
-| `operation.tap` | Open one exact bounded metadata or data tap. | `request_id`, `canonical_parameter_digest`, `selector`, `tap` with all seven bounds. |
-| `operation.artifact_reveal\|artifact_remove\|artifact_release\|artifact_retain` | Inspect or resolve one exact artifact generation. | `request_id`, `canonical_parameter_digest`, artifact `selector`, `action`. |
+| `operation.tap` | Return current typed tap unavailability without opening or sampling a tap. | `request_id`, `canonical_parameter_digest`. |
+| `operation.artifact_reveal\|artifact_remove\|artifact_release\|artifact_retain` | Return current typed artifact-custody unavailability without lookup or mutation. | `request_id`, `canonical_parameter_digest`. |
 | `operation.stop_all` | Same-effective-UID stop over the immutable registered-set snapshot at the expected barrier generation. | `schema_version`, `action`, `request_id`, `canonical_parameter_digest`, `expected_barrier_generation`. |
 | `operation.barrier_status` | Read the current host barrier snapshot, progress, and residual facts. | `schema_version`, `action`, `request_id`, `canonical_parameter_digest`. |
 | `operation.reopen` | Reopen admission after prior and current registered sets reconcile. | `schema_version`, `action`, `request_id`, `canonical_parameter_digest`, `expected_barrier_generation`. |
@@ -169,11 +177,18 @@ adapter-registry, or barrier generations before mutation. `filters` contain
 attribution and adapter-selected capability metadata only; they intersect the
 mechanically authenticated ordinary owner set.
 
+`operation.tap` and the four `operation.artifact_*` actions are parameterless
+apart from the CLI-attached request identity and canonical parameter digest.
+Tap returns `OPERATION_TAP_UNAVAILABLE`; every artifact action returns
+`OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE`. These current routes perform no tap
+sampling, artifact lookup, or custody mutation.
+
 The private `operation.external_spawn_intent`,
 `operation.external_spawn_child_admit`, `operation.external_spawn_abandon`, and
 `operation.external_spawn_finalize` actions bind only the invocation-scoped
 registered `listen --source microphone` adapter; non-microphone `listen` never
-enters this plane. Intent carries only content-free executable/script/argv
+enters this plane. The intent may carry the closed invocation-scoped asserted
+attribution object described above. Intent otherwise carries only content-free executable/script/argv
 digests, the reviewed dependency-set digest, the exact signed-Node identity,
 and registration revisions. The daemon durably prepares the operation and
 exclusive microphone claim before spawn, then returns one opaque parent-only
@@ -222,6 +237,8 @@ idempotent; abandon after finalize fails closed and never stops active authority
 | `DESKTOP_FRAME_RETIREMENT_UNCERTAIN` | Native ownership did not settle authoritatively by its logical deadline. |
 | `DESKTOP_FRAME_TOPOLOGY_MISMATCH` | Canonical topology validation or frozen-source restoration detected drift. |
 | `INPUT_TAP_NOT_ACTIVE` | Daemon is reachable but its global input tap is not active. Emitted by `do`-family preflight when the daemon's `system.ping` reports `input_tap.status != "active"`, and surfaced as `reason` in service install/start/restart responses when the tap-inactive branch is hit. |
+| `OPERATION_TAP_UNAVAILABLE` | The current operation plane exposes no tap sampling route. |
+| `OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE` | The current operation plane exposes no artifact lookup or custody mutation route. |
 | `INTERNAL` | Unexpected daemon error. |
 | `INVALID_STATUS_ITEM_DESCRIPTOR` | Descriptor data is missing or malformed. |
 | `INVALID_STATUS_ITEM_INSPECT` | Inspect identity is missing or malformed. |
@@ -376,8 +393,8 @@ The `operation` service emits only the closed content-free
 `terminal`, `residual`, and `barrier`. Every event binds daemon generation,
 operation id/generation, sequence, timestamp, digest, and one typed detail
 variant. It never carries raw operation data, media, text, URLs, paths, or
-artifacts. Callers request raw observation only through a separately bounded
-operation tap.
+artifacts. The current `operation.tap` route exposes no raw observation and
+returns `OPERATION_TAP_UNAVAILABLE`.
 
 Public `aos listen --source hotkey|microphone --follow` and
 `aos say --follow` are the sanctioned adapters for these connection-scoped

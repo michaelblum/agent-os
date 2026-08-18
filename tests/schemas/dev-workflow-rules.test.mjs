@@ -356,6 +356,34 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   );
   assert.equal(rules.get('native-see-capture-lifecycle')?.hot_swappable, true);
   assert.equal(rules.get('native-see-capture-lifecycle')?.tcc_identity_sensitive, false);
+  assert.ok(rules.get('operation-control')?.patterns?.includes('tests/manual/operation-control-native-proof.sh'));
+  assert.ok(rules.get('operation-control')?.patterns?.includes('tests/manual/operation-control-native-proof.mjs'));
+  assert.ok(rules.get('operation-control')?.patterns?.includes('tests/lib/operation-control-native-proof-contract.mjs'));
+  assert.deepEqual(
+    rules.get('operation-control')?.commands
+      ?.filter((step) => step.id === 'operation-owner-and-core-contract')
+      .map((step) => step.command),
+    [
+      'node --test tests/operation-owner-root.test.mjs tests/operation-control-contract.test.mjs tests/operation-control-fake.test.mjs tests/operation-resource-claims.test.mjs tests/operation-host-control.test.mjs tests/operation-host-barrier-reconciliation.test.mjs',
+    ],
+  );
+  assert.deepEqual(
+    rules.get('operation-control')?.commands
+      ?.filter((step) => step.id === 'operation-control-native-proof-contract')
+      .map((step) => step.command),
+    ['node --test tests/operation-control-native-proof-contract.test.mjs'],
+  );
+  assert.equal(
+    rules.get('operation-control')?.commands?.some((step) => step.command.includes('--run')),
+    false,
+  );
+  assert.ok(
+    rules.get('operation-control')?.notes?.some((note) =>
+      note.includes('AOS_OPERATION_CONTROL_NATIVE_PROOF_OK=1')
+        && note.includes('AOS_OPERATION_CONTROL_SAFE_CHECKPOINT=parked-and-verified')
+        && note.includes('does not invoke stop-all or reopen'),
+    ),
+  );
   assert.deepEqual(
     rules.get('dev-gh-helper')?.commands?.map((step) => step.command),
     [

@@ -198,6 +198,9 @@ commands, runtime helpers, wiki tools, and command adapters.
   exclusion is not an ADR 0040 raw-output gap. Signal and
   parent-loss handling must be active before managed daemon startup, and startup
   cancellation must await termination of any owned child.
+  Microphone forms also retain and validate the closed generic attribution
+  flags consumed by native registered dispatch at operation-intent creation;
+  hotkey and other voice forms reject them.
 - `aos-permissions.mjs` treats foreground Microphone preflight as diagnostic
   only. Its public prompt route starts the managed runtime when needed and
   delegates to the daemon authorization primitive; readiness and permissions

@@ -79,6 +79,10 @@ and boot recovery terminalize unfinalized prepared work and release its claim.
 the exact official signing boundary; its transient absolute path is never
 durable or public. Caller-asserted lineage is
 attribution and may only filter within the mechanically established set.
+The maintained microphone command now supplies the closed nine-field
+`asserted_attribution` request object at external-intent creation. Validation
+precedes operation, claim, and spawn effects; omission is empty, the value is
+invocation-scoped, and no attribution field can supply mechanical authority.
 
 The frozen external-command manifest v0 schema remains byte-exact at the M1
 baseline. M2 adds a v1 schema and atomically moves the stable generated
@@ -96,13 +100,16 @@ input.
 
 Host stop-all, passive barrier status, and expected-generation reopen are one
 distinct public same-effective-UID local control scope. M2 ships the daemon IPC
-and CLI, an internal status-item stop-all projection, and an internal Canvas
+and CLI, an internal status-item stop-all/reopen projection, and an internal Canvas
 projection. CLI and direct daemon IPC requests authenticate the current live
 transport peer. Only ordinary Canvas requests may continue through a currently
 live captured peer, and become display-only when it disappears. The always-
-available status-item break-glass action binds the exact
-daemon/status-host generation and effective UID and invokes the same public
-entrypoint. A status-opened Canvas may reuse that context for host stop-all
+available status-item break-glass actions bind the exact
+daemon/status-host, item, descriptor, and displayed barrier generations plus
+effective UID and an exact lease epoch, then invoke the same public stop-all/
+reopen entrypoints serially off AppKit's main thread. Lease retirement rejects
+new admissions without waiting for admitted work. Stop All and Reopen
+confirmations are presentation only. A status-opened Canvas may reuse that context for host stop-all
 only, never ordinary owner control. Its UI origin does not create a role.
 Maintained public TypeScript and Python SDK projections remain M6 and consume
 the M2 daemon IPC as their canonical programmatic contract.
@@ -152,6 +159,14 @@ In M2 only microphone capture is registered on the exclusive
 sentinels, cannot preempt or be preempted, and stay outside registered stop-all
 until later adapter migration.
 
+The current public tap and artifact-custody forms are parameterless apart from
+their transport-added request identity and canonical parameter digest. They
+return exact `OPERATION_TAP_UNAVAILABLE` and
+`OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE` errors and expose no sampling,
+artifact lookup, or custody mutation. Tap/artifact target machines and durable
+artifact recovery dispositions remain retained target/recovery definitions;
+they are not current success routes.
+
 ## Disposition ledger
 
 | Asset or authority | Current truth | Disposition | Authority action | Later exit gate |
@@ -185,7 +200,7 @@ until later adapter migration.
 | `packages/toolkit/` and `docs/api/toolkit/` | AOS-owned reusable surface layer; selected JS clients are transport-injected, but no comprehensive substrate SDK exists. | Expand | Add ownership pointer at Toolkit/status centers; no package code changes. | Publish maintained CLI/IPC/SDK projections for substrate and control-plane contracts. |
 | AOS installable skills | Generic substrate workflow guidance, constrained by current CLI/help. | Expand | Route to ADR/map and retain current command syntax. | Teach complete implemented primitives and optional caller transforms without policy. |
 | Current Gate, annotation, and Guided User Signal fidelity gaps listed by ADR 0040 | Some admitted facts still receive default redaction or omission. | Rewrite | Preserve explicit gap accounting. | Migrate each fact with exact schema/API/implementation/test ownership and explicit caller transforms. |
-| General operation-control commands and schemas | The M2 executable candidate now provides generation-bound list/inspect/status/recent/cancel/kill/kill-owner, bounded tap lifecycle, artifact custody verbs, stop-all, barrier-status, and reopen through daemon IPC and CLI, with internal status/Canvas projections. Its registered set contains microphone only. | Expand | Treat the current plane as the shared substrate; do not infer control over unadapted legacy subsystems or claim an M2 artifact producer. | Later adapters join at an exact registry revision. Public SDK projections remain M6; raw managed-tool transport remains M7. Claim-set admission stays complete-set atomic and microphone cannot preempt legacy voice output. |
+| General operation-control commands and schemas | The M2 executable candidate now provides generation-bound list/inspect/status/recent/cancel/kill/kill-owner, stop-all, barrier-status, and reopen through daemon IPC and CLI, with internal status/Canvas projections. Parameterless tap and artifact-custody forms return exact typed unavailability; no current sampling, artifact lookup, or custody mutation route exists. Its registered set contains microphone only. | Expand | Treat the current plane as the shared substrate; retain tap/artifact target and recovery definitions without presenting them as current success routes, do not infer control over unadapted legacy subsystems, and do not claim an M2 artifact producer. | Later adapters join at an exact registry revision. Public SDK projections remain M6; raw managed-tool transport remains M7. Claim-set admission stays complete-set atomic and microphone cannot preempt legacy voice output. |
 | Compatibility aliases, fixed-grammar policy, and any competing ambient Playwright resolver | Fixed grammar and old resolver residue are incompatible with the target. | Retire | No runtime retirement in Milestone 0. | Delete atomically under ADR 0039 after all internal consumers migrate. |
 | `docs/archive/**` and `docs/dev/reports/**` | Historical evidence, not active authority. | Archive | Preserve unchanged and exclude from stale scans. | None; Git and explicit archive ownership preserve history. |
 | Maintained `docs/design/**` notes and current work cards | Active design exploration under `docs/AGENTS.md`; some paths carry executable-current contradiction claims. | Keep | Scan tracked regular files as active authority and classify exact contradictions path-by-path. | Promote stable decisions to ADR/API/schema owners without using a blanket design-tree exclusion. |

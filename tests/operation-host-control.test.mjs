@@ -186,21 +186,25 @@ let canvasStop = try control.stopAll(
 )
 precondition(canvasStop.outcome == .alreadyClosed)
 
-expect(.unsupportedControlOrigin) {
-    _ = try control.reopen(
-        context: statusContext,
-        request: request("status-reopen", .reopen, "status-reopen", closed.generation)
-    )
-}
-let reopenRequest = request("reopen-1", .reopen, "reopen-1", closed.generation)
-let reopened = try control.reopen(context: live(), request: reopenRequest)
+let reopenRequest = request("status-reopen", .reopen, "status-reopen", closed.generation)
+let reopened = try control.reopen(context: statusContext, request: reopenRequest)
 precondition(reopened.outcome == .reopened)
+precondition(reopened.callerOrigin == .statusItemHost)
 precondition(reopened.priorSnapshot == receipt.snapshot)
 precondition(reopened.resultingBarrierGeneration != closed.generation)
 precondition(registry.snapshot().barrier.stopSnapshot == receipt.snapshot)
 precondition(registry.snapshot().barrier.state == .open)
-let reopenReplay = try control.reopen(context: live(501, daemon: 1), request: reopenRequest)
+let reopenReplay = try control.reopen(context: statusContext, request: reopenRequest)
 precondition(reopenReplay == reopened)
+expect(.unsupportedControlOrigin) {
+    _ = try control.reopen(
+        context: statusCanvas,
+        request: request(
+            "status-canvas-reopen", .reopen, "status-canvas-reopen",
+            reopened.resultingBarrierGeneration
+        )
+    )
+}
 expect(.barrierNotClosed) {
     _ = try control.reopen(
         context: live(),

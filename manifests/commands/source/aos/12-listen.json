@@ -238,6 +238,78 @@
               "value_type": "duration"
             },
             {
+              "id": "client-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Asserted client id; descriptive only",
+              "token": "--client-id",
+              "value_type": "string"
+            },
+            {
+              "id": "agent-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Asserted agent id; descriptive only",
+              "token": "--agent-id",
+              "value_type": "string"
+            },
+            {
+              "id": "project-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Asserted project id; descriptive only",
+              "token": "--project-id",
+              "value_type": "string"
+            },
+            {
+              "id": "task-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Asserted task id; descriptive only",
+              "token": "--task-id",
+              "value_type": "string"
+            },
+            {
+              "id": "run-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Asserted run id; descriptive only",
+              "token": "--run-id",
+              "value_type": "string"
+            },
+            {
+              "id": "skill-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Asserted skill id; descriptive only",
+              "token": "--skill-id",
+              "value_type": "string"
+            },
+            {
+              "id": "target-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Asserted target id; descriptive only",
+              "token": "--target-id",
+              "value_type": "string"
+            },
+            {
+              "id": "capability-label",
+              "kind": "flag",
+              "required": false,
+              "summary": "Asserted capability label; descriptive only",
+              "token": "--capability-label",
+              "value_type": "string"
+            },
+            {
+              "id": "retry-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Asserted retry id; descriptive only",
+              "token": "--retry-id",
+              "value_type": "string"
+            },
+            {
               "id": "follow",
               "kind": "flag",
               "required": true,
@@ -265,7 +337,7 @@
             "streaming": true,
             "supports_json_flag": false
           },
-          "usage": "aos listen --source microphone --output <absolute.wav> --follow [--max-duration 120s]"
+          "usage": "aos listen --source microphone --output <absolute.wav> --follow [--max-duration 120s] [asserted attribution flags]"
         },
         {
           "args": [
@@ -313,6 +385,78 @@
               "value_type": "duration"
             },
             {
+              "id": "client-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Asserted client id; descriptive only",
+              "token": "--client-id",
+              "value_type": "string"
+            },
+            {
+              "id": "agent-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Asserted agent id; descriptive only",
+              "token": "--agent-id",
+              "value_type": "string"
+            },
+            {
+              "id": "project-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Asserted project id; descriptive only",
+              "token": "--project-id",
+              "value_type": "string"
+            },
+            {
+              "id": "task-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Asserted task id; descriptive only",
+              "token": "--task-id",
+              "value_type": "string"
+            },
+            {
+              "id": "run-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Asserted run id; descriptive only",
+              "token": "--run-id",
+              "value_type": "string"
+            },
+            {
+              "id": "skill-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Asserted skill id; descriptive only",
+              "token": "--skill-id",
+              "value_type": "string"
+            },
+            {
+              "id": "target-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Asserted target id; descriptive only",
+              "token": "--target-id",
+              "value_type": "string"
+            },
+            {
+              "id": "capability-label",
+              "kind": "flag",
+              "required": false,
+              "summary": "Asserted capability label; descriptive only",
+              "token": "--capability-label",
+              "value_type": "string"
+            },
+            {
+              "id": "retry-id",
+              "kind": "flag",
+              "required": false,
+              "summary": "Asserted retry id; descriptive only",
+              "token": "--retry-id",
+              "value_type": "string"
+            },
+            {
               "id": "follow",
               "kind": "flag",
               "required": true,
@@ -340,7 +484,7 @@
             "streaming": true,
             "supports_json_flag": false
           },
-          "usage": "aos listen --source microphone --segments <absolute-directory> --follow [--segment-duration 3s] [--ready-cue none|chime] [--max-duration 120s]"
+          "usage": "aos listen --source microphone --segments <absolute-directory> --follow [--segment-duration 3s] [--ready-cue none|chime] [--max-duration 120s] [asserted attribution flags]"
         },
         {
           "args": [

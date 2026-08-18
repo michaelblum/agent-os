@@ -6,6 +6,17 @@ import {
 
 const MAX_LINE_BYTES = 16 * 1024;
 const MAX_SPEECH_BYTES = 64 * 1024;
+const ASSERTED_ATTRIBUTION_FLAGS = new Set([
+  '--client-id',
+  '--agent-id',
+  '--project-id',
+  '--task-id',
+  '--run-id',
+  '--skill-id',
+  '--target-id',
+  '--capability-label',
+  '--retry-id',
+]);
 const EXTERNAL_DISPATCH_REVIEWED_DEPENDENCY_SET_DIGEST_ENV = 'AOS_EXTERNAL_DISPATCH_REVIEWED_DEPENDENCY_SET_DIGEST';
 const EXTERNAL_DISPATCH_LIFECYCLE_PARENT_PID_ENV = 'AOS_EXTERNAL_DISPATCH_LIFECYCLE_PARENT_PID';
 const externalDispatchReviewedDependencySetDigest = process.env[EXTERNAL_DISPATCH_REVIEWED_DEPENDENCY_SET_DIGEST_ENV];
@@ -104,6 +115,18 @@ function operationIdentifier(value) {
 
 function operationGeneration(value) {
   return Number.isSafeInteger(value) && value >= 1 && value <= Number.MAX_SAFE_INTEGER;
+}
+
+function validateAssertedAttributionArguments(args) {
+  const seen = new Set();
+  for (let index = 0; index < args.length; index += 1) {
+    if (!ASSERTED_ATTRIBUTION_FLAGS.has(args[index])) continue;
+    if (seen.has(args[index])) fail('asserted attribution flags may appear only once', 'INVALID_ARG');
+    seen.add(args[index]);
+    const value = args[index + 1];
+    if (!operationIdentifier(value)) fail('asserted attribution values must be operation identifiers', 'INVALID_ARG');
+    index += 1;
+  }
 }
 
 function valueAfter(args, token) {
@@ -522,12 +545,18 @@ function followVoice(options) {
 export async function listenVoice(args) {
   assertOnlyFlags(
     args,
-    new Set(['--source', '--shortcut', '--output', '--segments', '--segment-duration', '--max-duration', '--ready-cue']),
+    new Set([
+      '--source', '--shortcut', '--output', '--segments', '--segment-duration', '--max-duration', '--ready-cue',
+      ...ASSERTED_ATTRIBUTION_FLAGS,
+    ]),
     new Set(['--follow']),
   );
   if (!args.includes('--follow')) fail('voice listen sources require --follow', 'MISSING_ARG');
   const source = valueAfter(args, '--source');
   if (source === 'hotkey') {
+    if ([...ASSERTED_ATTRIBUTION_FLAGS].some((flag) => args.includes(flag))) {
+      fail('asserted attribution is available only for microphone capture', 'INVALID_ARG');
+    }
     if (
       args.includes('--output')
       || args.includes('--segments')
@@ -545,6 +574,9 @@ export async function listenVoice(args) {
     return;
   }
   if (source === 'microphone') {
+    // The native registered dispatcher consumes these same validated values
+    // into the operation-creation envelope before this child is spawned.
+    validateAssertedAttributionArguments(args);
     if (args.includes('--shortcut')) fail('microphone listen does not accept --shortcut', 'INVALID_ARG');
     const output = valueAfter(args, '--output');
     const segmentsDirectory = valueAfter(args, '--segments');

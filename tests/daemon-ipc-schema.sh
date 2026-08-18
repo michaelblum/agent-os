@@ -105,6 +105,17 @@ external_spawn_intent = {
     "reviewed_dependency_set_digest": "4" * 64,
 }
 external_binding_token = "A" * 43
+asserted_attribution = {
+    "client_id": "client-1",
+    "agent_id": "agent-1",
+    "project_id": "project-1",
+    "task_id": "task-1",
+    "run_id": "run-1",
+    "skill_id": "skill-1",
+    "target_id": "target-1",
+    "capability_label": "microphone",
+    "retry_id": "retry-1",
+}
 
 good_requests = [
     {"v":1,"service":"system","action":"ping","data":{}},
@@ -138,11 +149,16 @@ good_requests = [
     {"v":1,"service":"operation","action":"inspect","data":{**operation_request,"selector":operation_selector}},
     {"v":1,"service":"operation","action":"cancel","data":{**operation_request,"selector":operation_selector}},
     {"v":1,"service":"operation","action":"kill_owner","data":{**operation_request,"filters":{"agent_id":"agent-1","project_id":"project-1"}}},
-    {"v":1,"service":"operation","action":"tap","data":{**operation_request,"selector":operation_selector,"tap":{"channel":"metadata","bounds":{"rate_items_per_second":30,"sample_every":2,"max_queue_items":8,"max_items":100,"max_bytes":4096,"idle_timeout_milliseconds":1000,"duration_milliseconds":5000},"follow":False}}},
+    {"v":1,"service":"operation","action":"tap","data":operation_request},
+    {"v":1,"service":"operation","action":"artifact_reveal","data":operation_request},
+    {"v":1,"service":"operation","action":"artifact_remove","data":operation_request},
+    {"v":1,"service":"operation","action":"artifact_release","data":operation_request},
+    {"v":1,"service":"operation","action":"artifact_retain","data":operation_request},
     {"v":1,"service":"operation","action":"stop_all","data":{**operation_request,"schema_version":"aos.host-stop-barrier.stop-all-request.v1","action":"stop_all","expected_barrier_generation":3}},
     {"v":1,"service":"operation","action":"barrier_status","data":{**operation_request,"schema_version":"aos.host-stop-barrier.status-request.v1","action":"barrier_status"}},
     {"v":1,"service":"operation","action":"reopen","data":{**operation_request,"schema_version":"aos.host-stop-barrier.reopen-request.v1","action":"reopen","expected_barrier_generation":3}},
     {"v":1,"service":"operation","action":"external_spawn_intent","data":external_spawn_intent},
+    {"v":1,"service":"operation","action":"external_spawn_intent","data":external_spawn_intent,"asserted_attribution":asserted_attribution},
     {"v":1,"service":"operation","action":"external_spawn_child_admit","data":{"schema_version":"aos.operation.external-spawn-child-admit-request.v1","request_id":"44444444-4444-4444-8444-444444444444","one_time_binding_token":external_binding_token,"child_pid":1234}},
     {"v":1,"service":"operation","action":"external_spawn_abandon","data":{"schema_version":"aos.operation.external-spawn-abandon-request.v1","request_id":"55555555-5555-4555-8555-555555555555","one_time_binding_token":external_binding_token}},
     {"v":1,"service":"operation","action":"external_spawn_finalize","data":{"schema_version":"aos.operation.external-spawn-finalize-request.v1","request_id":"66666666-6666-4666-8666-666666666666"}},
@@ -196,11 +212,16 @@ bad_requests = [
     {"v":1,"service":"operation","action":"list","data":{**operation_request,"filters":{},"human_initiated":True}},  # human intent is never authority
     {"v":1,"service":"operation","action":"list","data":{**operation_request,"filters":{"owner_root":"forged"}}},  # caller owner roots are forbidden
     {"v":1,"service":"operation","action":"inspect","data":{**operation_request,"selector":{"operation_id":operation_selector["operation_id"]}}},  # generation is required
-    {"v":1,"service":"operation","action":"tap","data":{**operation_request,"selector":operation_selector,"tap":{"channel":"metadata","bounds":{"rate_items_per_second":30,"sample_every":2,"max_queue_items":8,"max_items":100,"max_bytes":4096,"idle_timeout_milliseconds":1000},"follow":False}}},  # all seven tap bounds are required
+    {"v":1,"service":"operation","action":"tap","data":{**operation_request,"selector":operation_selector,"tap":{"channel":"metadata","bounds":{"rate_items_per_second":30,"sample_every":2,"max_queue_items":8,"max_items":100,"max_bytes":4096,"idle_timeout_milliseconds":1000,"duration_milliseconds":5000},"follow":False}}},  # retired tap selectors and bounds are rejected
+    {"v":1,"service":"operation","action":"artifact_reveal","data":{**operation_request,"selector":{"artifact_id":"artifact-1","artifact_generation":1},"action":"reveal"}},  # retired artifact selectors and custody action data are rejected
     {"v":1,"service":"operation","action":"stop_all","data":{**operation_request,"schema_version":"aos.host-stop-barrier.stop-all-request.v1","action":"stop_all"}},  # stop-all requires exact barrier CAS
     {"v":1,"service":"operation","action":"barrier_status","data":{**operation_request,"schema_version":"aos.host-stop-barrier.status-request.v1","action":"barrier_status","caller_origin":"status_item_host"}},  # origin evidence is server-attached
     {"v":1,"service":"operation","action":"recent","data":{**operation_request,"task_id":"task-1"}},  # filters are a closed nested object
     {"v":1,"service":"operation","action":"external_spawn_intent","data":{**external_spawn_intent,"human_initiated":True}},  # authority claims are forbidden
+    {"v":1,"service":"operation","action":"external_spawn_intent","data":external_spawn_intent,"asserted_attribution":{**asserted_attribution,"owner_root":"forged"}},  # attribution cannot supply mechanical ownership
+    {"v":1,"service":"operation","action":"external_spawn_intent","data":external_spawn_intent,"asserted_attribution":{"task_id":"bad value"}},  # identifiers are closed and bounded
+    {"v":1,"service":"operation","action":"external_spawn_intent","data":external_spawn_intent,"asserted_attribution":{"unknown_id":"value"}},  # attribution vocabulary is closed
+    {"v":1,"service":"system","action":"ping","data":{},"asserted_attribution":{}},  # only operation creation admits attribution
     {"v":1,"service":"operation","action":"external_spawn_intent","data":{**external_spawn_intent,"resolved_executable":{**external_spawn_intent["resolved_executable"],"path":"/usr/local/bin/node"}}},  # raw paths are forbidden
     {"v":1,"service":"operation","action":"external_spawn_intent","data":{k:v for k,v in external_spawn_intent.items() if k != "reviewed_dependency_set_digest"}},  # reviewed closure digest is required
     {"v":1,"service":"operation","action":"external_spawn_intent","data":{**external_spawn_intent,"resolved_executable":{**external_spawn_intent["resolved_executable"],"signing_team_identifier":"ATTACKER"}}},  # trusted Node team is closed
@@ -232,6 +253,8 @@ good_responses = [
     {"v":1,"status":"error","error":"bad argument","code":"INVALID_ARG"},
     {"v":1,"status":"error","error":"stale operation generation","code":"OPERATION_GENERATION_CONFLICT"},
     {"v":1,"status":"error","error":"host barrier generation changed","code":"OPERATION_BARRIER_GENERATION_CONFLICT"},
+    {"v":1,"status":"error","error":"OPERATION_TAP_UNAVAILABLE","code":"OPERATION_TAP_UNAVAILABLE","ref":"tap-request-1"},
+    {"v":1,"status":"error","error":"OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE","code":"OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE","ref":"artifact-request-1"},
     {"v":1,"status":"success","data":{"schema_version":"aos.operation.external-spawn-intent-response.v1","request_id":"33333333-3333-4333-8333-333333333333","spawn_record_id":"55555555-5555-4555-8555-555555555555","one_time_binding_token":external_binding_token,"operation_id":operation_selector["operation_id"],"operation_generation":operation_selector["operation_generation"],"adapter_registration_id":"microphone-capture-adapter","adapter_registration_revision":1}},
     {"v":1,"status":"success","data":{"schema_version":"aos.operation.external-spawn-child-admit-response.v1","request_id":"44444444-4444-4444-8444-444444444444","spawn_record_id":"55555555-5555-4555-8555-555555555555","operation_id":operation_selector["operation_id"],"operation_generation":operation_selector["operation_generation"],"child_pid":1234,"child_pid_generation":1234000001,"parent_edge_digest":"9"*64,"platform_code_directory_hash":"a"*40,"platform_code_directory_hash_algorithm":"sha256_truncated_cdhash_20_bytes","outcome":"generation_bound_spawn_child_admitted"}},
     {"v":1,"status":"success","data":{"schema_version":"aos.operation.external-spawn-abandon-response.v1","request_id":"55555555-5555-4555-8555-555555555555","spawn_record_id":"55555555-5555-4555-8555-555555555555","operation_id":operation_selector["operation_id"],"operation_generation":operation_selector["operation_generation"],"outcome":"prepared_operation_abandoned"}},
@@ -268,5 +291,11 @@ for response in bad_responses:
     errors = list(response_validator.iter_errors(response))
     assert errors, f"expected response errors for {response} but got none"
 
-print("PASS")
+print(
+    "PASS "
+    f"good_requests={len(good_requests)} "
+    f"bad_requests={len(bad_requests)} "
+    f"good_responses={len(good_responses)} "
+    f"bad_responses={len(bad_responses)}"
+)
 PY

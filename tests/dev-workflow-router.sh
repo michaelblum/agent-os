@@ -578,6 +578,28 @@ else
     fail "dev recommend command source/generator routing drifted"
 fi
 
+if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files \
+    tests/manual/operation-control-native-proof.sh \
+    tests/manual/operation-control-native-proof.mjs \
+    tests/lib/operation-control-native-proof-contract.mjs \
+    tests/operation-control-native-proof-contract.test.mjs 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+summary = data["summary"]
+assert "operation-control" in summary["rule_ids"], data
+assert "unclassified" not in summary["rule_ids"], data
+commands = {item["command"] for item in data["next_commands"]}
+assert "node --test tests/operation-control-native-proof-contract.test.mjs" in commands, data
+assert all("operation-control-native-proof.sh --run" not in command for command in commands), data
+PY
+then
+    pass "dev recommend routes the guarded operation-control proof only to its offline contract"
+else
+    fail "dev recommend operation-control native-proof routing drifted"
+fi
+
 if OUT="$(node scripts/aos-dev-workflow.mjs recommend --json --files packages/cli/verbs/gate-ask.js 2>/dev/null)" python3 - <<'PY'
 import json
 import os

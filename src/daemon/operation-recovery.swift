@@ -168,11 +168,6 @@ enum AOSOperationRecovery {
                 recoveryGeneration: recoveryGeneration,
                 claimTokenDigest: claimTokenDigest
             )
-            for index in state.operations.indices where
-                mechanicallyAbsentOperationIDs.contains(state.operations[index].identity)
-                    && [.cleanupRequired, .recovering].contains(state.operations[index].state) {
-                state.operations[index].state = .terminal
-            }
             for index in state.streams.indices where
                 mechanicallyAbsentStreamIDs.contains(state.streams[index].identity)
                     && [.cleanupRequired, .recovering].contains(state.streams[index].state) {
@@ -213,6 +208,18 @@ enum AOSOperationRecovery {
             }
             state.finalizedExternalSpawnRecords.removeAll {
                 mechanicallyAbsentSpawnRecordIDs.contains($0.skipRecord.spawnRecordID)
+            }
+            for index in state.operations.indices where
+                mechanicallyAbsentOperationIDs.contains(state.operations[index].identity)
+                    && [.cleanupRequired, .recovering].contains(state.operations[index].state) {
+                guard !AOSOperationRegistry.hasNonterminalChildren(
+                    in: state,
+                    operation: state.operations[index].identity
+                ) else {
+                    throw AOSOperationCoreError.residualsPresent
+                }
+                state.operations[index].state = .terminal
+                state.operations[index].residualDigest = nil
             }
             let residualIDs = residualIdentities(state)
             state.recovery.residualCount = UInt64(residualIDs.count)

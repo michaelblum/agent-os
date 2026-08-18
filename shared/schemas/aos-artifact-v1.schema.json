@@ -1,9 +1,22 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-artifact-v1.schema.json",
-  "title": "AOS Artifact v1",
-  "$ref": "#/$defs/artifact_snapshot",
+  "title": "AOS Artifact Target State and Current Custody Unavailability v1",
+  "description": "Current public artifact custody invocation is unavailable because no production artifact producer or custody adapter is registered. Target-state definitions remain for the accepted lifecycle and durable recovery contract.",
+  "$ref": "#/$defs/artifact_custody_unavailable_result",
   "$defs": {
+    "artifact_custody_unavailable_result": {
+      "type": "object",
+      "required": ["v", "status", "error", "code"],
+      "properties": {
+        "v": {"const": 1},
+        "status": {"const": "error"},
+        "error": {"const": "OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE"},
+        "code": {"const": "OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE"},
+        "ref": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
     "identifier": {
       "type": "string",
       "minLength": 1,
@@ -291,19 +304,6 @@
           }
         }
       ]
-    },
-    "artifact_action_result": {
-      "type": "object",
-      "required": ["schema_version", "operation", "action", "artifact", "outcome", "completed_at"],
-      "properties": {
-        "schema_version": {"const": "aos.operation.artifact-result.v1"},
-        "operation": {"const": "artifact"},
-        "action": {"enum": ["reveal", "remove", "release", "retain"]},
-        "artifact": {"$ref": "#/$defs/artifact_snapshot"},
-        "outcome": {"enum": ["observed", "removed", "released", "retained", "cleanup_required", "stale_identity", "not_found"]},
-        "completed_at": {"$ref": "#/$defs/timestamp"}
-      },
-      "additionalProperties": false
     }
   }
 }

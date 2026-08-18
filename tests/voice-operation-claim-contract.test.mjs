@@ -92,15 +92,18 @@ let adapterRegistry = try AOSAdapterRegistrySnapshot.make(
     registrations: [registration]
 )
 let store = AOSInMemoryOperationStateStore()
+let idLock = NSLock()
+var nextID = 0
 let registry = try AOSOperationRegistry(
     store: store,
     daemonGeneration: 7,
     adapterRegistry: adapterRegistry,
     clock: { 99 },
     idFactory: {
-        struct Counter { static var value = 0 }
-        Counter.value += 1
-        return "id-\(Counter.value)"
+        idLock.lock()
+        defer { idLock.unlock() }
+        nextID += 1
+        return "id-\(nextID)"
     }
 )
 try registry.mutateDurably { state in
@@ -134,18 +137,124 @@ let adapter = try AOSMicrophoneOperationAdapter(
 )
 try registry.installRuntimeAdapters([adapter])
 
-let first = try adapter.prepareCapture(owner: owner)
+let omittedAttribution = try AOSOperationAttribution.validatingPublicValue(nil)
+precondition(omittedAttribution == AOSOperationAttribution())
+let completeAttribution = try AOSOperationAttribution.validatingPublicValue([
+    "client_id": "client-1", "agent_id": "agent-1", "project_id": "project-1",
+    "task_id": "task-1", "run_id": "run-1", "skill_id": "skill-1",
+    "target_id": "target-1", "capability_label": "microphone", "retry_id": "retry-1",
+])
+precondition(completeAttribution.publicValue == [
+    "client_id": "client-1", "agent_id": "agent-1", "project_id": "project-1",
+    "task_id": "task-1", "run_id": "run-1", "skill_id": "skill-1",
+    "target_id": "target-1", "capability_label": "microphone", "retry_id": "retry-1",
+])
+for malformed: Any in [
+    ["task_id": "bad value"],
+    ["owner_root": "forged"],
+    ["effective_uid": 501],
+    ["retry_id": String(repeating: "a", count: 129)],
+] {
+    expectCoreError(.invalidRecord("asserted_attribution")) {
+        _ = try AOSOperationAttribution.validatingPublicValue(malformed)
+    }
+}
+precondition(registry.snapshot().operations.isEmpty)
+precondition(registry.snapshot().resourceClaims.isEmpty)
+
+try registry.mutateDurably { state in
+    state.barrier.state = .bootReconciling
+    state.barrier.openSnapshot = nil
+    state.barrier.cleanupResult = .pending
+    state.barrier.reconciliationState = "pending"
+}
+expectCoreError(.barrierClosed) {
+    _ = try adapter.prepareCapture(owner: owner)
+}
 var state = registry.snapshot()
-precondition(state.operations.count == 1)
-precondition(state.operations[0].state == .starting)
-precondition(state.operations[0].capabilityID == "microphone-capture-adapter")
-precondition(state.resourceTransactions.count == 1)
-precondition(state.resourceTransactions[0].state == .terminal)
-precondition(state.resourceClaims.count == 1)
-precondition(state.resourceClaims[0].state == .active)
-precondition(state.resourceClaims[0].admissionMode == .exclusive)
-precondition(state.resourceClaims[0].operation == state.operations[0].identity)
-let firstOperation = state.operations[0].identity
+precondition(state.operations.isEmpty)
+precondition(state.resourceTransactions.isEmpty)
+precondition(state.resourceClaims.isEmpty)
+try registry.mutateDurably { state in
+    state.barrier.state = .open
+    state.barrier.openSnapshot = try AOSOpenBarrierSnapshot.make(
+        barrierGeneration: state.barrier.generation,
+        registry: state.adapterRegistry
+    )
+    state.barrier.cleanupResult = .zeroResiduals
+    state.barrier.reconciliationState = "complete"
+}
+
+let assertedOperation = try adapter.prepareExternalCapture(context: AOSMicrophoneOperationContext(
+    ownerRoot: ownerRoot,
+    attribution: completeAttribution
+))
+state = registry.snapshot()
+precondition(state.operations.first { $0.identity == assertedOperation }?.attribution == completeAttribution)
+adapter.abandonPreparedCapture(operation: assertedOperation)
+
+let omittedOperation = try adapter.prepareExternalCapture(context: AOSMicrophoneOperationContext(
+    ownerRoot: ownerRoot,
+    attribution: omittedAttribution
+))
+state = registry.snapshot()
+precondition(state.operations.first { $0.identity == omittedOperation }?.attribution == omittedAttribution)
+adapter.abandonPreparedCapture(operation: omittedOperation)
+
+let concurrentAttributions = [
+    AOSOperationAttribution(clientID: "client-a", taskID: "task-a", retryID: "retry-a"),
+    AOSOperationAttribution(clientID: "client-b", taskID: "task-b", retryID: "retry-b"),
+]
+final class OperationCollector {
+    private let lock = NSLock()
+    private var storage: [AOSOperationIdentity] = []
+    func append(_ operation: AOSOperationIdentity) {
+        lock.lock()
+        storage.append(operation)
+        lock.unlock()
+    }
+    var values: [AOSOperationIdentity] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
+}
+let concurrentOperations = OperationCollector()
+let concurrentGroup = DispatchGroup()
+for attribution in concurrentAttributions {
+    concurrentGroup.enter()
+    DispatchQueue.global().async {
+        defer { concurrentGroup.leave() }
+        if let operation = try? adapter.prepareExternalCapture(context: AOSMicrophoneOperationContext(
+            ownerRoot: ownerRoot,
+            attribution: attribution
+        )) {
+            concurrentOperations.append(operation)
+        }
+    }
+}
+concurrentGroup.wait()
+precondition(concurrentOperations.values.count == 1)
+state = registry.snapshot()
+let concurrentRecords = state.operations.filter {
+    $0.attribution.taskID == "task-a" || $0.attribution.taskID == "task-b"
+}
+precondition(concurrentRecords.count == 2)
+precondition(Set(concurrentRecords.map {
+    "\($0.attribution.clientID!):\($0.attribution.taskID!):\($0.attribution.retryID!)"
+}) == Set(["client-a:task-a:retry-a", "client-b:task-b:retry-b"]))
+adapter.abandonPreparedCapture(operation: concurrentOperations.values[0])
+
+let first = try adapter.prepareCapture(owner: owner)
+state = registry.snapshot()
+let firstOperation = state.operations.last!.identity
+precondition(state.operations.last!.state == .starting)
+precondition(state.operations.last!.capabilityID == "microphone-capture-adapter")
+precondition(state.resourceTransactions.last!.state == .terminal)
+precondition(state.resourceClaims.last!.state == .active)
+precondition(state.resourceClaims.last!.admissionMode == .exclusive)
+precondition(state.resourceClaims.last!.operation == firstOperation)
+let firstClaimGeneration = state.resourceClaims.last!.resourceGeneration
 
 let operationPreparedSave = store.savedStates.firstIndex {
     $0.operations.contains { $0.identity == firstOperation && $0.state == .prepared }
@@ -155,12 +264,17 @@ let claimCommittedSave = store.savedStates.firstIndex {
 }!
 precondition(operationPreparedSave < claimCommittedSave)
 
+let rejectedBeforeBusy = registry.snapshot().operations.filter {
+    $0.state == .terminal && $0.outcome == .rejected
+}.count
 expectCoreError(.resourceBusy) {
     _ = try adapter.prepareCapture(owner: owner)
 }
 state = registry.snapshot()
 precondition(state.resourceClaims.filter { $0.state == .active }.count == 1)
-precondition(state.operations.filter { $0.state == .terminal && $0.outcome == .rejected }.count == 1)
+precondition(state.operations.filter {
+    $0.state == .terminal && $0.outcome == .rejected
+}.count == rejectedBeforeBusy + 1)
 
 var stopRequests: [Bool] = []
 try first.bindAuthority(
@@ -186,7 +300,7 @@ let second = try adapter.prepareCapture(owner: owner)
 state = registry.snapshot()
 let secondOperation = state.operations.last!.identity
 let secondClaim = state.resourceClaims.last!
-precondition(secondClaim.resourceGeneration == 2)
+precondition(secondClaim.resourceGeneration == firstClaimGeneration + 1)
 try second.bindAuthority(
     stop: { stopRequests.append($0) },
     residualDigest: { nil }
@@ -286,5 +400,5 @@ test('voice transport uses an atomic legacy-output sentinel and has no implicit 
   assert.match(segmented, /authorityAbsent: authorityAbsent/)
   assert.match(adapter, /finishExclusiveRelease\([\s\S]*absenceVerified: authorityAbsent/)
   assert.match(adapter, /claimIsTerminal = release\.state == \.terminal && release\.absenceVerified/)
-  assert.match(adapter, /to: \.terminal,[\s\S]*outcome:/)
+  assert.match(adapter, /terminalizeOperationAfterVerifiedCleanup\([\s\S]*outcome:/)
 })

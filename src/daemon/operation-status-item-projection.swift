@@ -232,9 +232,79 @@ struct AOSOperationStatusHostBinding: Codable, Equatable {
     }
 }
 
+struct AOSOperationStatusHostLeaseIdentity: Equatable {
+    let binding: AOSOperationStatusHostBinding
+    let epoch: UInt64
+}
+
+struct AOSOperationStatusHostAdmission: Equatable {
+    let binding: AOSOperationStatusHostBinding
+    let epoch: UInt64
+}
+
+final class AOSOperationStatusHostLease {
+    private let lock = NSLock()
+    private var binding: AOSOperationStatusHostBinding?
+    private var epoch: UInt64
+
+    init(_ binding: AOSOperationStatusHostBinding? = nil) {
+        self.binding = binding
+        self.epoch = binding == nil ? 0 : 1
+    }
+
+    @discardableResult
+    func install(_ binding: AOSOperationStatusHostBinding) throws -> AOSOperationStatusHostLeaseIdentity {
+        lock.lock()
+        defer { lock.unlock() }
+        guard epoch < UInt64.max else {
+            self.binding = nil
+            throw AOSOperationProjectionError.invalidStatusHostBinding
+        }
+        epoch += 1
+        self.binding = binding
+        return AOSOperationStatusHostLeaseIdentity(binding: binding, epoch: epoch)
+    }
+
+    func clear() {
+        lock.lock()
+        binding = nil
+        if epoch < UInt64.max { epoch += 1 }
+        lock.unlock()
+    }
+
+    @discardableResult
+    func retire(_ expected: AOSOperationStatusHostLeaseIdentity) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard binding == expected.binding, epoch == expected.epoch else { return false }
+        binding = nil
+        if epoch < UInt64.max { epoch += 1 }
+        return true
+    }
+
+    func identity() -> AOSOperationStatusHostLeaseIdentity? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let binding else { return nil }
+        return AOSOperationStatusHostLeaseIdentity(binding: binding, epoch: epoch)
+    }
+
+    func admit(
+        _ expected: AOSOperationStatusHostLeaseIdentity
+    ) throws -> AOSOperationStatusHostAdmission {
+        lock.lock()
+        defer { lock.unlock() }
+        guard binding == expected.binding, epoch == expected.epoch else {
+            throw AOSOperationProjectionError.invalidStatusHostBinding
+        }
+        return AOSOperationStatusHostAdmission(binding: expected.binding, epoch: expected.epoch)
+    }
+}
+
 enum AOSOperationInternalStatusItemAction: String {
     case openCanvas = "open_canvas"
     case stopAll = "stop_all"
+    case reopen
 }
 
 struct AOSOperationInternalStatusItemActionEvidence: Equatable {
@@ -242,6 +312,35 @@ struct AOSOperationInternalStatusItemActionEvidence: Equatable {
     let itemGeneration: UInt64
     let descriptorRevision: UInt64
     let actionSequence: UInt64
+    let expectedBarrierGeneration: UInt64
+}
+
+struct AOSOperationStatusMenuPresentation: Equatable {
+    let barrierTitle: String
+    let stopAllEnabled: Bool
+    let reopenEnabled: Bool
+    let stopAllConfirmationTitle: String
+    let reopenConfirmationTitle: String
+
+    static func make(snapshot: AOSOperationStatusItemSnapshot) -> Self {
+        let state = snapshot.barrierState.rawValue
+            .replacingOccurrences(of: "_", with: " ")
+            .capitalized
+        return Self(
+            barrierTitle: "Barrier: \(state) · generation \(snapshot.barrierGeneration)",
+            stopAllEnabled: true,
+            reopenEnabled: snapshot.barrierState == .closed,
+            stopAllConfirmationTitle: "Confirm Stop All for Generation \(snapshot.barrierGeneration)",
+            reopenConfirmationTitle: "Confirm Reopen Generation \(snapshot.barrierGeneration)"
+        )
+    }
+}
+
+private struct AOSOperationStatusMenuActionBinding {
+    let action: AOSOperationInternalStatusItemAction
+    let itemGeneration: UInt64
+    let descriptorRevision: UInt64
+    let expectedBarrierGeneration: UInt64
 }
 
 protocol AOSOperationInternalStatusItemHosting: AnyObject {
@@ -252,6 +351,7 @@ protocol AOSOperationInternalStatusItemHosting: AnyObject {
     )
     func update(snapshot: AOSOperationStatusItemSnapshot, descriptorRevision: UInt64)
     func updateFailure(code: String, descriptorRevision: UInt64)
+    func updateControlFailure(code: String, descriptorRevision: UInt64)
     func teardown()
 }
 
@@ -262,6 +362,7 @@ final class AOSAppKitOperationInternalStatusItemHost: NSObject, AOSOperationInte
     private var actionSequence: UInt64 = 0
     private var onAction: ((AOSOperationInternalStatusItemActionEvidence) -> Void)?
     private var snapshot: AOSOperationStatusItemSnapshot?
+    private var controlFailureCode: String?
 
     func install(
         itemGeneration: UInt64,
@@ -285,20 +386,32 @@ final class AOSAppKitOperationInternalStatusItemHost: NSObject, AOSOperationInte
 
     func update(snapshot: AOSOperationStatusItemSnapshot, descriptorRevision: UInt64) {
         onMain { [weak self] in
-            self?.snapshot = snapshot
-            self?.descriptorRevision = descriptorRevision
-            self?.render()
+            guard let self, descriptorRevision >= self.descriptorRevision else { return }
+            self.snapshot = snapshot
+            self.descriptorRevision = descriptorRevision
+            self.controlFailureCode = nil
+            self.render()
         }
     }
 
     func updateFailure(code: String, descriptorRevision: UInt64) {
         onMain { [weak self] in
-            guard let self else { return }
+            guard let self, descriptorRevision >= self.descriptorRevision else { return }
             self.snapshot = nil
+            self.controlFailureCode = nil
             self.descriptorRevision = descriptorRevision
             self.statusItem?.button?.title = "AOS"
             self.statusItem?.button?.toolTip = "AOS operation status unavailable (\(code))"
             self.statusItem?.button?.image = self.makeIcon(red: false)
+        }
+    }
+
+    func updateControlFailure(code: String, descriptorRevision: UInt64) {
+        onMain { [weak self] in
+            guard let self, descriptorRevision >= self.descriptorRevision else { return }
+            self.controlFailureCode = code
+            self.descriptorRevision = descriptorRevision
+            self.render()
         }
     }
 
@@ -311,25 +424,34 @@ final class AOSAppKitOperationInternalStatusItemHost: NSObject, AOSOperationInte
             self.statusItem = nil
             self.onAction = nil
             self.snapshot = nil
+            self.controlFailureCode = nil
         }
     }
 
     @objc private func handleClick(_ sender: Any?) {
-        if NSApp.currentEvent?.type == .rightMouseUp {
-            showMenu()
-        } else {
-            emit(.openCanvas)
-        }
+        showMenu()
     }
 
-    @objc private func handleStopAll(_ sender: Any?) {
-        emit(.stopAll)
+    @objc private func handleBoundAction(_ sender: Any?) {
+        guard let item = sender as? NSMenuItem,
+              let binding = item.representedObject as? AOSOperationStatusMenuActionBinding else {
+            return
+        }
+        emit(binding)
     }
 
     private func showMenu() {
         guard let statusItem, let button = statusItem.button else { return }
         let menu = NSMenu()
         if let snapshot {
+            let presentation = AOSOperationStatusMenuPresentation.make(snapshot: snapshot)
+            let barrier = NSMenuItem(
+                title: presentation.barrierTitle,
+                action: nil,
+                keyEquivalent: ""
+            )
+            barrier.isEnabled = false
+            menu.addItem(barrier)
             let counts = snapshot.counts
             let summary = NSMenuItem(
                 title: "\(counts.active) active, \(counts.recording) recording, \(counts.residual) cleanup",
@@ -338,40 +460,105 @@ final class AOSAppKitOperationInternalStatusItemHost: NSObject, AOSOperationInte
             )
             summary.isEnabled = false
             menu.addItem(summary)
+            if let controlFailureCode {
+                let failure = NSMenuItem(
+                    title: "Last control failed: \(controlFailureCode)",
+                    action: nil,
+                    keyEquivalent: ""
+                )
+                failure.isEnabled = false
+                menu.addItem(failure)
+            }
             menu.addItem(.separator())
+            menu.addItem(makeBoundActionItem(
+                title: "Open Operation Control",
+                binding: binding(for: .openCanvas, snapshot: snapshot)
+            ))
+            menu.addItem(makeConfirmedActionItem(
+                title: "Stop All Registered Operations…",
+                explanation: "Closes new registered-operation admission until explicitly reopened.",
+                confirmationTitle: presentation.stopAllConfirmationTitle,
+                enabled: presentation.stopAllEnabled,
+                binding: binding(for: .stopAll, snapshot: snapshot)
+            ))
+            menu.addItem(makeConfirmedActionItem(
+                title: "Reopen Registered Operation Admission…",
+                explanation: "Reopens only after the exact closed generation is residual-free and reconciled.",
+                confirmationTitle: presentation.reopenConfirmationTitle,
+                enabled: presentation.reopenEnabled,
+                binding: binding(for: .reopen, snapshot: snapshot)
+            ))
+        } else {
+            let unavailable = NSMenuItem(
+                title: "Operation status unavailable",
+                action: nil,
+                keyEquivalent: ""
+            )
+            unavailable.isEnabled = false
+            menu.addItem(unavailable)
         }
-        let open = NSMenuItem(
-            title: "Open Operation Control",
-            action: #selector(handleOpenCanvas(_:)),
-            keyEquivalent: ""
-        )
-        open.target = self
-        menu.addItem(open)
-        let stopAll = NSMenuItem(
-            title: "Stop All Registered Operations",
-            action: #selector(handleStopAll(_:)),
-            keyEquivalent: ""
-        )
-        stopAll.target = self
-        stopAll.isEnabled = true
-        menu.addItem(stopAll)
         statusItem.menu = menu
         button.performClick(nil)
         statusItem.menu = nil
     }
 
-    @objc private func handleOpenCanvas(_ sender: Any?) {
-        emit(.openCanvas)
+    private func makeBoundActionItem(
+        title: String,
+        binding: AOSOperationStatusMenuActionBinding
+    ) -> NSMenuItem {
+        let item = NSMenuItem(
+            title: title,
+            action: #selector(handleBoundAction(_:)),
+            keyEquivalent: ""
+        )
+        item.target = self
+        item.representedObject = binding
+        return item
     }
 
-    private func emit(_ action: AOSOperationInternalStatusItemAction) {
-        guard actionSequence < UInt64.max else { return }
-        actionSequence += 1
-        onAction?(AOSOperationInternalStatusItemActionEvidence(
+    private func makeConfirmedActionItem(
+        title: String,
+        explanation: String,
+        confirmationTitle: String,
+        enabled: Bool,
+        binding: AOSOperationStatusMenuActionBinding
+    ) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.isEnabled = enabled
+        let confirmation = NSMenu()
+        let explanationItem = NSMenuItem(title: explanation, action: nil, keyEquivalent: "")
+        explanationItem.isEnabled = false
+        confirmation.addItem(explanationItem)
+        confirmation.addItem(.separator())
+        confirmation.addItem(makeBoundActionItem(
+            title: confirmationTitle,
+            binding: binding
+        ))
+        item.submenu = confirmation
+        return item
+    }
+
+    private func binding(
+        for action: AOSOperationInternalStatusItemAction,
+        snapshot: AOSOperationStatusItemSnapshot
+    ) -> AOSOperationStatusMenuActionBinding {
+        AOSOperationStatusMenuActionBinding(
             action: action,
             itemGeneration: itemGeneration,
             descriptorRevision: descriptorRevision,
-            actionSequence: actionSequence
+            expectedBarrierGeneration: snapshot.barrierGeneration
+        )
+    }
+
+    private func emit(_ binding: AOSOperationStatusMenuActionBinding) {
+        guard actionSequence < UInt64.max else { return }
+        actionSequence += 1
+        onAction?(AOSOperationInternalStatusItemActionEvidence(
+            action: binding.action,
+            itemGeneration: binding.itemGeneration,
+            descriptorRevision: binding.descriptorRevision,
+            actionSequence: actionSequence,
+            expectedBarrierGeneration: binding.expectedBarrierGeneration
         ))
     }
 
@@ -380,7 +567,10 @@ final class AOSAppKitOperationInternalStatusItemHost: NSObject, AOSOperationInte
         let counts = snapshot?.counts
         button.title = counts.map { "AOS \($0.active)" } ?? "AOS"
         button.toolTip = counts.map {
-            "AOS operations: \($0.active) active, \($0.recording) recording, \($0.residual) cleanup"
+            let barrier = snapshot?.barrierState.rawValue ?? "unknown"
+            let generation = snapshot?.barrierGeneration ?? 0
+            let failure = controlFailureCode.map { "; last control failed: \($0)" } ?? ""
+            return "AOS operations: \($0.active) active, \($0.recording) recording, \($0.residual) cleanup; barrier \(barrier) generation \(generation)\(failure)"
         } ?? "AOS operation control"
         button.image = makeIcon(red: snapshot?.recordingIndicatorIsRed == true)
         button.imagePosition = .imageLeading
@@ -439,7 +629,7 @@ enum AOSOperationProjectionRequestDigest {
 final class AOSOperationStatusItemProjection {
     typealias StateReader = () -> AOSOperationDurableState
     typealias RequestIDFactory = () -> String
-    typealias CanvasOpener = (AOSOperationStatusHostBinding) -> Void
+    typealias CanvasOpener = (AOSOperationStatusHostLeaseIdentity) -> Void
 
     private let controlPlane: AOSOperationControlPlane
     private let readState: StateReader
@@ -448,10 +638,17 @@ final class AOSOperationStatusItemProjection {
     private let itemHost: AOSOperationInternalStatusItemHosting
     private let requestIDFactory: RequestIDFactory
     private let openCanvas: CanvasOpener
+    private let statusHostLease: AOSOperationStatusHostLease
+    private let statusHostLeaseIdentity: AOSOperationStatusHostLeaseIdentity
+    private let controlQueue: DispatchQueue
     private let lock = NSLock()
+    private let refreshLock = NSLock()
     private let itemGeneration: UInt64
     private var descriptorRevision: UInt64 = 1
+    private var publishedBarrierGeneration: UInt64?
     private var lastActionSequence: UInt64 = 0
+    private var controlActionInFlight = false
+    private var tornDown = false
 
     init(
         controlPlane: AOSOperationControlPlane,
@@ -461,6 +658,11 @@ final class AOSOperationStatusItemProjection {
         itemGeneration: UInt64,
         itemHost: AOSOperationInternalStatusItemHosting = AOSAppKitOperationInternalStatusItemHost(),
         requestIDFactory: @escaping RequestIDFactory = { UUID().uuidString.lowercased() },
+        statusHostLease: AOSOperationStatusHostLease,
+        controlQueue: DispatchQueue = DispatchQueue(
+            label: "io.agent-os.operation-status-control",
+            qos: .userInitiated
+        ),
         openCanvas: @escaping CanvasOpener
     ) throws {
         let state = readState()
@@ -469,6 +671,10 @@ final class AOSOperationStatusItemProjection {
             throw AOSOperationProjectionError.invalidStatusHostBinding
         }
         try indicatorRegistry.validate(against: state.adapterRegistry)
+        guard let leaseIdentity = statusHostLease.identity(),
+              leaseIdentity.binding == statusHost else {
+            throw AOSOperationProjectionError.invalidStatusHostBinding
+        }
         self.controlPlane = controlPlane
         self.readState = readState
         self.indicatorRegistry = indicatorRegistry
@@ -476,6 +682,9 @@ final class AOSOperationStatusItemProjection {
         self.itemGeneration = itemGeneration
         self.itemHost = itemHost
         self.requestIDFactory = requestIDFactory
+        self.statusHostLease = statusHostLease
+        self.statusHostLeaseIdentity = leaseIdentity
+        self.controlQueue = controlQueue
         self.openCanvas = openCanvas
     }
 
@@ -492,11 +701,19 @@ final class AOSOperationStatusItemProjection {
     }
 
     func teardown() {
+        lock.lock()
+        tornDown = true
+        lock.unlock()
+        statusHostLease.retire(statusHostLeaseIdentity)
         itemHost.teardown()
     }
 
     @discardableResult
-    func refresh() -> Result<AOSOperationStatusItemSnapshot, AOSOperationProjectionError> {
+    func refresh(
+        controlFailureCode: String? = nil
+    ) -> Result<AOSOperationStatusItemSnapshot, AOSOperationProjectionError> {
+        refreshLock.lock()
+        defer { refreshLock.unlock() }
         do {
             let state = readState()
             try statusHost.validate(against: state)
@@ -504,14 +721,29 @@ final class AOSOperationStatusItemProjection {
                 state: state,
                 indicatorRegistry: indicatorRegistry
             )
-            itemHost.update(snapshot: snapshot, descriptorRevision: advanceDescriptorRevision())
+            let revision = advanceDescriptorRevision(
+                publishedBarrierGeneration: snapshot.barrierGeneration
+            )
+            itemHost.update(snapshot: snapshot, descriptorRevision: revision)
+            if let controlFailureCode {
+                itemHost.updateControlFailure(
+                    code: controlFailureCode,
+                    descriptorRevision: revision
+                )
+            }
             return .success(snapshot)
         } catch let error as AOSOperationProjectionError {
-            itemHost.updateFailure(code: error.code, descriptorRevision: advanceDescriptorRevision())
+            itemHost.updateFailure(
+                code: error.code,
+                descriptorRevision: advanceDescriptorRevision(publishedBarrierGeneration: nil)
+            )
             return .failure(error)
         } catch {
             let projected = AOSOperationProjectionError.invalidStatusHostBinding
-            itemHost.updateFailure(code: projected.code, descriptorRevision: advanceDescriptorRevision())
+            itemHost.updateFailure(
+                code: projected.code,
+                descriptorRevision: advanceDescriptorRevision(publishedBarrierGeneration: nil)
+            )
             return .failure(projected)
         }
     }
@@ -520,18 +752,44 @@ final class AOSOperationStatusItemProjection {
         guard admit(evidence) else { return }
         switch evidence.action {
         case .openCanvas:
-            openCanvas(statusHost)
-        case .stopAll:
-            do {
-                _ = try stopAll()
-                refresh()
-            } catch {
-                itemHost.updateFailure(
-                    code: controlFailureCode(error),
-                    descriptorRevision: advanceDescriptorRevision()
-                )
+            guard (try? statusHostLease.admit(statusHostLeaseIdentity)) != nil else { return }
+            openCanvas(statusHostLeaseIdentity)
+        case .stopAll, .reopen:
+            controlQueue.async { [weak self] in
+                self?.runControlAction(evidence)
             }
         }
+    }
+
+    private func runControlAction(_ evidence: AOSOperationInternalStatusItemActionEvidence) {
+        var failureCode: String?
+        do {
+            guard !isTornDown() else {
+                throw AOSOperationProjectionError.invalidStatusHostBinding
+            }
+            let admission = try statusHostLease.admit(statusHostLeaseIdentity)
+            switch evidence.action {
+            case .openCanvas:
+                throw AOSOperationProjectionError.unsupportedAction
+            case .stopAll:
+                _ = try stopAll(
+                    statusHost: admission.binding,
+                    expectedBarrierGeneration: evidence.expectedBarrierGeneration
+                )
+            case .reopen:
+                _ = try reopen(
+                    statusHost: admission.binding,
+                    expectedBarrierGeneration: evidence.expectedBarrierGeneration
+                )
+            }
+        } catch {
+            failureCode = controlFailureCode(error)
+        }
+
+        if !isTornDown() {
+            _ = refresh(controlFailureCode: failureCode)
+        }
+        finishControlAction()
     }
 
     private func controlFailureCode(_ error: Error) -> String {
@@ -543,16 +801,25 @@ final class AOSOperationStatusItemProjection {
     private func admit(_ evidence: AOSOperationInternalStatusItemActionEvidence) -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        guard evidence.itemGeneration == itemGeneration,
+        guard !tornDown,
+              evidence.itemGeneration == itemGeneration,
               evidence.descriptorRevision == descriptorRevision,
+              evidence.expectedBarrierGeneration == publishedBarrierGeneration,
               evidence.actionSequence > lastActionSequence else {
             return false
         }
         lastActionSequence = evidence.actionSequence
+        if evidence.action != .openCanvas {
+            guard !controlActionInFlight else { return false }
+            controlActionInFlight = true
+        }
         return true
     }
 
-    private func stopAll() throws -> AOSStopAllReceipt {
+    private func stopAll(
+        statusHost: AOSOperationStatusHostBinding,
+        expectedBarrierGeneration: UInt64
+    ) throws -> AOSStopAllReceipt {
         let state = readState()
         try statusHost.validate(against: state)
         let requestID = requestIDFactory()
@@ -564,9 +831,9 @@ final class AOSOperationStatusItemProjection {
             action: .stopAll,
             canonicalParameterDigest: try AOSOperationProjectionRequestDigest.hostAction(
                 .stopAll,
-                expectedBarrierGeneration: state.barrier.generation
+                expectedBarrierGeneration: expectedBarrierGeneration
             ),
-            expectedBarrierGeneration: state.barrier.generation
+            expectedBarrierGeneration: expectedBarrierGeneration
         )
         return try controlPlane.stopAll(
             context: AOSHostControlContext(
@@ -578,18 +845,60 @@ final class AOSOperationStatusItemProjection {
         )
     }
 
+    private func reopen(
+        statusHost: AOSOperationStatusHostBinding,
+        expectedBarrierGeneration: UInt64
+    ) throws -> AOSReopenReceipt {
+        let state = readState()
+        try statusHost.validate(against: state)
+        let requestID = requestIDFactory()
+        guard !requestID.isEmpty, requestID.count <= 128 else {
+            throw AOSOperationProjectionError.invalidRequest
+        }
+        let request = AOSHostControlRequest(
+            requestID: requestID,
+            action: .reopen,
+            canonicalParameterDigest: try AOSOperationProjectionRequestDigest.hostAction(
+                .reopen,
+                expectedBarrierGeneration: expectedBarrierGeneration
+            ),
+            expectedBarrierGeneration: expectedBarrierGeneration
+        )
+        return try controlPlane.reopen(
+            context: AOSHostControlContext(
+                expectedDaemonGeneration: statusHost.daemonGeneration,
+                connectionEpoch: statusHost.connectionEpoch,
+                caller: statusHost.callerEvidence
+            ),
+            request: request
+        )
+    }
+
+    private func finishControlAction() {
+        lock.lock()
+        controlActionInFlight = false
+        lock.unlock()
+    }
+
+    private func isTornDown() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return tornDown
+    }
+
     private func currentDescriptorRevision() -> UInt64 {
         lock.lock()
         defer { lock.unlock() }
         return descriptorRevision
     }
 
-    private func advanceDescriptorRevision() -> UInt64 {
+    private func advanceDescriptorRevision(publishedBarrierGeneration: UInt64?) -> UInt64 {
         lock.lock()
         defer { lock.unlock() }
         if descriptorRevision < UInt64.max {
             descriptorRevision += 1
         }
+        self.publishedBarrierGeneration = publishedBarrierGeneration
         return descriptorRevision
     }
 }

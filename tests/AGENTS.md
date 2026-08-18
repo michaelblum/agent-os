@@ -111,6 +111,15 @@ tests.
 - Policy drift guards must name the exact active source surfaces and prohibited
   doctrine they protect. Do not globally ban mechanically valid terms such as
   `dry-run`, `authorization`, `allowlist`, `redaction`, Gate, or Work Record.
+- `pre-release-compatibility-policy.test.mjs` binds the machine-declared
+  zero-installed-base posture to root DOX: real current consumers cut over
+  atomically, compatibility language triggers consumer/data evidence rather
+  than legacy-by-default work, superseded tracked material is deleted, and
+  session-created test residue has a bounded cleanup owner and deletion trigger.
+  It also binds one primary evidence owner per delegated lane, bounded targeted
+  spot checks, and a named high-risk exception before duplicate verification.
+  Keep this a targeted contract proof; never turn it into a global vocabulary
+  ban.
 - Work Record V1 and Step Descriptor V1 proofs are direct schema/model/command-
   adapter tests. They must keep V0 bytes frozen and unsupported, reject exact
   legacy authority symbols on scoped active surfaces, and never invoke the repo
@@ -237,6 +246,42 @@ tests.
 - Voice transport unit tests must use disposable Swift or fake-socket harnesses
   by default. Live microphone, global-hotkey, and audio-output proof is a
   separate manual/TCC-sensitive gate and must not rebuild `./aos` implicitly.
+- Generic operation-attribution acceptance remains offline: schema, dispatcher,
+  and microphone-adapter proofs cover the positive nine-field round trip,
+  omission, rejection before effect, owner-spoof rejection, narrowing-only
+  mismatch, and sequential/concurrent no-bleed without a daemon or microphone.
+- The operation-control native proof may attach only to an already-running,
+  build-current, managed repo daemon after passive status, service, permission,
+  and open-barrier preflight. Its live worker must be a child of the checked-in
+  supervisor with an inherited one-use pipe capability and an exact observed
+  supervisor PID generation; direct worker invocation is rejected before any
+  AOS command. Its live form requires the explicit proof and
+  `parked-and-verified` gates, disables daemon autostart, and may not build,
+  start, stop, restart, repair, or request permission. Its offline self-test
+  reports only closed `offline_checks` and leaves every live evidence field
+  unset. It
+  proves only stable ordinary ownership, narrowing-only filters, singleton
+  microphone exclusion, exact typed tap unavailability with no created tap
+  record, current-generation cleanup, and exact cancel/kill terminal outcomes.
+  It performs only passive host-barrier
+  preflight/final readback and requires the barrier state and generation to stay
+  unchanged. Every exit stops owned capture children, passively settles only
+  exact harness-owned operation identities, issues no cleanup control request,
+  and retains only a create-exclusive, content-free summary with no audio bytes.
+  Its wrapper interruption latch is monotonic across prelaunch, in-flight,
+  post-driver, and final success-publication phases. Live host
+  stop/reopen, artifact success, status/Canvas UI, tap source delivery,
+  prior-generation recovery, request replay, positive attribution, and public
+  SDK coverage remain explicit exclusions.
+- Host-barrier reconciliation tests compile focused production operation owners
+  and use in-memory stores. They cover the empty registered set, asynchronous
+  microphone settlement, stop-intent races at prepared/reserving/committed
+  claim-set phases, the universal child-closure gate across direct, absent-
+  adapter, and recovery terminal paths, transient durable-save reconciliation
+  retry, a persistent operation-maintenance timer that survives idle
+  cancellation and closes delayed prior-generation external-child residuals,
+  independent current-generation external-spawn polling/settlement retry, and
+  terminal cancel/kill repeat immutability without invoking `./aos` or a daemon.
 - DesktopWorld gesture and scene-follow tests must use deterministic clocks,
   fake input-region bridges, disposable sockets, and schema fixtures. Static
   scene contract work must not execute the repo AOS binary or require TCC.
@@ -342,7 +387,13 @@ tests.
   proofs must exercise the focused production admission component used by the
   native manager, not a copied fake allocator. A static AppKit harness may
   exercise production menu rendering and callback binding without opening a
-  status item; native menu-bar acceptance remains a separate build/runtime gate.
+  status item. The internal operation-item proof must also bind the displayed
+  barrier generation, show confirmation cancellation has no control effect,
+  prove stop/reopen durable saves are serialized off AppKit's main thread,
+  reject stale generations, retired/ABA status-host lease epochs, and rotated
+  status hosts without blocking AppKit, preserve the latest good
+  snapshot on typed control failure, and keep status-opened Canvas stop-only;
+  native menu-bar acceptance remains a separate build/runtime gate.
 - Display-topology identity proof must compile the focused production Swift
   helper with `-Onone`, remain offline and daemon/TCC-free, and cover raw
   enumeration permutations, every mapping fact, UUID fallback, invalid inputs,

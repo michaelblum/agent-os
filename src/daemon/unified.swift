@@ -249,7 +249,7 @@ class UnifiedDaemon {
     private var operationMicrophoneAdapter: AOSMicrophoneOperationAdapter?
     private var operationDaemonGeneration: UInt64 = 0
     private let operationImageProvider = AOSDarwinProcessImageProvider()
-    private var operationStatusHostBinding: AOSOperationStatusHostBinding?
+    private let operationStatusHostLease = AOSOperationStatusHostLease()
     private var operationCanvasProjection: AOSOperationCanvasProjection?
     private var operationStatusItemProjection: AOSOperationStatusItemProjection?
     private var operationControlCanvasIdentity: AOSOperationCanvasIdentity?
@@ -415,7 +415,6 @@ class UnifiedDaemon {
         let operationSocketFD: Int32
         let operationPeer: AOSSocketPeerIdentity
         var operationOwnerRoot: AOSMechanicalOwnerRoot
-        var operationAttribution: AOSOperationAttribution
         var externalBoundOperation: AOSOperationIdentity?
     }
 
@@ -460,19 +459,25 @@ class UnifiedDaemon {
             daemonGeneration: nextDaemonGeneration,
             adapterRegistry: adapterRegistry
         )
+        let control = AOSOperationControlPlane(
+            registry: registry,
+            daemonEffectiveUID: geteuid()
+        )
         let adapter = try AOSMicrophoneOperationAdapter(
             registry: registry,
             registration: registration,
             contextResolver: { [weak self] owner in
                 guard let self else { throw AOSOperationCoreError.callerNotAuthenticated }
                 return try self.operationContext(for: owner)
+            },
+            reconcileHostBarrier: { [weak control] in
+                guard let control else { return }
+                let state = registry.snapshot().barrier.state
+                guard [.closing, .cleanupRequired, .recovering].contains(state) else { return }
+                _ = control.reconcileHostBarrierWithBoundedRetry()
             }
         )
         try registry.installRuntimeAdapters([adapter])
-        let control = AOSOperationControlPlane(
-            registry: registry,
-            daemonEffectiveUID: geteuid()
-        )
 
         operationStore = store
         operationRegistry = registry
@@ -489,7 +494,38 @@ class UnifiedDaemon {
             newDaemonGeneration: nextDaemonGeneration,
             claimTokenDigest: recoveryToken
         )
+        try reconcileOperationBootRecoveryExternalChildren(
+            registry: registry,
+            control: control,
+            recoveryGeneration: recovery.recoveryGeneration,
+            claimTokenDigest: recoveryToken
+        )
+        try initializeOperationProjections(
+            registration: registration,
+            registry: registry,
+            control: control
+        )
+        startOperationExternalSpawnExpiryTimer(
+            bootRecoveryGeneration: recovery.recoveryGeneration,
+            bootRecoveryClaimTokenDigest: recoveryToken
+        )
+    }
+
+    private func reconcileOperationBootRecoveryExternalChildren(
+        registry: AOSOperationRegistry,
+        control: AOSOperationControlPlane,
+        recoveryGeneration: UInt64,
+        claimTokenDigest: String
+    ) throws {
         let recovering = registry.snapshot()
+        guard recovering.recovery.generation == recoveryGeneration,
+              recovering.recovery.claimTokenDigest == claimTokenDigest else { return }
+        if recovering.recovery.state == .terminal {
+            if recovering.barrier.state == .bootReconciling {
+                _ = try control.completeBootReconciliation(.open)
+            }
+            return
+        }
         var absentSpawnRecords = Set<String>()
         for finalized in recovering.finalizedExternalSpawnRecords {
             if operationExternalChildIsMechanicallyAbsent(finalized) {
@@ -508,8 +544,8 @@ class UnifiedDaemon {
         let externallyLiveBrokerIDs = Set(externallyLiveClaims.compactMap(\.brokerID))
         let reconciled = try AOSOperationRecovery.reconcile(
             registry: registry,
-            recoveryGeneration: recovery.recoveryGeneration,
-            claimTokenDigest: recoveryToken,
+            recoveryGeneration: recoveryGeneration,
+            claimTokenDigest: claimTokenDigest,
             mechanicallyAbsentOperationIDs: Set(recovering.operations.compactMap {
                 externallyLiveOperations.contains($0.identity) ? nil : $0.identity
             }),
@@ -529,12 +565,6 @@ class UnifiedDaemon {
         if reconciled.residualCount == 0, reconciled.barrierState == .bootReconciling {
             _ = try control.completeBootReconciliation(.open)
         }
-        try initializeOperationProjections(
-            registration: registration,
-            registry: registry,
-            control: control
-        )
-        startOperationExternalSpawnExpiryTimer()
     }
 
     private func initializeOperationProjections(
@@ -606,15 +636,13 @@ class UnifiedDaemon {
                 return Thread.isMainThread ? post() : DispatchQueue.main.sync(execute: post)
             }
         )
-        operationStatusHostBinding = statusBinding
+        try operationStatusHostLease.install(statusBinding)
         let canvasProjection = try AOSOperationCanvasProjection(
             controlPlane: control,
             readState: { registry.snapshot() },
             indicatorRegistry: indicators,
             canvasHost: canvasHost,
-            resolveCurrentStatusHost: { [weak self] in
-                self?.operationStatusHostBinding
-            },
+            statusHostLease: operationStatusHostLease,
             checkedAt: { [weak self] in
                 self?.operationTimestamp(registry.now()) ?? "1970-01-01T00:00:00.000Z"
             }
@@ -626,8 +654,11 @@ class UnifiedDaemon {
             indicatorRegistry: indicators,
             statusHost: statusBinding,
             itemGeneration: operationDaemonGeneration,
-            openCanvas: { [weak self] binding in
-                _ = try? self?.operationCanvasProjection?.openStatusCanvas(statusHost: binding)
+            statusHostLease: operationStatusHostLease,
+            openCanvas: { [weak self] leaseIdentity in
+                _ = try? self?.operationCanvasProjection?.openStatusCanvas(
+                    statusHostLeaseIdentity: leaseIdentity
+                )
             }
         )
         operationStatusItemProjection = statusProjection
@@ -667,16 +698,15 @@ class UnifiedDaemon {
         operation: AOSOperationIdentity,
         attempt: Int
     ) {
-        guard attempt < 20, let registry = operationRegistry else { return }
-        let records = registry.snapshot().finalizedExternalSpawnRecords.filter {
-            $0.skipRecord.operationID == operation.id
-                && $0.skipRecord.operationGeneration == operation.generation
-        }
-        guard !records.isEmpty else { return }
+        guard attempt < 20, operationRegistry != nil else { return }
         let delay = DispatchTimeInterval.milliseconds(attempt == 0 ? 50 : 100)
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + delay) {
             [weak self] in
             guard let self, let registry = self.operationRegistry else { return }
+            let records = registry.snapshot().finalizedExternalSpawnRecords.filter {
+                $0.skipRecord.operationID == operation.id
+                    && $0.skipRecord.operationGeneration == operation.generation
+            }
             var unresolved = false
             for record in records {
                 guard self.operationExternalChildIsMechanicallyAbsent(record) else {
@@ -698,14 +728,38 @@ class UnifiedDaemon {
                 self.scheduleExternalSpawnRetirement(operation: operation, attempt: attempt + 1)
                 return
             }
-            if let current = try? registry.inspect(operation), current.state == .cleanupRequired {
-                _ = try? registry.transitionOperation(operation, to: .recovering)
-                _ = try? registry.transitionOperation(operation, to: .terminal)
+            self.scheduleExternalSpawnSettlement(operation: operation, attempt: 0)
+        }
+    }
+
+    private func scheduleExternalSpawnSettlement(
+        operation: AOSOperationIdentity,
+        attempt: Int
+    ) {
+        guard attempt < 20 else { return }
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + .milliseconds(100)) {
+            [weak self] in
+            guard let self else { return }
+            do {
+                _ = try self.operationControlPlane?.externalSpawnRetirementDidSettle(
+                    operation: operation
+                )
+            } catch {
+                // Post-removal settlement has an independent retry budget so a
+                // record that disappears on the final polling attempt cannot
+                // strand its parent or host barrier after a durable save fault.
+                self.scheduleExternalSpawnSettlement(
+                    operation: operation,
+                    attempt: attempt + 1
+                )
             }
         }
     }
 
-    private func operationContext(for owner: UUID) throws -> AOSMicrophoneOperationContext {
+    private func operationContext(
+        for owner: UUID,
+        attribution: AOSOperationAttribution = AOSOperationAttribution()
+    ) throws -> AOSMicrophoneOperationContext {
         subscriberLock.lock()
         defer { subscriberLock.unlock() }
         guard let connection = subscribers[owner] else {
@@ -713,7 +767,7 @@ class UnifiedDaemon {
         }
         return AOSMicrophoneOperationContext(
             ownerRoot: connection.operationOwnerRoot,
-            attribution: connection.operationAttribution
+            attribution: attribution
         )
     }
 
@@ -3295,7 +3349,6 @@ class UnifiedDaemon {
             operationSocketFD: clientFD,
             operationPeer: ownerBinding.immediatePeer,
             operationOwnerRoot: AOSMechanicalOwnerRoot(verified: ownerBinding),
-            operationAttribution: AOSOperationAttribution(),
             externalBoundOperation: nil
         )
         subscriberLock.unlock()
@@ -3385,15 +3438,38 @@ class UnifiedDaemon {
         return json["v"] as? Int == 1
     }
 
-    /// Strict parser for a v1 envelope `{v:1, service, action, data, ref?}`.
-    /// Returns `(service, action, data, ref)` if all required fields are valid, `nil` if any field is malformed.
-    private func parseEnvelope(_ json: [String: Any]) -> (service: String, action: String, data: [String: Any], ref: String?)? {
+    /// Strict parser for a v1 envelope with invocation-scoped attribution.
+    private func parseEnvelope(
+        _ json: [String: Any]
+    ) -> (
+        service: String,
+        action: String,
+        data: [String: Any],
+        ref: String?,
+        attribution: AOSOperationAttribution
+    )? {
+        let requiredKeys: Set<String> = ["v", "service", "action", "data"]
+        let allowedKeys = requiredKeys.union(["ref", "asserted_attribution"])
+        guard requiredKeys.isSubset(of: Set(json.keys)),
+              Set(json.keys).isSubset(of: allowedKeys) else { return nil }
         guard let v = json["v"] as? Int, v == 1 else { return nil }
         guard let service = json["service"] as? String, !service.isEmpty else { return nil }
         guard let action = json["action"] as? String, !action.isEmpty else { return nil }
         guard let data = json["data"] as? [String: Any] else { return nil }
-        let ref = json["ref"] as? String
-        return (service, action, data, ref)
+        let ref: String?
+        if json.keys.contains("ref") {
+            guard let value = json["ref"] as? String else { return nil }
+            ref = value
+        } else {
+            ref = nil
+        }
+        let hasAttribution = json.keys.contains("asserted_attribution")
+        guard !hasAttribution
+                || (service == "operation" && action == "external_spawn_intent"),
+              let attribution = try? AOSOperationAttribution.validatingPublicValue(
+                json["asserted_attribution"]
+              ) else { return nil }
+        return (service, action, data, ref, attribution)
     }
 
     private func pointFromAuditRequest(_ json: [String: Any]) -> CGPoint? {
@@ -3614,6 +3690,7 @@ class UnifiedDaemon {
     private func handleOperationAction(
         action: String,
         data: [String: Any],
+        attribution: AOSOperationAttribution,
         connectionID: UUID,
         outbound: AOSConnectionOutboundWriter,
         envelopeRef: String?
@@ -3624,6 +3701,7 @@ class UnifiedDaemon {
             if action == "external_spawn_intent" {
                 let result = try prepareExternalSpawnIntent(
                     data: data,
+                    attribution: attribution,
                     connectionID: connectionID
                 )
                 sendResponseJSON(
@@ -3786,25 +3864,9 @@ class UnifiedDaemon {
                     envelopeRef: envelopeRef
                 )
             case "tap":
-                let tapResult = try openOperationTap(data: data, context: ordinary)
-                sendResponseJSON(
-                    to: outbound,
-                    tapResult.payload,
-                    envelopeActive: true,
-                    envelopeRef: envelopeRef
-                )
-                scheduleOperationTapExpiry(
-                    tapResult.record,
-                    outbound: outbound,
-                    envelopeRef: envelopeRef
-                )
+                throw AOSOperationCoreError.tapUnavailable
             case "artifact_reveal", "artifact_remove", "artifact_release", "artifact_retain":
-                sendResponseJSON(
-                    to: outbound,
-                    try controlOperationArtifact(action: action, data: data, context: ordinary),
-                    envelopeActive: true,
-                    envelopeRef: envelopeRef
-                )
+                throw AOSOperationCoreError.artifactCustodyUnavailable
             default:
                 throw AOSOperationCoreError.invalidRecord("operation_action")
             }
@@ -3952,6 +4014,7 @@ class UnifiedDaemon {
 
     private func prepareExternalSpawnIntent(
         data: [String: Any],
+        attribution: AOSOperationAttribution,
         connectionID: UUID
     ) throws -> [String: Any] {
         let requiredKeys: Set<String> = [
@@ -3997,7 +4060,7 @@ class UnifiedDaemon {
               parent.effectiveUID == identity.binding.immediatePeer.effectiveUID else {
             throw AOSOperationCoreError.callerNotAuthenticated
         }
-        let context = try operationContext(for: connectionID)
+        let context = try operationContext(for: connectionID, attribution: attribution)
         let operation = try adapter.prepareExternalCapture(context: context)
         var tokenBytes = [UInt8](repeating: 0, count: 32)
         arc4random_buf(&tokenBytes, tokenBytes.count)
@@ -4345,12 +4408,24 @@ class UnifiedDaemon {
         }
     }
 
-    private func startOperationExternalSpawnExpiryTimer() {
+    private func startOperationExternalSpawnExpiryTimer(
+        bootRecoveryGeneration: UInt64,
+        bootRecoveryClaimTokenDigest: String
+    ) {
         operationExternalSpawnExpiryTimer?.cancel()
         let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
         timer.schedule(deadline: .now() + .seconds(1), repeating: .seconds(1))
         timer.setEventHandler { [weak self] in
-            self?.reapExpiredExternalSpawnIntents()
+            guard let self else { return }
+            self.reapExpiredExternalSpawnIntents()
+            guard let registry = self.operationRegistry,
+                  let control = self.operationControlPlane else { return }
+            try? self.reconcileOperationBootRecoveryExternalChildren(
+                registry: registry,
+                control: control,
+                recoveryGeneration: bootRecoveryGeneration,
+                claimTokenDigest: bootRecoveryClaimTokenDigest
+            )
         }
         operationExternalSpawnExpiryTimer = timer
         timer.resume()
@@ -4644,6 +4719,7 @@ class UnifiedDaemon {
             ("skill_id", operation.attribution.skillID),
             ("target_id", operation.attribution.targetID),
             ("capability_label", operation.attribution.capabilityLabel),
+            ("retry_id", operation.attribution.retryID),
         ]
         for (key, value) in values { if let value { attribution[key] = value } }
         return [
@@ -5068,205 +5144,6 @@ class UnifiedDaemon {
         }
     }
 
-    private func openOperationTap(
-        data: [String: Any],
-        context: AOSOrdinaryControlContext
-    ) throws -> (payload: [String: Any], record: AOSTapRecord) {
-        guard let control = operationControlPlane,
-              let registry = operationRegistry,
-              let tap = data["tap"] as? [String: Any],
-              Set(tap.keys) == Set(["channel", "bounds", "follow"]),
-              let channelRaw = tap["channel"] as? String,
-              let channel = AOSTapChannel(rawValue: channelRaw),
-              let follow = tap["follow"] as? Bool,
-              let boundsPayload = tap["bounds"] as? [String: Any],
-              Set(boundsPayload.keys) == Set([
-                  "rate_items_per_second", "sample_every", "max_queue_items", "max_items",
-                  "max_bytes", "idle_timeout_milliseconds", "duration_milliseconds",
-              ]) else {
-            throw AOSOperationCoreError.invalidRecord("tap_request")
-        }
-        func bound(_ key: String) throws -> UInt64 {
-            guard let value = (boundsPayload[key] as? NSNumber)?.uint64Value else {
-                throw AOSOperationCoreError.invalidRecord("tap_bounds")
-            }
-            return value
-        }
-        let bounds = try AOSTapBounds(
-            rateItemsPerSecond: bound("rate_items_per_second"),
-            sampleEvery: bound("sample_every"),
-            maxQueueItems: bound("max_queue_items"),
-            maxItems: bound("max_items"),
-            maxBytes: bound("max_bytes"),
-            idleTimeoutMilliseconds: bound("idle_timeout_milliseconds"),
-            durationMilliseconds: bound("duration_milliseconds")
-        )
-        let parent = try operationSelector(try operationSelectorPayload(data))
-        let parentRecord = try control.inspect(context: context, operation: parent)
-        guard parentRecord.state != .terminal else {
-            throw AOSOperationCoreError.invalidTransition
-        }
-        let now = registry.now()
-        let prepared = try registry.mutateDurably { state -> AOSTapRecord in
-            guard state.daemonGeneration == context.expectedDaemonGeneration,
-                  state.barrier.state == .open else {
-                throw AOSOperationCoreError.barrierClosed
-            }
-            let record = AOSTapRecord(
-                identity: AOSOperationIdentity(
-                    id: registry.makeID(),
-                    generation: state.allocateGeneration()
-                ),
-                parentOperation: parent,
-                daemonGeneration: state.daemonGeneration,
-                channel: channel,
-                bounds: bounds,
-                follow: follow,
-                state: .prepared,
-                counters: AOSTapCounters(),
-                terminalBoundReason: nil,
-                residualDigest: nil,
-                preparedAtNanoseconds: now,
-                activatedAtNanoseconds: nil,
-                updatedAtNanoseconds: now
-            )
-            state.taps.append(record)
-            return record
-        }
-        let active = try registry.mutateDurably { state -> AOSTapRecord in
-            guard let index = state.taps.firstIndex(where: {
-                $0.identity == prepared.identity && $0.state == .prepared
-            }) else { throw AOSOperationCoreError.generationConflict }
-            state.taps[index].state = .active
-            state.taps[index].activatedAtNanoseconds = registry.now()
-            state.taps[index].updatedAtNanoseconds = registry.now()
-            return state.taps[index]
-        }
-        return ([
-            "schema_version": "aos.operation.tap-result.v1",
-            "operation": "tap",
-            "tap": operationTapSnapshot(active),
-            "completed_at": operationTimestamp(registry.now()),
-        ], active)
-    }
-
-    private func scheduleOperationTapExpiry(
-        _ tap: AOSTapRecord,
-        outbound: AOSConnectionOutboundWriter,
-        envelopeRef: String?
-    ) {
-        let idle = tap.bounds.idleTimeoutMilliseconds
-        let duration = tap.bounds.durationMilliseconds
-        let milliseconds = min(idle, duration)
-        let reason: AOSTapBoundReason = idle < duration ? .idleTimeout : .durationElapsed
-        DispatchQueue.global(qos: .utility).asyncAfter(
-            deadline: .now() + .milliseconds(Int(milliseconds))
-        ) { [weak self, weak outbound] in
-            guard let self, let registry = self.operationRegistry else { return }
-            let expired = try? registry.mutateDurably { state -> AOSTapRecord in
-                guard let index = state.taps.firstIndex(where: {
-                    $0.identity == tap.identity && $0.state == .active
-                }) else { throw AOSOperationCoreError.generationConflict }
-                state.taps[index].state = .expired
-                state.taps[index].terminalBoundReason = reason
-                state.taps[index].updatedAtNanoseconds = registry.now()
-                return state.taps[index]
-            }
-            if tap.follow, let expired, let outbound,
-               let bytes = envelopeBytes(
-                   service: "operation",
-                   event: "terminal",
-                   data: self.operationTapSnapshot(expired),
-                   ref: envelopeRef
-               ) {
-                _ = outbound.enqueue(bytes)
-            }
-            _ = try? registry.mutateDurably { state in
-                guard let index = state.taps.firstIndex(where: {
-                    $0.identity == tap.identity && $0.state == .expired
-                }) else { return }
-                state.taps[index].state = .terminal
-                state.taps[index].updatedAtNanoseconds = registry.now()
-            }
-        }
-    }
-
-    private func operationTapSnapshot(_ tap: AOSTapRecord) -> [String: Any] {
-        let completed: Any = tap.state == .terminal
-            ? operationTimestamp(tap.updatedAtNanoseconds) : NSNull()
-        let cleanupResult = tap.state == .terminal ? "zero_residuals" : "not_started"
-        return [
-            "schema_version": "aos.operation-tap.v1",
-            "tap_id": tap.identity.id,
-            "tap_generation": tap.identity.generation,
-            "operation_id": tap.parentOperation.id,
-            "operation_generation": tap.parentOperation.generation,
-            "source_id": tap.parentOperation.id,
-            "source_generation": tap.parentOperation.generation,
-            "daemon_generation": tap.daemonGeneration,
-            "state": tap.state.rawValue,
-            "channel": tap.channel.rawValue,
-            "bounds": [
-                "rate_items_per_second": tap.bounds.rateItemsPerSecond,
-                "sample_every": tap.bounds.sampleEvery,
-                "max_queue_items": tap.bounds.maxQueueItems,
-                "max_items": tap.bounds.maxItems,
-                "max_bytes": tap.bounds.maxBytes,
-                "idle_timeout_milliseconds": tap.bounds.idleTimeoutMilliseconds,
-                "duration_milliseconds": tap.bounds.durationMilliseconds,
-            ],
-            "follow": tap.follow,
-            "observation_only": true,
-            "raw_data_retention": "none",
-            "counters": [
-                "source_seen": tap.counters.sourceSeen,
-                "sample_skipped": tap.counters.sampleSkipped,
-                "rate_skipped": tap.counters.rateSkipped,
-                "enqueued_items": tap.counters.enqueuedItems,
-                "enqueued_bytes": tap.counters.enqueuedBytes,
-                "delivered_items": tap.counters.deliveredItems,
-                "delivered_bytes": tap.counters.deliveredBytes,
-                "queue_high_water": tap.counters.queueHighWater,
-                "overflow_rejected_count": tap.counters.overflowRejectedCount,
-            ],
-            "terminal_bound_reason": tap.terminalBoundReason?.rawValue ?? NSNull(),
-            "cleanup": [
-                "result": cleanupResult,
-                "residual_count": 0,
-                "residual_digest": AOSOperationDigest.empty(.residualSet),
-                "completed_at": completed,
-            ],
-            "prepared_at": operationTimestamp(tap.preparedAtNanoseconds),
-            "activated_at": tap.activatedAtNanoseconds.map(operationTimestamp) ?? NSNull(),
-            "updated_at": operationTimestamp(tap.updatedAtNanoseconds),
-        ]
-    }
-
-    private func controlOperationArtifact(
-        action: String,
-        data: [String: Any],
-        context: AOSOrdinaryControlContext
-    ) throws -> [String: Any] {
-        guard let registry = operationRegistry,
-              let selector = data["selector"] as? [String: Any],
-              let artifactID = selector["artifact_id"] as? String,
-              let generation = (selector["artifact_generation"] as? NSNumber)?.uint64Value,
-              generation > 0 else {
-            throw AOSOperationCoreError.invalidRecord("artifact_selector")
-        }
-        let identity = AOSOperationIdentity(id: artifactID, generation: generation)
-        guard let artifact = registry.snapshot().artifacts.first(where: {
-            $0.identity == identity
-        }) else { throw AOSOperationCoreError.operationNotFound }
-        let operation = try operationControlPlane?.inspect(
-            context: context,
-            operation: artifact.parentOperation
-        )
-        guard operation != nil else { throw AOSOperationCoreError.ownerMismatch }
-        _ = action
-        throw AOSOperationCoreError.invalidRecord("artifact_adapter_unavailable")
-    }
-
     // MARK: - Request Routing
 
     /// Top-level request gatekeeper. Enforces the v1 envelope contract.
@@ -5318,6 +5195,7 @@ class UnifiedDaemon {
                 handleOperationAction(
                     action: env.action,
                     data: env.data,
+                    attribution: env.attribution,
                     connectionID: connectionID,
                     outbound: outbound,
                     envelopeRef: env.ref
@@ -6963,8 +6841,6 @@ class UnifiedDaemon {
 
     private func cancelIdleTimer() {
         idleShutdownTimer.cancel()
-        operationExternalSpawnExpiryTimer?.cancel()
-        operationExternalSpawnExpiryTimer = nil
     }
 
     func shutdown(reason: String = "idle") {
@@ -6972,6 +6848,8 @@ class UnifiedDaemon {
         isShuttingDown = true
         fputs("aos daemon shutting down (\(reason))\n", stderr)
         idleShutdownTimer.cancel()
+        operationExternalSpawnExpiryTimer?.cancel()
+        operationExternalSpawnExpiryTimer = nil
         operationStatusItemProjection?.teardown()
         voiceTransport.shutdown()
         annotationSelection.shutdown()

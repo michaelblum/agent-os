@@ -53,12 +53,11 @@ enum AOSOperationCanvasRouteResult: Equatable {
 final class AOSOperationCanvasProjection {
     typealias StateReader = () -> AOSOperationDurableState
     typealias OrdinaryContextResolver = () -> AOSOrdinaryControlContext?
-    typealias StatusHostResolver = () -> AOSOperationStatusHostBinding?
     typealias CheckedAtFactory = () -> String
 
     private enum SessionAuthority {
         case ordinary(resolveContext: OrdinaryContextResolver)
-        case statusHost(AOSOperationStatusHostBinding)
+        case statusHost(AOSOperationStatusHostLeaseIdentity)
     }
 
     private struct Session {
@@ -98,7 +97,7 @@ final class AOSOperationCanvasProjection {
     private let readState: StateReader
     private let indicatorRegistry: AOSOperationStatusIndicatorRegistry
     private let canvasHost: AOSOperationCanvasHosting
-    private let resolveCurrentStatusHost: StatusHostResolver
+    private let statusHostLease: AOSOperationStatusHostLease
     private let checkedAt: CheckedAtFactory
     private let lock = NSLock()
     private var sessions: [String: Session] = [:]
@@ -109,7 +108,7 @@ final class AOSOperationCanvasProjection {
         readState: @escaping StateReader,
         indicatorRegistry: AOSOperationStatusIndicatorRegistry,
         canvasHost: AOSOperationCanvasHosting,
-        resolveCurrentStatusHost: @escaping StatusHostResolver,
+        statusHostLease: AOSOperationStatusHostLease,
         checkedAt: @escaping CheckedAtFactory = {
             String(UInt64(Date().timeIntervalSince1970 * 1_000))
         }
@@ -119,21 +118,20 @@ final class AOSOperationCanvasProjection {
         self.readState = readState
         self.indicatorRegistry = indicatorRegistry
         self.canvasHost = canvasHost
-        self.resolveCurrentStatusHost = resolveCurrentStatusHost
+        self.statusHostLease = statusHostLease
         self.checkedAt = checkedAt
     }
 
     @discardableResult
     func openStatusCanvas(
-        statusHost: AOSOperationStatusHostBinding
+        statusHostLeaseIdentity: AOSOperationStatusHostLeaseIdentity
     ) throws -> AOSOperationCanvasIdentity {
+        let admission = try statusHostLease.admit(statusHostLeaseIdentity)
+        let statusHost = admission.binding
         try statusHost.validate(against: readState())
-        guard resolveCurrentStatusHost() == statusHost else {
-            throw AOSOperationProjectionError.invalidStatusHostBinding
-        }
         let canvas = try canvasHost.openOperationControlCanvas()
         try canvas.validate()
-        store(Session(canvas: canvas, authority: .statusHost(statusHost)))
+        store(Session(canvas: canvas, authority: .statusHost(statusHostLeaseIdentity)))
         guard publish(sessionFor: canvas, requestID: nil, receipt: nil, errorCode: nil) else {
             detachCanvas(canvas)
             throw AOSOperationProjectionError.canvasDeliveryFailed
@@ -280,7 +278,7 @@ final class AOSOperationCanvasProjection {
             case .status, .recent, .stopAll, .barrierStatus, .reopen:
                 throw AOSOperationProjectionError.unsupportedAction
             }
-        case let .statusHost(statusHost):
+        case let .statusHost(leaseIdentity):
             switch request.action {
             case .list:
                 _ = try parseEmptyFilterPayload(request.payload)
@@ -290,11 +288,10 @@ final class AOSOperationCanvasProjection {
                 ])
             case .stopAll:
                 let expectedBarrierGeneration = try parseExpectedBarrierGeneration(request.payload)
+                let admission = try statusHostLease.admit(leaseIdentity)
+                let statusHost = admission.binding
                 let state = readState()
                 try statusHost.validate(against: state)
-                guard resolveCurrentStatusHost() == statusHost else {
-                    throw AOSOperationProjectionError.invalidStatusHostBinding
-                }
                 let context = AOSHostControlContext(
                     expectedDaemonGeneration: statusHost.daemonGeneration,
                     connectionEpoch: statusHost.connectionEpoch,

@@ -3693,7 +3693,7 @@
         "control_scope": {
           "enum": [
             "ordinary_and_host",
-            "host_stop_only",
+            "host_stop_and_reopen",
             "ordinary_only_with_live_capture_stop_all_only_with_status_opened_host",
             "future_projection"
           ]
@@ -3717,7 +3717,7 @@
           "then": { "properties": {
             "m2_state": { "const": "executable" },
             "peer_context": { "const": "status_item_host" },
-            "control_scope": { "const": "host_stop_only" },
+            "control_scope": { "const": "host_stop_and_reopen" },
             "fallback": { "const": "typed_host_control_rejection" }
           } }
         },
@@ -3826,7 +3826,7 @@
             "properties": {
               "required_evidence_fields": { "const": ["status_host_id", "status_host_generation", "daemon_generation", "effective_uid"] },
               "allowed_action_scopes": { "const": ["host_control"] },
-              "allowed_actions": { "const": ["stop_all"] },
+              "allowed_actions": { "const": ["stop_all", "reopen"] },
               "liveness_rule": { "const": "daemon_status_host_generation_reauthenticated_per_request" }
             }
           }
@@ -5358,8 +5358,8 @@
             },
             "red_states": {
               "type": "array",
-              "minItems": 5,
-              "maxItems": 5,
+              "minItems": 1,
+              "maxItems": 1,
               "items": {
                 "$ref": "#/$defs/id"
               },

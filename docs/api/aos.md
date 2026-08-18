@@ -168,7 +168,7 @@ The current top-level commands are:
 | `aos launch` | manifest-backed source-owned app launcher |
 | `aos ready` | read-only front-door readiness gate; `--repair` permits runtime recovery |
 | `aos status` | read-only runtime/session status snapshot |
-| `aos operation` | generation-bound registered-operation inspection, bounded taps/artifact custody, owner-scoped cancel/kill, and same-UID host stop/reopen control |
+| `aos operation` | generation-bound registered-operation inspection and control, plus exact typed unavailability for tap and artifact custody until producers exist |
 | `aos skills` | installable AOS root skills: list, check installed state, install, and dry-run install plans |
 | `aos recipe` | source-backed executable recipes: list, explain, dry-run, run |
 | `aos work-record` | Work Record V1 discovery, report-only verification, neutral repair/attempt planning, caller-outcome artifact validation, non-executing replacement proposals, explicit-root replacement writing, exact repair finalization, and external source supersession lookup/indexing |
@@ -2155,6 +2155,13 @@ Primary public forms:
 | `--source microphone --segments <absolute-directory> --follow [--segment-duration 3s] [--max-duration 120s]` | capture continuous 16 kHz mono PCM into atomic segment checkpoints while streaming meters |
 | `--channels` | list known channels |
 
+Both microphone forms accept `--client-id`, `--agent-id`, `--project-id`,
+`--task-id`, `--run-id`, `--skill-id`, `--target-id`,
+`--capability-label`, and `--retry-id`. The values are caller-asserted generic
+lineage attached atomically to the operation created for that invocation. They
+are descriptive and narrowing-only: they cannot replace the authenticated
+owner root, admit a spawn, grant a claim, or widen control.
+
 Examples:
 
 ```bash
@@ -2220,8 +2227,8 @@ Primary public forms:
 | `cancel <id> --generation <n> --json` | Request cooperative cancellation of one exact owned operation. |
 | `kill <id> --generation <n> --json` | Force-stop one exact owned operation and keep cleanup observable. |
 | `kill-owner [filters] --json` | Stop the intersection of the authenticated owner root and optional attribution/capability filters. |
-| `tap <id> --generation <n> ... [--follow] --json` | Open a bounded metadata or data tap with all seven resource bounds explicit. |
-| `artifact reveal\|remove\|release\|retain <id> --generation <n> --json` | Inspect or resolve exact artifact custody without guessing from an operation label. |
+| `tap --json` | Return `OPERATION_TAP_UNAVAILABLE`; no source is registered, so no tap record or delivery channel is created. |
+| `artifact reveal\|remove\|release\|retain --json` | Return `OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE`; no production producer or custody adapter exists, so no artifact lookup or mutation occurs. |
 | `stop-all --barrier-generation <n> --json` | Same-UID host-wide stop over the exact registered adapter set at one revision. |
 | `barrier-status --json` | Read the immutable stop snapshot, progress, residual scope, and current barrier generation. |
 | `reopen --barrier-generation <n> --json` | Reopen admission only after the stopped snapshot and current registered set are reconciled. |
@@ -2245,19 +2252,32 @@ request must satisfy the current generation again.
 The status item is a separate internal projection, not a consumer status-item
 lease. It remains available during boot reconciliation, turns red only while a
 registered recording-class operation is active, opens the richer operation
-Canvas, and can request `stop-all`. The status-opened Canvas can inspect all
+Canvas explicitly from its menu, and shows the exact barrier state and
+generation. Confirmed `stop-all` and confirmed `reopen` bind that displayed
+generation and the current daemon-owned status-host lease epoch, then execute
+serially off the AppKit main thread. Lease retirement rejects new admissions
+without blocking AppKit; an already-admitted action remains bound to its clicked
+barrier generation. Both confirmations are presentation only; they do
+not assert human intent or grant authority. Typed control failure preserves and
+refreshes the last good status snapshot rather than hiding barrier state. The status-opened Canvas can inspect all
 registered operations and request `stop-all`; it cannot borrow ordinary owner
 authority. An ordinary Canvas with a live captured peer may use owner-scoped
 controls only. Status and Canvas provenance authenticate the request path but do
 not express human intent or create a privileged authorization class.
 
-Tap admission requires `--channel`, `--rate`, `--sample-every`,
-`--max-queue-items`, `--max-items`, `--max-bytes`, `--timeout` (idle
-milliseconds), and `--duration-ms`. Sampling and rate skips are deterministic;
-queue-full stops intake before enqueue, never backpressures the source, and
-returns typed counters while the bounded queue drains. Operation lifecycle
-events are content-free; raw data is available only through the explicitly
-bounded data tap selected by the caller.
+Tap and artifact-custody success are not current executable capability. The
+daemon returns the same closed error envelope used by the CLI and IPC schemas:
+
+```json
+{"v":1,"status":"error","error":"OPERATION_TAP_UNAVAILABLE","code":"OPERATION_TAP_UNAVAILABLE","ref":"<request-id>"}
+```
+
+Artifact reveal, remove, release, and retain use the identical shape with both
+`error` and `code` set to `OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE`. These
+results are emitted before any tap or artifact record is created, resolved, or
+mutated. Sampling, rate, queue, byte, duration, follow, raw-delivery, and
+custody-success behavior remain target contracts for future producer-backed
+slices, not current command grammar.
 
 The host barrier covers the registered operation plane at the recorded adapter-
 registry revision, not every legacy daemon subsystem. `reopen` does not claim

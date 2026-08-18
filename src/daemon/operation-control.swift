@@ -1,81 +1,5 @@
 import Foundation
 
-enum AOSOperationTapAdmission: Equatable {
-    case skippedSample
-    case skippedRate
-    case enqueued
-    case expired(AOSTapBoundReason)
-}
-
-final class AOSOperationTapBuffer {
-    let bounds: AOSTapBounds
-    private(set) var counters = AOSTapCounters()
-    private(set) var terminalBoundReason: AOSTapBoundReason?
-    private let startedAtMilliseconds: UInt64
-    private var lastAcceptedAtMilliseconds: UInt64
-    private var recentAcceptedMilliseconds: [UInt64] = []
-    private var queuedByteCounts: [UInt64] = []
-
-    init(bounds: AOSTapBounds, startedAtMilliseconds: UInt64) {
-        self.bounds = bounds
-        self.startedAtMilliseconds = startedAtMilliseconds
-        self.lastAcceptedAtMilliseconds = startedAtMilliseconds
-    }
-
-    func observe(byteCount: UInt64, at nowMilliseconds: UInt64) -> AOSOperationTapAdmission {
-        if let terminalBoundReason { return .expired(terminalBoundReason) }
-        if nowMilliseconds >= startedAtMilliseconds + bounds.durationMilliseconds {
-            return expire(.durationElapsed)
-        }
-        if nowMilliseconds >= lastAcceptedAtMilliseconds + bounds.idleTimeoutMilliseconds {
-            return expire(.idleTimeout)
-        }
-        counters.sourceSeen += 1
-        if (counters.sourceSeen - 1) % bounds.sampleEvery != 0 {
-            counters.sampleSkipped += 1
-            return .skippedSample
-        }
-        recentAcceptedMilliseconds.removeAll {
-            nowMilliseconds >= $0 + 1_000
-        }
-        if recentAcceptedMilliseconds.count >= Int(bounds.rateItemsPerSecond) {
-            counters.rateSkipped += 1
-            return .skippedRate
-        }
-        if counters.enqueuedItems >= bounds.maxItems {
-            return expire(.maxItemsReached)
-        }
-        if byteCount > bounds.maxBytes - min(bounds.maxBytes, counters.enqueuedBytes) {
-            return expire(.maxBytesReachedOrWouldExceed)
-        }
-        if queuedByteCounts.count >= Int(bounds.maxQueueItems) {
-            counters.overflowRejectedCount = 1
-            return expire(.queueFull)
-        }
-        queuedByteCounts.append(byteCount)
-        recentAcceptedMilliseconds.append(nowMilliseconds)
-        lastAcceptedAtMilliseconds = nowMilliseconds
-        counters.enqueuedItems += 1
-        counters.enqueuedBytes += byteCount
-        counters.queueHighWater = max(counters.queueHighWater, UInt64(queuedByteCounts.count))
-        return .enqueued
-    }
-
-    func deliverNext() -> UInt64? {
-        guard !queuedByteCounts.isEmpty else { return nil }
-        let byteCount = queuedByteCounts.removeFirst()
-        counters.deliveredItems += 1
-        counters.deliveredBytes += byteCount
-        return byteCount
-    }
-
-    @discardableResult
-    func expire(_ reason: AOSTapBoundReason) -> AOSOperationTapAdmission {
-        if terminalBoundReason == nil { terminalBoundReason = reason }
-        return .expired(terminalBoundReason ?? reason)
-    }
-}
-
 enum AOSOrdinaryControlAction: String, Codable {
     case cancel
     case kill
@@ -169,16 +93,13 @@ final class AOSOperationControlPlane {
             for index in state.operations.indices where selectedIDs.contains(state.operations[index].identity) {
                 state.operations[index].stopIntent = .ownerKill
                 state.operations[index].updatedAtNanoseconds = now
-                if state.operations[index].state == .prepared {
-                    state.operations[index].state = .terminal
-                    state.operations[index].outcome = .killed
-                } else if [.starting, .active].contains(state.operations[index].state) {
+                if [.starting, .active].contains(state.operations[index].state) {
                     state.operations[index].state = .stopping
                 }
             }
             return selected
         }
-        for operation in selected where operation.state != .prepared {
+        for operation in selected {
             applyAdapterStop(operation: operation, force: true, terminalOutcome: .killed)
         }
         return try makeOrdinaryReceipt(
@@ -264,16 +185,17 @@ final class AOSOperationControlPlane {
                 state.barrier.stopSnapshot = snapshot
                 state.barrier.cleanupResult = .pending
                 state.barrier.reconciliationState = "closing"
-                signal = selected.filter { $0.state != .prepared }
+                // Prepared records may already own committed resource claims even
+                // though adapter authority has not started. Route every selected
+                // record through its adapter so claims close before terminal
+                // publication and barrier reconciliation.
+                signal = selected
                 let selectedIDs = Set(selected.map(\.identity))
                 let now = registry.now()
                 for index in state.operations.indices where selectedIDs.contains(state.operations[index].identity) {
                     state.operations[index].stopIntent = .hostStop
                     state.operations[index].updatedAtNanoseconds = now
-                    if state.operations[index].state == .prepared {
-                        state.operations[index].state = .terminal
-                        state.operations[index].outcome = .killed
-                    } else if [.starting, .active].contains(state.operations[index].state) {
+                    if [.starting, .active].contains(state.operations[index].state) {
                         state.operations[index].state = .stopping
                     }
                 }
@@ -331,7 +253,9 @@ final class AOSOperationControlPlane {
             return (receipt, signal)
         }
 
-        if !result.signal.isEmpty {
+        if result.receipt.resultingBarrierState == .closing, result.signal.isEmpty {
+            _ = reconcileHostBarrierWithBoundedRetry()
+        } else if !result.signal.isEmpty {
             dispatchHostStop(result.signal)
         }
         return result.receipt
@@ -511,6 +435,72 @@ final class AOSOperationControlPlane {
         }
     }
 
+    /// A stop receipt may already have durably closed admission when a
+    /// transient store save rejects reconciliation. Retry a small bounded
+    /// number of times so empty and asynchronously drained planes do not rely
+    /// on a later caller to settle the barrier.
+    @discardableResult
+    func reconcileHostBarrierWithBoundedRetry(
+        markIncompleteAsCleanupRequired: Bool = false,
+        maximumAttempts: Int = 3
+    ) -> AOSHostBarrierRecord? {
+        guard maximumAttempts > 0 else { return nil }
+        for _ in 0..<maximumAttempts {
+            do {
+                return try reconcileHostBarrier(
+                    markIncompleteAsCleanupRequired: markIncompleteAsCleanupRequired
+                )
+            } catch let error as AOSOperationCoreError where error == .storeUnavailable {
+                continue
+            } catch {
+                return nil
+            }
+        }
+        return nil
+    }
+
+    @discardableResult
+    func externalSpawnRetirementDidSettle(
+        operation: AOSOperationIdentity
+    ) throws -> AOSHostBarrierRecord? {
+        let state = registry.snapshot()
+        guard !state.finalizedExternalSpawnRecords.contains(where: {
+            $0.skipRecord.operationID == operation.id
+                && $0.skipRecord.operationGeneration == operation.generation
+        }) else {
+            throw AOSOperationCoreError.residualsPresent
+        }
+        let record = try registry.inspect(operation)
+        guard let outcome = record.outcome else {
+            throw AOSOperationCoreError.storeCorrupt
+        }
+        switch record.state {
+        case .cleanupRequired:
+            _ = try registry.transitionOperation(operation, to: .recovering)
+            _ = try registry.terminalizeOperationAfterVerifiedCleanup(
+                operation,
+                stopIntent: record.stopIntent,
+                outcome: outcome
+            )
+        case .recovering:
+            _ = try registry.terminalizeOperationAfterVerifiedCleanup(
+                operation,
+                stopIntent: record.stopIntent,
+                outcome: outcome
+            )
+        case .terminal:
+            break
+        case .prepared, .starting, .active, .stopping:
+            throw AOSOperationCoreError.invalidTransition
+        }
+        guard [.closing, .cleanupRequired, .recovering].contains(
+            registry.snapshot().barrier.state
+        ) else {
+            return nil
+        }
+        return try reconcileHostBarrier()
+    }
+
     private func controlOne(
         context: AOSOrdinaryControlContext,
         operation: AOSOperationIdentity,
@@ -530,19 +520,21 @@ final class AOSOperationControlPlane {
             guard state.operations[index].ownerRoot == context.authenticatedOwnerRoot else {
                 throw AOSOperationCoreError.ownerMismatch
             }
+            if state.operations[index].state == .terminal {
+                guard state.operations[index].stopIntent == stopIntent,
+                      state.operations[index].outcome == outcome else {
+                    throw AOSOperationCoreError.invalidTransition
+                }
+                return state.operations[index]
+            }
             state.operations[index].stopIntent = stopIntent
             state.operations[index].updatedAtNanoseconds = registry.now()
-            if state.operations[index].state == .prepared {
-                state.operations[index].state = .terminal
-                state.operations[index].outcome = outcome
-            } else if [.starting, .active].contains(state.operations[index].state) {
+            if [.starting, .active].contains(state.operations[index].state) {
                 state.operations[index].state = .stopping
             }
             return state.operations[index]
         }
-        if selected.state != .terminal {
-            applyAdapterStop(operation: selected, force: force, terminalOutcome: outcome)
-        }
+        applyAdapterStop(operation: selected, force: force, terminalOutcome: outcome)
         return try makeOrdinaryReceipt(
             action: action,
             ownerRootID: context.authenticatedOwnerRoot.ownerID,
@@ -587,11 +579,21 @@ final class AOSOperationControlPlane {
             guard state.operations[index].state != .terminal else { return }
             switch result.disposition {
             case .absent:
-                state.operations[index].state = .terminal
                 state.operations[index].outcome = terminalOutcome
-                state.operations[index].residualDigest = nil
+                if AOSOperationRegistry.hasNonterminalChildren(
+                    in: state,
+                    operation: operation
+                ) {
+                    state.operations[index].state = .cleanupRequired
+                    state.operations[index].residualDigest = result.residualDigest
+                        ?? AOSOperationDigest.empty(.residualSet)
+                } else {
+                    state.operations[index].state = .terminal
+                    state.operations[index].residualDigest = nil
+                }
             case .residual:
                 state.operations[index].state = .cleanupRequired
+                state.operations[index].outcome = terminalOutcome
                 state.operations[index].residualDigest = result.residualDigest
                     ?? AOSOperationDigest.empty(.residualSet)
             case .accepted, .alreadyStopping:
@@ -628,11 +630,11 @@ final class AOSOperationControlPlane {
             try? updateAdapterResult(operation.identity, result: result, terminalOutcome: .killed)
         }
         if hasResidual {
-            _ = try? reconcileHostBarrier(markIncompleteAsCleanupRequired: true)
+            _ = reconcileHostBarrierWithBoundedRetry(markIncompleteAsCleanupRequired: true)
         } else if !hasPending {
-            _ = try? reconcileHostBarrier()
+            _ = reconcileHostBarrierWithBoundedRetry()
         } else {
-            _ = try? reconcileHostBarrier(markIncompleteAsCleanupRequired: false)
+            _ = reconcileHostBarrierWithBoundedRetry(markIncompleteAsCleanupRequired: false)
         }
     }
 

@@ -7065,6 +7065,78 @@
               "value_type" : "duration"
             },
             {
+              "id" : "client-id",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Asserted client id; descriptive only",
+              "token" : "--client-id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "agent-id",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Asserted agent id; descriptive only",
+              "token" : "--agent-id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "project-id",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Asserted project id; descriptive only",
+              "token" : "--project-id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "task-id",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Asserted task id; descriptive only",
+              "token" : "--task-id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "run-id",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Asserted run id; descriptive only",
+              "token" : "--run-id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "skill-id",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Asserted skill id; descriptive only",
+              "token" : "--skill-id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "target-id",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Asserted target id; descriptive only",
+              "token" : "--target-id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "capability-label",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Asserted capability label; descriptive only",
+              "token" : "--capability-label",
+              "value_type" : "string"
+            },
+            {
+              "id" : "retry-id",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Asserted retry id; descriptive only",
+              "token" : "--retry-id",
+              "value_type" : "string"
+            },
+            {
               "id" : "follow",
               "kind" : "flag",
               "required" : true,
@@ -7092,7 +7164,7 @@
             "streaming" : true,
             "supports_json_flag" : false
           },
-          "usage" : "aos listen --source microphone --output <absolute.wav> --follow [--max-duration 120s]"
+          "usage" : "aos listen --source microphone --output <absolute.wav> --follow [--max-duration 120s] [asserted attribution flags]"
         },
         {
           "args" : [
@@ -7140,6 +7212,78 @@
               "value_type" : "duration"
             },
             {
+              "id" : "client-id",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Asserted client id; descriptive only",
+              "token" : "--client-id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "agent-id",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Asserted agent id; descriptive only",
+              "token" : "--agent-id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "project-id",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Asserted project id; descriptive only",
+              "token" : "--project-id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "task-id",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Asserted task id; descriptive only",
+              "token" : "--task-id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "run-id",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Asserted run id; descriptive only",
+              "token" : "--run-id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "skill-id",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Asserted skill id; descriptive only",
+              "token" : "--skill-id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "target-id",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Asserted target id; descriptive only",
+              "token" : "--target-id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "capability-label",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Asserted capability label; descriptive only",
+              "token" : "--capability-label",
+              "value_type" : "string"
+            },
+            {
+              "id" : "retry-id",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Asserted retry id; descriptive only",
+              "token" : "--retry-id",
+              "value_type" : "string"
+            },
+            {
               "id" : "follow",
               "kind" : "flag",
               "required" : true,
@@ -7167,7 +7311,7 @@
             "streaming" : true,
             "supports_json_flag" : false
           },
-          "usage" : "aos listen --source microphone --segments <absolute-directory> --follow [--segment-duration 3s] [--ready-cue none|chime] [--max-duration 120s]"
+          "usage" : "aos listen --source microphone --segments <absolute-directory> --follow [--segment-duration 3s] [--ready-cue none|chime] [--max-duration 120s] [asserted attribution flags]"
         },
         {
           "args" : [
@@ -13837,7 +13981,7 @@
       "path" : [
         "operation"
       ],
-      "summary" : "List, inspect, observe, and control authenticated AOS operations and the same-UID host barrier",
+      "summary" : "Inspect and control authenticated AOS operations; report unavailable tap and artifact-custody adapters exactly",
       "forms" : [
         {
           "id" : "operation-list",
@@ -14341,95 +14485,8 @@
         },
         {
           "id" : "operation-tap",
-          "usage" : "aos operation tap <operation-id> --generation <n> --channel <metadata|data> --rate <items-per-second> --sample-every <n> --max-queue-items <n> --max-items <n> --max-bytes <n> --timeout <milliseconds> --duration-ms <milliseconds> [--follow] --json",
+          "usage" : "aos operation tap --json",
           "args" : [
-            {
-              "id" : "operation-id",
-              "kind" : "positional",
-              "required" : true,
-              "value_type" : "string",
-              "summary" : "Exact operation id"
-            },
-            {
-              "id" : "generation",
-              "kind" : "flag",
-              "token" : "--generation",
-              "required" : true,
-              "value_type" : "integer",
-              "summary" : "Exact operation generation"
-            },
-            {
-              "id" : "channel",
-              "kind" : "flag",
-              "token" : "--channel",
-              "required" : true,
-              "value_type" : "string",
-              "summary" : "metadata or data observation channel"
-            },
-            {
-              "id" : "rate",
-              "kind" : "flag",
-              "token" : "--rate",
-              "required" : true,
-              "value_type" : "integer",
-              "summary" : "Maximum admitted items per second"
-            },
-            {
-              "id" : "sample-every",
-              "kind" : "flag",
-              "token" : "--sample-every",
-              "required" : true,
-              "value_type" : "integer",
-              "summary" : "One-based deterministic sampling stride"
-            },
-            {
-              "id" : "max-queue-items",
-              "kind" : "flag",
-              "token" : "--max-queue-items",
-              "required" : true,
-              "value_type" : "integer",
-              "summary" : "Bounded FIFO item capacity"
-            },
-            {
-              "id" : "max-items",
-              "kind" : "flag",
-              "token" : "--max-items",
-              "required" : true,
-              "value_type" : "integer",
-              "summary" : "Maximum delivered item count"
-            },
-            {
-              "id" : "max-bytes",
-              "kind" : "flag",
-              "token" : "--max-bytes",
-              "required" : true,
-              "value_type" : "integer",
-              "summary" : "Maximum delivered byte count"
-            },
-            {
-              "id" : "timeout",
-              "kind" : "flag",
-              "token" : "--timeout",
-              "required" : true,
-              "value_type" : "integer",
-              "summary" : "Idle timeout in milliseconds"
-            },
-            {
-              "id" : "duration-ms",
-              "kind" : "flag",
-              "token" : "--duration-ms",
-              "required" : true,
-              "value_type" : "integer",
-              "summary" : "Absolute duration bound in milliseconds"
-            },
-            {
-              "id" : "follow",
-              "kind" : "flag",
-              "token" : "--follow",
-              "required" : false,
-              "value_type" : "bool",
-              "summary" : "Follow bounded tap events until terminal"
-            },
             {
               "id" : "json",
               "kind" : "flag",
@@ -14440,7 +14497,7 @@
             }
           ],
           "examples" : [
-            "aos operation tap 11111111-1111-4111-8111-111111111111 --generation 7 --channel metadata --rate 30 --sample-every 1 --max-queue-items 8 --max-items 100 --max-bytes 4096 --timeout 1000 --duration-ms 5000 --follow --json"
+            "aos operation tap --json"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
@@ -14448,35 +14505,20 @@
             "mutates_state" : false,
             "read_only" : true,
             "requires_permissions" : false,
-            "streaming" : true,
+            "streaming" : false,
             "supports_dry_run" : false
           },
           "output" : {
-            "default_mode" : "ndjson",
+            "default_mode" : "json",
             "error_mode" : "json_stderr",
-            "streaming" : true,
+            "streaming" : false,
             "supports_json_flag" : true
           }
         },
         {
           "id" : "operation-artifact-reveal",
-          "usage" : "aos operation artifact reveal <artifact-id> --generation <n> --json",
+          "usage" : "aos operation artifact reveal --json",
           "args" : [
-            {
-              "id" : "artifact-id",
-              "kind" : "positional",
-              "required" : true,
-              "value_type" : "string",
-              "summary" : "Exact artifact id"
-            },
-            {
-              "id" : "generation",
-              "kind" : "flag",
-              "token" : "--generation",
-              "required" : true,
-              "value_type" : "integer",
-              "summary" : "Exact artifact generation"
-            },
             {
               "id" : "json",
               "kind" : "flag",
@@ -14487,7 +14529,7 @@
             }
           ],
           "examples" : [
-            "aos operation artifact reveal artifact-1 --generation 3 --json"
+            "aos operation artifact reveal --json"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
@@ -14507,23 +14549,8 @@
         },
         {
           "id" : "operation-artifact-remove",
-          "usage" : "aos operation artifact remove <artifact-id> --generation <n> --json",
+          "usage" : "aos operation artifact remove --json",
           "args" : [
-            {
-              "id" : "artifact-id",
-              "kind" : "positional",
-              "required" : true,
-              "value_type" : "string",
-              "summary" : "Exact artifact id"
-            },
-            {
-              "id" : "generation",
-              "kind" : "flag",
-              "token" : "--generation",
-              "required" : true,
-              "value_type" : "integer",
-              "summary" : "Exact artifact generation"
-            },
             {
               "id" : "json",
               "kind" : "flag",
@@ -14534,13 +14561,13 @@
             }
           ],
           "examples" : [
-            "aos operation artifact remove artifact-1 --generation 3 --json"
+            "aos operation artifact remove --json"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
             "interactive" : false,
-            "mutates_state" : true,
-            "read_only" : false,
+            "mutates_state" : false,
+            "read_only" : true,
             "requires_permissions" : false,
             "streaming" : false,
             "supports_dry_run" : false
@@ -14554,23 +14581,8 @@
         },
         {
           "id" : "operation-artifact-release",
-          "usage" : "aos operation artifact release <artifact-id> --generation <n> --json",
+          "usage" : "aos operation artifact release --json",
           "args" : [
-            {
-              "id" : "artifact-id",
-              "kind" : "positional",
-              "required" : true,
-              "value_type" : "string",
-              "summary" : "Exact artifact id"
-            },
-            {
-              "id" : "generation",
-              "kind" : "flag",
-              "token" : "--generation",
-              "required" : true,
-              "value_type" : "integer",
-              "summary" : "Exact artifact generation"
-            },
             {
               "id" : "json",
               "kind" : "flag",
@@ -14581,13 +14593,13 @@
             }
           ],
           "examples" : [
-            "aos operation artifact release artifact-1 --generation 3 --json"
+            "aos operation artifact release --json"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
             "interactive" : false,
-            "mutates_state" : true,
-            "read_only" : false,
+            "mutates_state" : false,
+            "read_only" : true,
             "requires_permissions" : false,
             "streaming" : false,
             "supports_dry_run" : false
@@ -14601,23 +14613,8 @@
         },
         {
           "id" : "operation-artifact-retain",
-          "usage" : "aos operation artifact retain <artifact-id> --generation <n> --json",
+          "usage" : "aos operation artifact retain --json",
           "args" : [
-            {
-              "id" : "artifact-id",
-              "kind" : "positional",
-              "required" : true,
-              "value_type" : "string",
-              "summary" : "Exact artifact id"
-            },
-            {
-              "id" : "generation",
-              "kind" : "flag",
-              "token" : "--generation",
-              "required" : true,
-              "value_type" : "integer",
-              "summary" : "Exact artifact generation"
-            },
             {
               "id" : "json",
               "kind" : "flag",
@@ -14628,13 +14625,13 @@
             }
           ],
           "examples" : [
-            "aos operation artifact retain artifact-1 --generation 3 --json"
+            "aos operation artifact retain --json"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
             "interactive" : false,
-            "mutates_state" : true,
-            "read_only" : false,
+            "mutates_state" : false,
+            "read_only" : true,
             "requires_permissions" : false,
             "streaming" : false,
             "supports_dry_run" : false

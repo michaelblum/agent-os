@@ -132,6 +132,9 @@ needs, but public command policy and product UI policy belong above it:
   generation, and split resource amendment, and
   `docs/dev/aos-sovereign-capability-authority-v1.json`. Milestone 2's native
   operation control plane and microphone adapter are current executable truth.
+  The maintained microphone external-dispatch intent may attach one validated,
+  invocation-scoped asserted-attribution object to operation creation; it never
+  participates in peer, ancestry, executable, spawn, claim, or control authority.
   The narrow fixed browser client rule immediately below remains a separate
   burn-down baseline until Milestone 7 atomically changes its raw managed-tool
   transport, manifests/help, schemas, API, skills, and tests;
