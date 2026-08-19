@@ -241,6 +241,7 @@ final class HarnessClock: @unchecked Sendable {
         value.write { $0 += 1_000_000; result = $0 }
         return result
     }
+    func advance(_ nanoseconds: UInt64) { value.write { $0 += nanoseconds } }
 }
 
 final class FaultStore: AOSOperationStateStore, @unchecked Sendable {
@@ -620,6 +621,8 @@ final class SessionDriver: @unchecked Sendable {
     private(set) var stopCount = 0
     private(set) var geometryUpdates = 0
     var failGeometryUpdate = false
+    var holdGeometryUpdate = false
+    private var geometryCompletion: ((Result<Void, Error>) -> Void)?
     let backend = FakeMicrophoneBackend()
     let files: FakeFiles
     private(set) var encoder: IntegratedEncoder?
@@ -687,7 +690,13 @@ final class SessionDriver: @unchecked Sendable {
                     completion(.success(()))
                 },
                 updateGeometry: { [self] _, completion in
-                    lock.lock(); geometryUpdates += 1; let fail = failGeometryUpdate; lock.unlock()
+                    lock.lock()
+                    geometryUpdates += 1
+                    let fail = failGeometryUpdate
+                    if holdGeometryUpdate { geometryCompletion = completion }
+                    let held = holdGeometryUpdate
+                    lock.unlock()
+                    if held { return }
                     completion(fail ? .failure(HarnessFault.nativeUpdate) : .success(()))
                 },
                 microphoneSession: microphone
@@ -729,6 +738,11 @@ final class SessionDriver: @unchecked Sendable {
     func injectFailure(_ error: Error) {
         lock.lock(); let sink = failureSink; lock.unlock(); sink?(error)
     }
+
+    func settleGeometry(_ result: Result<Void, Error>) {
+        lock.lock(); let completion = geometryCompletion; geometryCompletion = nil; lock.unlock()
+        completion?(result)
+    }
 }
 
 final class EventCapture: @unchecked Sendable {
@@ -761,7 +775,7 @@ final class Barrier: @unchecked Sendable {
     func release() { condition.lock(); released = true; condition.broadcast(); condition.unlock() }
 }
 
-final class Environment {
+final class Environment: @unchecked Sendable {
     let owner = AOSMechanicalOwnerRoot(
         ownerID: "m3e-owner",
         effectiveUID: 501,
@@ -783,7 +797,9 @@ final class Environment {
     init(
         store: FaultStore = FaultStore(),
         prepared: @escaping (AOSOperationIdentity) -> Void = { _ in },
-        preinstall: @escaping () -> Void = {}
+        preinstall: @escaping () -> Void = {},
+        runtimeStart: @escaping () -> Void = {},
+        stopAdmission: @escaping () -> Void = {}
     ) throws {
         self.store = store
         driver = SessionDriver(files: files)
@@ -849,6 +865,8 @@ final class Environment {
             windowObserver: Self.windows,
             preparedPublicationObserver: prepared,
             runtimeInstallationObserver: preinstall,
+            runtimeStartObserver: runtimeStart,
+            stopAdmissionObserver: stopAdmission,
             operationEventSink: { [events] event, data in
                 events.receive(event: event, data: data)
             }
@@ -882,6 +900,14 @@ final class Environment {
             )),
             authenticatedOwnerRoot: owner
         )
+    }
+
+    func cancel(_ operation: AOSOperationIdentity) throws -> AOSOperationControlReceipt {
+        try control.cancel(context: context(), operation: operation)
+    }
+
+    func kill(_ operation: AOSOperationIdentity) throws -> AOSOperationControlReceipt {
+        try control.kill(context: context(), operation: operation)
     }
 
     func request(
@@ -925,10 +951,12 @@ final class Environment {
 
     func update(
         _ admission: AOSScreenRecordingAdmission,
-        expected: Int = 1,
+        expected: Int? = nil,
         observation: Int = 2,
         state: Int = 2,
-        bounds: [String: Int] = ["x": 12, "y": 12, "width": 38, "height": 28]
+        bounds: [String: Int] = ["x": 12, "y": 12, "width": 38, "height": 28],
+        topology: AOSDisplayTopologySnapshot? = nil,
+        binding: [String: Any]? = nil
     ) throws -> AOSScreenRecordingFollowUpdateRequest {
         try AOSScreenRecordingFollowUpdateRequest.validatingPublicValue([
             "request_id": "update-\(observation)-\(state)",
@@ -937,13 +965,21 @@ final class Environment {
                 "operation_id": admission.operation.id,
                 "operation_generation": admission.operation.generation,
             ],
-            "expected_geometry_generation": expected,
-            "topology": Self.topology(),
+            "expected_geometry_generation": expected
+                ?? Int(operationGeometryGeneration(admission)),
+            "topology": topology ?? Self.topology(),
             "target": [
                 "kind": "region", "display_ordinal": 1, "global_bounds": bounds,
             ],
-            "binding": Self.binding(observation: observation, state: state),
+            "binding": binding ?? Self.binding(observation: observation, state: state),
         ])
+    }
+
+    private func operationGeometryGeneration(
+        _ admission: AOSScreenRecordingAdmission
+    ) -> UInt64 {
+        (try? registry.inspect(admission.operation)
+            .screenRecordingGeometry?.accepted.geometryGeneration) ?? 1
     }
 
     static func topology(scale: Double = 2) -> AOSDisplayTopologySnapshot {
@@ -999,6 +1035,11 @@ final class Environment {
 func responseEnvelope(_ data: [String: Any]) -> [String: Any] {
     let bytes = responseJSONBytes(data, envelopeActive: true, envelopeRef: "m3e")!
     return try! JSONSerialization.jsonObject(with: bytes) as! [String: Any]
+}
+
+func codableValue<T: Encodable>(_ value: T) -> [String: Any] {
+    let data = try! JSONEncoder().encode(value)
+    return try! JSONSerialization.jsonObject(with: data) as! [String: Any]
 }
 
 func projection(
@@ -1144,6 +1185,358 @@ struct IntegratedHarness {
         }
     }
 
+    static func activate(
+        _ environment: Environment,
+        followed: Bool,
+        duration: Int = 1_000,
+        deadline: Int = 500
+    ) throws -> (AOSScreenRecordingAdmission, UUID) {
+        let connection = UUID()
+        let admission = try environment.screenAdapter.start(
+            request: environment.request(
+                systemAudio: false,
+                microphone: false,
+                followed: followed,
+                duration: duration,
+                followDeadline: deadline
+            ),
+            connectionID: connection
+        )
+        wait("activation start missing") { environment.driver.startWasRequested() }
+        try environment.driver.publish(.video)
+        environment.driver.settleStart()
+        wait("operation did not activate") {
+            operation(admission, environment).state == .active
+        }
+        return (admission, connection)
+    }
+
+    static func issue(
+        _ action: AOSOrdinaryControlAction,
+        _ environment: Environment,
+        _ operation: AOSOperationIdentity
+    ) throws -> AOSOperationControlReceipt {
+        switch action {
+        case .cancel: return try environment.cancel(operation)
+        case .kill: return try environment.kill(operation)
+        case .killOwner: fatalError("unexpected single-operation action")
+        }
+    }
+
+    static func runPublicControl() throws {
+        for action in [AOSOrdinaryControlAction.cancel, .kill] {
+            let expectedIntent: AOSStopIntent = action == .cancel ? .cancel : .kill
+            let expectedOutcome: AOSOperationOutcome = action == .cancel ? .cancelled : .killed
+
+            let active = try Environment()
+            let activeAdmission = try activate(active, followed: true).0
+            let receipt = try issue(action, active, activeAdmission.operation)
+            wait("active control did not terminalize") {
+                operation(activeAdmission, active).state == .terminal
+            }
+            let terminal = operation(activeAdmission, active)
+            require(receipt.stopIntent == expectedIntent
+                && receipt.terminalOutcome == expectedOutcome
+                && terminal.stopIntent == expectedIntent
+                && terminal.outcome == expectedOutcome,
+                "active public control lost first-writer truth")
+            let replayedReceipt = try issue(action, active, activeAdmission.operation)
+            require(replayedReceipt == receipt, "same-action replay drifted")
+            do {
+                _ = try issue(action == .cancel ? .kill : .cancel, active,
+                              activeAdmission.operation)
+                fatalError("opposite action overwrote terminal truth")
+            } catch AOSOperationCoreError.invalidTransition {}
+            let activeState = active.registry.snapshot()
+            require(terminal.screenRecordingGeometry?.deadlineState == .stopped
+                && !AOSOperationRegistry.hasNonterminalChildren(
+                    in: activeState, operation: activeAdmission.operation
+                )
+                && !active.broker.retainsAuthority,
+                "active stop left geometry, children, or authority")
+            append("controls", codableValue(receipt))
+
+            let preparedBarrier = Barrier()
+            let stopObserved = LockedBox(false)
+            let prepared = try Environment(
+                prepared: { _ in preparedBarrier.block() },
+                stopAdmission: { stopObserved.write { $0 = true } }
+            )
+            let preparedRequest = try prepared.request(
+                systemAudio: false, microphone: false, followed: true,
+                duration: 1_000, followDeadline: 500
+            )
+            let startResult = LockedBox<Result<AOSScreenRecordingAdmission, Error>?>(nil)
+            DispatchQueue.global().async {
+                do {
+                    let value = try prepared.screenAdapter.start(
+                        request: preparedRequest, connectionID: UUID()
+                    )
+                    startResult.write { $0 = .success(value) }
+                } catch { startResult.write { $0 = .failure(error) } }
+            }
+            preparedBarrier.waitUntilEntered()
+            let identity = prepared.registry.snapshot().operations.last!.identity
+            let stopResult = LockedBox<Result<AOSOperationControlReceipt, Error>?>(nil)
+            DispatchQueue.global().async {
+                do {
+                    let value = try issue(action, prepared, identity)
+                    stopResult.write { $0 = .success(value) }
+                } catch { stopResult.write { $0 = .failure(error) } }
+            }
+            wait("prepared stop admission missing") { stopObserved.read() }
+            require(!prepared.broker.retainsAuthority
+                && !prepared.driver.startWasRequested(),
+                "prepared stop leaked later authority")
+            preparedBarrier.release()
+            wait("prepared control did not settle") {
+                startResult.read() != nil && stopResult.read() != nil
+            }
+            guard case .success(let preparedAdmission)? = startResult.read(),
+                  case .success(let preparedReceipt)? = stopResult.read() else {
+                fatalError("prepared interleaving failed")
+            }
+            require(preparedReceipt.action == action
+                && operation(preparedAdmission, prepared).state == .terminal
+                && !prepared.broker.retainsAuthority
+                && !prepared.driver.startWasRequested(),
+                "prepared interleaving resumed after stop")
+
+            let installBarrier = Barrier()
+            let preinstall = try Environment(preinstall: { installBarrier.block() })
+            let installRequest = try preinstall.request(
+                systemAudio: false, microphone: false, followed: true,
+                duration: 1_000, followDeadline: 500
+            )
+            let installStart = LockedBox<Result<AOSScreenRecordingAdmission, Error>?>(nil)
+            DispatchQueue.global().async {
+                do {
+                    let value = try preinstall.screenAdapter.start(
+                        request: installRequest, connectionID: UUID()
+                    )
+                    installStart.write { $0 = .success(value) }
+                } catch { installStart.write { $0 = .failure(error) } }
+            }
+            installBarrier.waitUntilEntered()
+            let installing = preinstall.registry.snapshot().operations.last!.identity
+            let installReceipt = try issue(action, preinstall, installing)
+            require(!preinstall.broker.retainsAuthority
+                && !preinstall.driver.startWasRequested(),
+                "pre-install stop leaked later authority")
+            installBarrier.release()
+            wait("pre-install start did not return") { installStart.read() != nil }
+            guard case .success(let installAdmission)? = installStart.read() else {
+                fatalError("pre-install start failed")
+            }
+            require(operation(installAdmission, preinstall).state == .terminal
+                && installReceipt.action == action
+                && !preinstall.driver.startWasRequested(),
+                "pre-install stop resumed native start")
+        }
+
+        let race = try Environment()
+        let admission = try activate(race, followed: true).0
+        let cancelResult = LockedBox<Result<AOSOperationControlReceipt, Error>?>(nil)
+        let killResult = LockedBox<Result<AOSOperationControlReceipt, Error>?>(nil)
+        DispatchQueue.global().async {
+            do { let value = try race.cancel(admission.operation)
+                cancelResult.write { $0 = .success(value) }
+            } catch { cancelResult.write { $0 = .failure(error) } }
+        }
+        DispatchQueue.global().async {
+            do { let value = try race.kill(admission.operation)
+                killResult.write { $0 = .success(value) }
+            } catch { killResult.write { $0 = .failure(error) } }
+        }
+        wait("control race did not settle") {
+            cancelResult.read() != nil && killResult.read() != nil
+        }
+        let winners = [cancelResult.read(), killResult.read()].compactMap { value in
+            if case .success(let receipt)? = value { return receipt }
+            return nil
+        }
+        require(winners.count == 1 && operation(admission, race).state == .terminal,
+                "cancel/kill race did not preserve one durable writer: \(String(describing: cancelResult.read())) / \(String(describing: killResult.read()))")
+    }
+
+    static func submit(
+        _ update: AOSScreenRecordingFollowUpdateRequest,
+        environment: Environment,
+        connection: UUID
+    ) throws -> LockedBox<Result<AOSScreenRecordingGeometryState, AOSOperationCoreError>?> {
+        let result = LockedBox<Result<AOSScreenRecordingGeometryState,
+            AOSOperationCoreError>?>(nil)
+        try environment.screenAdapter.updateFollowGeometry(
+            request: update,
+            connectionID: connection
+        ) { value in result.write { $0 = value } }
+        return result
+    }
+
+    static func runFollowGeometryAndRecovery() throws {
+        let environment = try Environment()
+        let activated = try activate(environment, followed: true)
+        let admission = activated.0
+        wait("follow deadline was not armed") {
+            operation(admission, environment).screenRecordingGeometry?.deadlineState == .armed
+        }
+        environment.clock.advance(20_000_000)
+        Thread.sleep(forTimeInterval: 0.02)
+        let update = try environment.update(admission)
+        let accepted = try submit(
+            update, environment: environment, connection: activated.1
+        )
+        wait("follow update did not settle") { accepted.read() != nil }
+        guard case .success(let geometry)? = accepted.read() else {
+            fatalError("valid follow update failed: \(String(describing: accepted.read()))")
+        }
+        require(geometry.accepted.geometryGeneration == 2
+            && geometry.pendingUpdate == nil
+            && environment.driver.geometryUpdates == 1,
+            "follow commit did not cross the native seam exactly once")
+        let replay = try submit(
+            update, environment: environment, connection: activated.1
+        )
+        wait("follow replay did not settle") { replay.read() != nil }
+        guard case .failure(.generationConflict)? = replay.read() else {
+            fatalError("duplicate follow update was accepted")
+        }
+        let stale = try submit(
+            environment.update(admission, expected: 1, observation: 3, state: 3),
+            environment: environment,
+            connection: activated.1
+        )
+        wait("stale update did not settle") { stale.read() != nil }
+        guard case .failure(.generationConflict)? = stale.read() else {
+            fatalError("stale follow generation was accepted")
+        }
+        let sequences = environment.events.snapshot().compactMap {
+            ($0["data"] as? [String: Any])?["sequence"] as? UInt64
+        }
+        require(sequences == sequences.sorted() && Set(sequences).count == sequences.count,
+                "follow events were not monotonic")
+        append("events", environment.events.snapshot().last!)
+        _ = try environment.cancel(admission.operation)
+
+        do {
+            try aosValidateScreenRecordingProductionFrameBinding(
+                admission.geometry.accepted,
+                observedTopology: Environment.topology(),
+                windowFacts: [CaptureWindowFact(
+                    frame: CGRect(x: 0, y: 0, width: 20, height: 20),
+                    owningApplication: CaptureApplicationFact(processID: 700),
+                    windowID: 77
+                )]
+            )
+            fatalError("off-source frame geometry was accepted")
+        } catch AOSOperationCoreError.recordingTargetDrift {}
+        do {
+            _ = try environment.update(
+                admission,
+                expected: 2,
+                observation: 4,
+                state: 4,
+                bounds: ["x": 95, "y": 10, "width": 40, "height": 30]
+            )
+            fatalError("out-of-bounds geometry was accepted")
+        } catch AOSOperationCoreError.invalidRecord {}
+
+        let topologyDrift = try Environment()
+        let driftActive = try activate(topologyDrift, followed: true)
+        Thread.sleep(forTimeInterval: 0.02)
+        let drift = try submit(
+            topologyDrift.update(
+                driftActive.0,
+                topology: Environment.topology(scale: 3)
+            ),
+            environment: topologyDrift,
+            connection: driftActive.1
+        )
+        wait("immutable topology drift did not settle") { drift.read() != nil }
+        guard case .failure(.recordingTargetDrift)? = drift.read() else {
+            fatalError("immutable topology drift lost exact failure")
+        }
+        wait("topology drift did not stop") {
+            operation(driftActive.0, topologyDrift).state == .terminal
+        }
+
+        let nativeFailure = try Environment()
+        let nativeActive = try activate(nativeFailure, followed: true)
+        Thread.sleep(forTimeInterval: 0.02)
+        nativeFailure.driver.failGeometryUpdate = true
+        let failed = try submit(
+            nativeFailure.update(nativeActive.0),
+            environment: nativeFailure,
+            connection: nativeActive.1
+        )
+        wait("native update failure did not settle") { failed.read() != nil }
+        guard case .failure(.recordingFollowUpdateFailed)? = failed.read() else {
+            fatalError("native update failure lost exact code")
+        }
+        wait("native update failure did not terminalize") {
+            operation(nativeActive.0, nativeFailure).state == .terminal
+        }
+        require(operation(nativeActive.0, nativeFailure)
+            .screenRecordingGeometry?.pendingUpdate != nil,
+            "native failure erased durable pending geometry truth")
+
+        let deadline = try Environment()
+        let deadlineActive = try activate(
+            deadline, followed: true, duration: 1_000, deadline: 40
+        )
+        wait("follow deadline did not time out", timeout: 1) {
+            operation(deadlineActive.0, deadline).state == .terminal
+        }
+        require(operation(deadlineActive.0, deadline).failureCode
+            == AOSOperationCoreError.recordingFollowTimeout.code,
+            "deadline timeout lost exact terminal code")
+
+        let store = FaultStore()
+        let prior = try Environment(store: store)
+        let priorActive = try activate(
+            prior, followed: true, duration: 10_000, deadline: 5_000
+        )
+        Thread.sleep(forTimeInterval: 0.02)
+        prior.driver.holdGeometryUpdate = true
+        let pending = try submit(
+            prior.update(priorActive.0),
+            environment: prior,
+            connection: priorActive.1
+        )
+        wait("pending native update was not installed") {
+            prior.driver.geometryUpdates == 1
+                && operation(priorActive.0, prior)
+                    .screenRecordingGeometry?.pendingUpdate != nil
+        }
+        require(pending.read() == nil, "held native update completed early")
+        let restarted = try Environment(store: store)
+        let token = String(repeating: "9", count: 64)
+        let recovery = try AOSOperationRecovery.beginBootRecovery(
+            registry: restarted.registry,
+            newDaemonGeneration: 8,
+            claimTokenDigest: token
+        )
+        let residual = restarted.registry.snapshot()
+        require(residual.operations.first?.screenRecordingGeometry?.deadlineState == .stopped
+            && residual.operations.first?.screenRecordingGeometry?.pendingUpdate != nil,
+            "boot recovery lost stopped pending-update truth")
+        let reconciled = try AOSOperationRecovery.reconcile(
+            registry: restarted.registry,
+            recoveryGeneration: recovery.recoveryGeneration,
+            claimTokenDigest: token,
+            mechanicallyAbsentOperationIDs: Set(residual.operations.map(\.identity)),
+            mechanicallyAbsentStreamIDs: Set(residual.streams.map(\.identity)),
+            mechanicallyAbsentTransactionIDs: Set(
+                residual.resourceTransactions.map(\.transactionID)
+            ),
+            mechanicallyAbsentClaimIDs: Set(residual.resourceClaims.map(\.claimID)),
+            mechanicallyAbsentBrokerIDs: Set(residual.resourceBrokers.map(\.brokerID)),
+            mechanicallyRemovedArtifactIDs: Set(residual.artifacts.map(\.identity))
+        )
+        require(reconciled.state == .terminal && reconciled.residualCount == 0,
+                "boot recovery did not settle all prior-generation children")
+    }
+
     static func runSharedMicrophoneConflict() throws {
         let environment = try Environment()
         let held = try environment.microphoneAdapter.prepareExternalCapture(
@@ -1171,10 +1564,12 @@ struct IntegratedHarness {
 
     static func main() throws {
         try runMatrix()
+        try runPublicControl()
+        try runFollowGeometryAndRecovery()
         try runSharedMicrophoneConflict()
         let bytes = try JSONSerialization.data(withJSONObject: evidence, options: [.sortedKeys])
         print("m3e-evidence:\(String(data: bytes, encoding: .utf8)!)")
-        print("m3e-integrated: matrix=8 registry=2 actual-writer=1 shared-microphone=1")
+        print("m3e-integrated: matrix=8 registry=2 actual-writer=1 shared-microphone=1 control-boundaries=3 follow-recovery=1")
     }
 }
 `
