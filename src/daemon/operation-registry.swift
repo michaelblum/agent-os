@@ -730,6 +730,131 @@ final class AOSOperationRegistry {
         }
     }
 
+    /// Preparation runs before any screen, microphone, broker, writer, or file
+    /// authority exists. Close its exact durable children in one mutation when
+    /// a later preparation save fails after the operation became listable.
+    func terminalizeScreenRecordingPreparationFailure(
+        _ identity: AOSOperationIdentity,
+        adapterRegistrationID: String,
+        adapterRegistrationRevision: UInt64,
+        failureCode: String
+    ) throws -> AOSOperationRecord {
+        let now = clock()
+        return try mutateDurably { state in
+            guard let operationIndex = state.operations.firstIndex(where: {
+                $0.identity == identity
+            }), [.prepared, .starting].contains(
+                state.operations[operationIndex].state
+            ),
+            state.operations[operationIndex].adapterRegistrationID
+                == adapterRegistrationID,
+            state.operations[operationIndex].adapterRegistrationRevision
+                == adapterRegistrationRevision,
+            state.operations[operationIndex].stopIntent == nil,
+            state.operations[operationIndex].outcome == nil,
+            !failureCode.isEmpty else {
+                throw AOSOperationCoreError.invalidTransition
+            }
+
+            let streamIndexes = state.streams.indices.filter {
+                state.streams[$0].parentOperation == identity
+            }
+            let artifactIndexes = state.artifacts.indices.filter {
+                state.artifacts[$0].parentOperation == identity
+            }
+            let transactionIndexes = state.resourceTransactions.indices.filter {
+                state.resourceTransactions[$0].operation == identity
+            }
+            let claimIndexes = state.resourceClaims.indices.filter {
+                state.resourceClaims[$0].operation == identity
+            }
+
+            guard streamIndexes.allSatisfy({
+                      [.prepared, .starting].contains(state.streams[$0].state)
+                  }),
+                  artifactIndexes.allSatisfy({ index in
+                      let artifact = state.artifacts[index]
+                      return artifact.state == .transient
+                          && artifact.fileIdentity == nil
+                          && artifact.pendingAction == nil
+                          && artifact.release == nil
+                          && artifact.custodyReceipt == nil
+                  }),
+                  transactionIndexes.allSatisfy({ index in
+                      [.prepared, .reserving, .committed, .rollingBack, .terminal]
+                          .contains(state.resourceTransactions[index].state)
+                  }),
+                  claimIndexes.allSatisfy({ index in
+                      let claim = state.resourceClaims[index]
+                      return claim.admissionMode == .exclusive
+                          && claim.brokerID == nil
+                          && claim.subscriberID == nil
+                  }),
+                  !state.resourceBrokers.contains(where: { broker in
+                      broker.subscribers.contains { $0.operation == identity }
+                  }),
+                  !state.taps.contains(where: { $0.parentOperation == identity }),
+                  !state.pendingExternalSpawnIntents.contains(where: {
+                      $0.operationID == identity.id
+                          && $0.operationGeneration == identity.generation
+                  }),
+                  !state.finalizedExternalSpawnRecords.contains(where: {
+                      $0.skipRecord.operationID == identity.id
+                          && $0.skipRecord.operationGeneration == identity.generation
+                  }) else {
+                throw AOSOperationCoreError.residualsPresent
+            }
+
+            for index in streamIndexes {
+                state.streams[index].state = .terminal
+                state.streams[index].residualDigest = nil
+                state.streams[index].frameCount = 0
+                state.streams[index].byteCount = 0
+                state.streams[index].updatedAtNanoseconds = now
+            }
+            for index in artifactIndexes {
+                state.artifacts[index].state = .removed
+                state.artifacts[index].recoveryOriginState = nil
+                state.artifacts[index].recoveryDisposition = nil
+                state.artifacts[index].custodyDigest = nil
+                state.artifacts[index].pendingAction = nil
+                state.artifacts[index].updatedAtNanoseconds = now
+            }
+            for index in claimIndexes {
+                state.resourceClaims[index].state = .terminal
+            }
+            for index in transactionIndexes {
+                let committed = state.resourceTransactions[index].state == .committed
+                    || state.resourceTransactions[index].outcome == .succeeded
+                state.resourceTransactions[index].state = .terminal
+                state.resourceTransactions[index].recoveryOriginState = nil
+                state.resourceTransactions[index].recoveryDisposition = nil
+                state.resourceTransactions[index].outcome = committed ? .succeeded : .rejected
+            }
+            if var geometry = state.operations[operationIndex].screenRecordingGeometry,
+               geometry.accepted.mode == .callerFollowed,
+               geometry.deadlineState != .expired {
+                geometry.deadlineState = .stopped
+                geometry.nextUpdateNotBeforeNanoseconds = nil
+                geometry.nextDeadlineNanoseconds = nil
+                geometry.eventSequence = try aosNextScreenRecordingGeometryEventSequence(
+                    geometry.eventSequence
+                )
+                state.operations[operationIndex].screenRecordingGeometry = geometry
+            }
+            state.operations[operationIndex].state = .terminal
+            state.operations[operationIndex].stopIntent = .adapterFailed
+            state.operations[operationIndex].outcome = .failed
+            state.operations[operationIndex].failureCode = failureCode
+            state.operations[operationIndex].residualDigest = nil
+            state.operations[operationIndex].updatedAtNanoseconds = now
+            guard !Self.hasNonterminalChildren(in: state, operation: identity) else {
+                throw AOSOperationCoreError.residualsPresent
+            }
+            return state.operations[operationIndex]
+        }
+    }
+
     func inspect(_ identity: AOSOperationIdentity) throws -> AOSOperationRecord {
         let value = snapshot().operations.first { $0.identity == identity }
         guard let value else { throw AOSOperationCoreError.operationNotFound }

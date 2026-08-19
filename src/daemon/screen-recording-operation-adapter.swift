@@ -376,8 +376,12 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
     private let microphoneAuthorization: AOSScreenRecordingMicrophoneAuthorizationDependencies
     private let microphoneSessionFactory: AOSScreenRecordingMicrophoneSessionFactory
     private let operationEventSink: OperationEventSink
+    private let preparedPublicationObserver: (AOSOperationIdentity) -> Void
     private let runtimeInstallationObserver: () -> Void
     private let runtimeStartObserver: () -> Void
+    private let stopAdmissionObserver: () -> Void
+    private let stopAdmissionCondition = NSCondition()
+    private var stopAdmissionsInFlight: [AOSOperationIdentity: Int] = [:]
     private let startupTimeout: TimeInterval
     private let topologyObserver: () -> AOSDisplayTopologySnapshot
     private let windowObserver: () -> [CaptureWindowFact]
@@ -416,8 +420,10 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
             observeDisplayTopologySnapshot,
         windowObserver: @escaping () -> [CaptureWindowFact] = observeCaptureWindowFacts,
         followActivationObserver: @escaping () -> Void = {},
+        preparedPublicationObserver: @escaping (AOSOperationIdentity) -> Void = { _ in },
         runtimeInstallationObserver: @escaping () -> Void = {},
         runtimeStartObserver: @escaping () -> Void = {},
+        stopAdmissionObserver: @escaping () -> Void = {},
         operationEventSink: @escaping OperationEventSink = { _, _ in },
         reconcileHostBarrier: @escaping () -> Void = {}
     ) throws {
@@ -438,8 +444,10 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         self.sessionFactory = sessionFactory
         self.microphoneAuthorization = microphoneAuthorization
         self.microphoneSessionFactory = microphoneSessionFactory
+        self.preparedPublicationObserver = preparedPublicationObserver
         self.runtimeInstallationObserver = runtimeInstallationObserver
         self.runtimeStartObserver = runtimeStartObserver
+        self.stopAdmissionObserver = stopAdmissionObserver
         self.startupTimeout = startupTimeout
         self.topologyObserver = topologyObserver
         self.windowObserver = windowObserver
@@ -459,18 +467,24 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
             )
         }
         let context = try contextResolver(connectionID)
-        let claimAdmission = try prepare(
-            request: request,
-            geometry: geometry,
-            context: context
-        )
+        lock.lock()
+        let claimAdmission: AOSScreenRecordingClaimAdmission
+        do {
+            claimAdmission = try prepare(
+                request: request,
+                geometry: geometry,
+                context: context
+            )
+        } catch {
+            lock.unlock()
+            throw error
+        }
         let pendingRuntime = AOSScreenRecordingPendingRuntime(
             adapter: self,
             admission: claimAdmission,
             registration: registration,
             request: request
         )
-        lock.lock()
         runtimes[claimAdmission.publicAdmission.operation] = pendingRuntime
         do {
             _ = try registry.transitionOperation(
@@ -482,11 +496,29 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
                 to: .starting
             )
             lock.unlock()
-        } catch {
+        } catch let preparationError {
             runtimes.removeValue(forKey: claimAdmission.publicAdmission.operation)
+            let failureCode = (preparationError as? AOSOperationCoreError)?.code
+                ?? AOSOperationCoreError.recordingCleanupRequired.code
+            do {
+                _ = try registry.terminalizeScreenRecordingPreparationFailure(
+                    claimAdmission.publicAdmission.operation,
+                    adapterRegistrationID: registration.id,
+                    adapterRegistrationRevision: registration.revision,
+                    failureCode: failureCode
+                )
+            } catch {
+                lock.unlock()
+                throw AOSOperationCoreError.recordingCleanupRequired
+            }
             lock.unlock()
-            markCleanupRequired(claimAdmission.publicAdmission.operation)
-            throw error
+            throw preparationError
+        }
+        guard waitForStopAdmissions(
+            operation: claimAdmission.publicAdmission.operation,
+            timeout: startupTimeout
+        ) else {
+            return claimAdmission.publicAdmission
         }
         pendingRuntime.publishStarting { [self] in
             emitGeometryEvent(
@@ -544,6 +576,21 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         operation: AOSOperationIdentity,
         admission: AOSOperationStopAdmissionTransaction
     ) throws -> AOSAdapterStopResult {
+        stopAdmissionCondition.lock()
+        stopAdmissionsInFlight[operation, default: 0] += 1
+        stopAdmissionCondition.unlock()
+        stopAdmissionObserver()
+        defer {
+            stopAdmissionCondition.lock()
+            let remaining = (stopAdmissionsInFlight[operation] ?? 1) - 1
+            if remaining == 0 {
+                stopAdmissionsInFlight.removeValue(forKey: operation)
+            } else {
+                stopAdmissionsInFlight[operation] = remaining
+            }
+            stopAdmissionCondition.broadcast()
+            stopAdmissionCondition.unlock()
+        }
         lock.lock()
         guard let runtime = runtimes[operation] else {
             let admitted: AOSOperationStopAdmissionResult
@@ -568,6 +615,21 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         }
         lock.unlock()
         return try runtime.admitStop(admission)
+    }
+
+    private func waitForStopAdmissions(
+        operation: AOSOperationIdentity,
+        timeout: TimeInterval
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        stopAdmissionCondition.lock()
+        defer { stopAdmissionCondition.unlock() }
+        while (stopAdmissionsInFlight[operation] ?? 0) > 0 {
+            guard stopAdmissionCondition.wait(until: deadline) else {
+                return (stopAdmissionsInFlight[operation] ?? 0) == 0
+            }
+        }
+        return true
     }
 
     func emitGeometryEvent(
@@ -1046,6 +1108,7 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
             initialProgress: initialProgress,
             screenRecordingGeometry: .initial(geometry)
         )
+        preparedPublicationObserver(operation.identity)
         do {
             let stream = try registry.prepareStream(parent: operation.identity)
             let artifact = try registry.prepareArtifact(
@@ -1122,7 +1185,18 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
                 }
             )
         } catch {
-            markCleanupRequired(operation.identity)
+            let failureCode = (error as? AOSOperationCoreError)?.code
+                ?? AOSOperationCoreError.recordingCleanupRequired.code
+            do {
+                _ = try registry.terminalizeScreenRecordingPreparationFailure(
+                    operation.identity,
+                    adapterRegistrationID: registration.id,
+                    adapterRegistrationRevision: registration.revision,
+                    failureCode: failureCode
+                )
+            } catch {
+                throw AOSOperationCoreError.recordingCleanupRequired
+            }
             throw error
         }
     }

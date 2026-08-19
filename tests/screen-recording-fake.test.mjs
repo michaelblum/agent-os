@@ -1476,6 +1476,67 @@ final class RuntimeInstallationBarrier: @unchecked Sendable {
     }
 }
 
+final class PreparedPublicationBarrier: @unchecked Sendable {
+    private let condition = NSCondition()
+    private var operation: AOSOperationIdentity?
+    private var publicationReleased = false
+    private var stopAdmissionEntered = false
+    private var stopCompleted = false
+
+    func observePublication(_ value: AOSOperationIdentity) {
+        condition.lock()
+        operation = value
+        condition.broadcast()
+        while !publicationReleased { condition.wait() }
+        condition.unlock()
+    }
+
+    func waitForPublication() -> AOSOperationIdentity? {
+        condition.lock()
+        let deadline = Date().addingTimeInterval(1)
+        while operation == nil, condition.wait(until: deadline) {}
+        let result = operation
+        condition.unlock()
+        return result
+    }
+
+    func observeStopAdmission() {
+        condition.lock()
+        stopAdmissionEntered = true
+        condition.broadcast()
+        condition.unlock()
+    }
+
+    func waitForStopAdmission() -> Bool {
+        condition.lock()
+        let deadline = Date().addingTimeInterval(1)
+        while !stopAdmissionEntered, condition.wait(until: deadline) {}
+        let result = stopAdmissionEntered
+        condition.unlock()
+        return result
+    }
+
+    func markStopCompleted() {
+        condition.lock()
+        stopCompleted = true
+        condition.broadcast()
+        condition.unlock()
+    }
+
+    func didStopComplete() -> Bool {
+        condition.lock()
+        defer { condition.unlock() }
+        return stopCompleted
+    }
+
+    func releasePublication() {
+        condition.lock()
+        publicationReleased = true
+        condition.broadcast()
+        condition.unlock()
+    }
+}
+
 final class RecordingEnvironment {
     let adapter: AOSScreenRecordingOperationAdapter
     let broker = FakeBroker()
@@ -1501,8 +1562,10 @@ final class RecordingEnvironment {
         requestedMicrophoneAuthorizationState: AOSMicrophoneAuthorizationState = .authorized,
         startupTimeout: TimeInterval = aosDesktopPixelStreamRetirementTimeout,
         followActivationObserver: @escaping () -> Void = {},
+        preparedPublicationObserver: @escaping (AOSOperationIdentity) -> Void = { _ in },
         runtimeInstallationObserver: @escaping () -> Void = {},
-        runtimeStartObserver: @escaping () -> Void = {}
+        runtimeStartObserver: @escaping () -> Void = {},
+        stopAdmissionObserver: @escaping () -> Void = {}
     ) throws {
         let eventCapture = FakeOperationEventCapture()
         events = eventCapture
@@ -1563,8 +1626,10 @@ final class RecordingEnvironment {
             topologyObserver: Self.topology,
             windowObserver: Self.windows,
             followActivationObserver: followActivationObserver,
+            preparedPublicationObserver: preparedPublicationObserver,
             runtimeInstallationObserver: runtimeInstallationObserver,
             runtimeStartObserver: runtimeStartObserver,
+            stopAdmissionObserver: stopAdmissionObserver,
             operationEventSink: { event, data in
                 eventCapture.receive(event: event, data: data)
             }
@@ -2095,69 +2160,29 @@ struct TerminalLifecycleCustodyHarness {
                 state: preparedState
             ))
 
-            let cleanupState = environment.registry.snapshot()
-            let cleanup = cleanupState.operations[0]
-            require(cleanup.state == .cleanupRequired,
-                    "post-admission durable fault did not enter cleanup")
-            require(cleanup.progress?.trackSummary == expectedSummary,
-                    "cleanup erased exact selected-track truth")
-            require(cleanupState.streams.isEmpty
-                        && cleanupState.artifacts.isEmpty
-                        && cleanupState.resourceTransactions.isEmpty
-                        && cleanupState.resourceClaims.isEmpty,
-                    "post-admission fault created later preparation authority")
+            let terminalState = environment.registry.snapshot()
+            let terminal = terminalState.operations[0]
+            require(terminal.state == .terminal
+                        && terminal.stopIntent == .adapterFailed
+                        && terminal.outcome == .failed
+                        && terminal.failureCode
+                            == AOSOperationCoreError.storeUnavailable.code,
+                    "post-publication durable fault did not terminal-clean")
+            require(terminal.progress?.trackSummary == expectedSummary,
+                    "terminal failure erased exact selected-track truth")
+            require(terminalState.streams.isEmpty
+                        && terminalState.artifacts.isEmpty
+                        && terminalState.resourceTransactions.isEmpty
+                        && terminalState.resourceClaims.isEmpty,
+                    "post-publication fault created later preparation authority")
             require(!environment.broker.retainsAuthority,
                     "post-admission fault acquired broker authority")
             projections.append(projectionRow(
-                phase: "cleanup",
+                phase: "terminal",
                 systemAudioSelected: systemAudioSelected,
                 microphoneSelected: microphoneSelected,
-                operation: cleanup,
-                state: cleanupState
-            ))
-
-            let recoveredRegistry = try AOSOperationRegistry(
-                store: store,
-                daemonGeneration: 8,
-                adapterRegistry: cleanupState.adapterRegistry,
-                clock: { environment.clock.now() },
-                idFactory: { "recovery-unused" }
-            )
-            let recovery = try AOSOperationRecovery.beginBootRecovery(
-                registry: recoveredRegistry,
-                newDaemonGeneration: 8,
-                claimTokenDigest: String(repeating: "d", count: 64)
-            )
-            let recovering = recoveredRegistry.snapshot().operations[0]
-            require(recovering.progress?.trackSummary == expectedSummary,
-                    "boot recovery changed selected-track truth")
-            _ = try AOSOperationRecovery.reconcile(
-                registry: recoveredRegistry,
-                recoveryGeneration: recovery.recoveryGeneration,
-                claimTokenDigest: String(repeating: "d", count: 64),
-                mechanicallyAbsentOperationIDs: [recovering.identity],
-                mechanicallyAbsentClaimIDs: [],
-                mechanicallyAbsentBrokerIDs: []
-            )
-            let recoveredState = recoveredRegistry.snapshot()
-            let recovered = recoveredState.operations[0]
-            require(recovered.state == .terminal,
-                    "boot recovery did not terminalize absent preparation")
-            require(recovered.progress?.trackSummary == expectedSummary,
-                    "recovered operation changed selected-track truth")
-            let recoveredSnapshot = AOSOperationPublicProjection.snapshot(
-                recovered,
-                state: recoveredState
-            )
-            let recoveredTerminal = recoveredSnapshot["terminal"] as? [String: Any]
-            require(recoveredTerminal?["track_summary"] is [String: Any],
-                    "terminal projection omitted selected-track truth")
-            projections.append(projectionRow(
-                phase: "recovered",
-                systemAudioSelected: systemAudioSelected,
-                microphoneSelected: microphoneSelected,
-                operation: recovered,
-                state: recoveredState
+                operation: terminal,
+                state: terminalState
             ))
         }
         let data = try JSONSerialization.data(withJSONObject: projections, options: [.sortedKeys])
@@ -2947,6 +2972,101 @@ struct TerminalLifecycleCustodyHarness {
             require(!environment.registry.snapshot().resourceClaims.contains {
                 $0.operation == admission.operation && $0.state != .terminal
             }, "\(phase) leaked a resource claim")
+        }
+
+        for testCase in cases {
+            let phase = "prepared-publication \(testCase.action.rawValue)"
+            let barrier = PreparedPublicationBarrier()
+            let runtimeCounter = RuntimeInstallationBarrier()
+            let environment = try RecordingEnvironment(
+                preparedPublicationObserver: barrier.observePublication,
+                runtimeStartObserver: runtimeCounter.observeRuntimeStart,
+                stopAdmissionObserver: barrier.observeStopAdmission
+            )
+            let startTask = Task.detached {
+                try environment.adapter.start(
+                    request: environment.request(followed: true),
+                    connectionID: UUID()
+                )
+            }
+            guard let operationIdentity = barrier.waitForPublication() else {
+                fatalError("\(phase) durable prepared publication missing")
+            }
+            let preparedState = environment.registry.snapshot()
+            let prepared = try environment.registry.inspect(operationIdentity)
+            require(prepared.state == .prepared
+                        && prepared.stopIntent == nil
+                        && prepared.outcome == nil,
+                    "\(phase) did not stop at the first prepared publication")
+            require(preparedState.streams.isEmpty
+                        && preparedState.artifacts.isEmpty
+                        && preparedState.resourceTransactions.isEmpty
+                        && preparedState.resourceClaims.isEmpty,
+                    "\(phase) created children before provisional ownership")
+
+            let stopTask = Task.detached {
+                defer { barrier.markStopCompleted() }
+                return try issue(testCase.action, environment, operationIdentity)
+            }
+            require(barrier.waitForStopAdmission(),
+                    "\(phase) public control did not reach the adapter")
+            require(!barrier.didStopComplete(),
+                    "\(phase) public control completed before owner insertion")
+            let stillPrepared = try environment.registry.inspect(operationIdentity)
+            require(stillPrepared.state == .prepared
+                        && stillPrepared.stopIntent == nil,
+                    "\(phase) stop admission bypassed the lifecycle owner")
+
+            barrier.releasePublication()
+            let receipt = try await stopTask.value
+            requireReceipt(receipt, testCase, operationIdentity, environment, phase)
+            let admission = try await startTask.value
+            require(admission.operation == operationIdentity,
+                    "\(phase) start returned a different operation")
+            let stopped = try environment.registry.inspect(operationIdentity)
+            require(stopped.state == .terminal
+                        && stopped.stopIntent == testCase.intent
+                        && stopped.outcome == testCase.outcome
+                        && stopped.failureCode == nil
+                        && stopped.residualDigest == nil
+                        && stopped.screenRecordingGeometry?.deadlineState == .stopped,
+                    "\(phase) did not publish exact terminal stop truth")
+            let stoppedState = environment.registry.snapshot()
+            let streams = stoppedState.streams.filter {
+                $0.parentOperation == operationIdentity
+            }
+            let artifacts = stoppedState.artifacts.filter {
+                $0.parentOperation == operationIdentity
+            }
+            let transactions = stoppedState.resourceTransactions.filter {
+                $0.operation == operationIdentity
+            }
+            let claims = stoppedState.resourceClaims.filter {
+                $0.operation == operationIdentity
+            }
+            require(streams.count == 1
+                        && streams.allSatisfy { $0.state == .terminal }
+                        && artifacts.count == 1
+                        && artifacts.allSatisfy { $0.state == .removed }
+                        && transactions.count == 1
+                        && transactions.allSatisfy { $0.state == .terminal }
+                        && claims.count == 1
+                        && claims.allSatisfy { $0.state == .terminal },
+                    "\(phase) did not terminal-clean exact prepared children")
+            require(!environment.native.startWasRequested()
+                        && environment.native.stopCount == 0
+                        && runtimeCounter.observedRuntimeStartCount() == 0
+                        && environment.broker.acquireCount == 0
+                        && environment.broker.releaseCount == 0
+                        && !environment.broker.retainsAuthority,
+                    "\(phase) admitted a later runtime, broker, or native effect")
+            let replay = try issue(
+                testCase.action, environment, operationIdentity
+            )
+            require(replay == receipt, "\(phase) same-action replay drifted")
+            requireRejected(
+                testCase.opposite, environment, operationIdentity, phase
+            )
         }
 
         for testCase in cases {
@@ -4296,7 +4416,7 @@ struct TerminalLifecycleCustodyHarness {
         try await lateStartFailureAfterActiveEvidenceRequiresStop()
         await frameAdmissionClosesAtomically()
         try decoderAndTerminalTruthAreClosed()
-        print("terminal-lifecycle-custody-harness: atomic-admission=12 pre-epoch-callbacks=4 pre-native-encoder=1 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 pre-install-public-stop=2 production-lifecycle=6 production-terminal=2 production-custody=10 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
+        print("terminal-lifecycle-custody-harness: atomic-admission=8 pre-epoch-callbacks=4 pre-native-encoder=1 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 prepared-publication-public-stop=2 pre-install-public-stop=2 production-lifecycle=6 production-terminal=2 production-custody=10 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
     }
 }
 `
@@ -4447,7 +4567,7 @@ test('production lifecycle and custody owners close terminal fault phases with f
     assert.equal(compile.status, 0, compile.stderr || compile.stdout)
     const run = spawnSync(binary, [], { encoding: 'utf8', timeout: 5_000 })
     assert.equal(run.status, 0, `${run.stderr}\n${run.stdout}`)
-    assert.match(run.stdout, /atomic-admission=12 pre-epoch-callbacks=4 pre-native-encoder=1 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 pre-install-public-stop=2/u)
+    assert.match(run.stdout, /atomic-admission=8 pre-epoch-callbacks=4 pre-native-encoder=1 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 prepared-publication-public-stop=2 pre-install-public-stop=2/u)
     const projectionLine = run.stdout.split('\n').find((line) => (
       line.startsWith('atomic-initial-summary-projections:')
     ))
@@ -4455,10 +4575,10 @@ test('production lifecycle and custody owners close terminal fault phases with f
     const projections = JSON.parse(projectionLine.slice(
       'atomic-initial-summary-projections:'.length,
     ))
-    assert.equal(projections.length, 12)
+    assert.equal(projections.length, 8)
     assert.deepEqual(projections.map((value) => value.phase), [
-      'prepared', 'cleanup', 'recovered', 'prepared', 'cleanup', 'recovered',
-      'prepared', 'cleanup', 'recovered', 'prepared', 'cleanup', 'recovered',
+      'prepared', 'terminal', 'prepared', 'terminal',
+      'prepared', 'terminal', 'prepared', 'terminal',
     ])
     const callbackProjectionLine = run.stdout.split('\n').find((line) => (
       line.startsWith('pre-epoch-callback-projections:')
