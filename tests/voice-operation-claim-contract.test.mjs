@@ -377,6 +377,12 @@ test('voice transport uses an atomic legacy-output sentinel and one shared nativ
   assert.match(transport, /AOSStreamingSpeechSession: AOSLegacyVoiceOutputSentinel/)
   assert.doesNotMatch(playback, /AOSOperationControlAdapter/)
   assert.doesNotMatch(segmented, /AVAudioEngine|installTap|removeTap/u)
+  assert.doesNotMatch(segmented, /engineOwned/u)
+  assert.match(segmented, /sharedOwnerStartAttempted/u)
+  assert.match(
+    segmented,
+    /0\.\.<aosSegmentedMicrophoneAuthorityStopAttemptLimit[\s\S]*nativeSession\.stop\(\)[\s\S]*nativeSession\.authorityAbsent/u,
+  )
   assert.equal((session.match(/AVAudioEngine\(\)/gu) ?? []).length, 1)
   assert.match(adapter, /AOSMicrophoneOperationResourceIdentity\.resourceKey/u)
   assert.match(state, /static let resourceKey = "voice_io_native_session"/u)

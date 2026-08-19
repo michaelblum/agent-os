@@ -458,6 +458,7 @@
         "scripts/lib/external-command-manifest-v1.mjs",
         "src/commands/operation.swift",
         "src/daemon/microphone-operation-adapter.swift",
+        "src/daemon/microphone-native-session.swift",
         "src/daemon/operation-*.swift",
         "src/daemon/unified.swift",
         "src/daemon/voice-transport.swift",
@@ -481,7 +482,8 @@
         "tests/toolkit/runtime-operation-control.test.mjs",
         "tests/toolkit/runtime-operation.test.mjs",
         "tests/voice-follow-cli.test.mjs",
-        "tests/voice-operation-claim-contract.test.mjs"
+        "tests/voice-operation-claim-contract.test.mjs",
+        "tests/voice-transport-native.sh"
       ],
       "classes": [
         "operation_control",
@@ -509,8 +511,8 @@
         },
         {
           "id": "operation-adapter-and-projection-contract",
-          "command": "node --test tests/operation-external-dispatch-binding.test.mjs tests/voice-follow-cli.test.mjs tests/voice-operation-claim-contract.test.mjs tests/operation-canvas-projection.test.mjs tests/toolkit/runtime-operation-control.test.mjs tests/toolkit/operation-control-model.test.mjs tests/toolkit/operation-control-component.test.mjs",
-          "reason": "Invocation-scoped external intent/admission/abandon/tokenless-finalize, single microphone operation/claim ownership, active-only red status, exact Canvas generation, captured ordinary ownership, immutable displayed-generation and status-host lease-epoch actions, serialized off-main confirmed Stop All/Reopen, nonblocking lease retirement, ordered typed-failure publication, and stop-only status-opened Canvas must stay on the common control plane."
+          "command": "node --test tests/operation-external-dispatch-binding.test.mjs tests/voice-follow-cli.test.mjs tests/voice-operation-claim-contract.test.mjs tests/operation-canvas-projection.test.mjs tests/toolkit/runtime-operation-control.test.mjs tests/toolkit/operation-control-model.test.mjs tests/toolkit/operation-control-component.test.mjs && bash tests/voice-transport-native.sh",
+          "reason": "Invocation-scoped external intent/admission/abandon/tokenless-finalize, single microphone operation/claim ownership, actual segmented/shared-owner partial-start absence and bounded stop retry, active-only red status, exact Canvas generation, captured ordinary ownership, immutable displayed-generation and status-host lease-epoch actions, serialized off-main confirmed Stop All/Reopen, nonblocking lease retirement, ordered typed-failure publication, and stop-only status-opened Canvas must stay on the common control plane."
         },
         {
           "id": "operation-registered-dispatch-contract",

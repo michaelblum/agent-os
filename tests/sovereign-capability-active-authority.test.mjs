@@ -332,7 +332,7 @@ test('authority topology is schema-valid, unique, local, and publication-honest'
   assert.deepEqual(
     currentOnlyProjection(currentLedger, currentProjectionExceptions, currentProjectionExceptions),
     currentOnlyProjection(baselineLedger, currentProjectionExceptions, currentProjectionExceptions),
-    'M2 plus the explicit M3A/M3B/M3C-V1 overlay must preserve all other current capability truth',
+    'M2 plus the explicit M3A/M3B/M3C-V2 overlay must preserve all other current capability truth',
   );
   const currentRows = new Map(currentLedger.capabilities.map((row) => [row.id, row.current]));
   const baselineRows = new Map(baselineLedger.capabilities.map((row) => [row.id, row.current]));

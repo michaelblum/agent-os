@@ -97,6 +97,20 @@ with the exact command and guard posture.
 `node scripts/aos-dev-workflow.mjs recommend --json` enforces this only for
 changed proof assets; untouched legacy tests remain runnable debt.
 
+For the shared daemon microphone owner and standalone segmented consumer, use:
+
+```bash
+bash tests/voice-transport-native.sh
+```
+
+This route compiles the actual `microphone-native-session.swift` owner with the
+actual segmented consumer and voice transport. Injected non-native owner
+dependencies prove successful start/stop, failed start with immediate absence,
+persistent uncertain absence, bounded repeated stop, and retry-to-absence. The
+operation-adapter proof separately requires the exclusive microphone claim to
+remain nonterminal for uncertain absence and release only after exact absence.
+No audio device, daemon, TCC, or repo binary executes.
+
 For the bounded fixed recording producer with independently optional system
 audio and microphone, use:
 
@@ -115,14 +129,18 @@ and boot recovery with injected fake clock, video/system-audio/microphone
 callbacks, writer inputs/file, a real `AOSMicrophoneNativeSession` executing
 through injected non-native dependencies, and broker dependencies. It covers
 all six three-track first-sample orders at one
-common epoch, per-track monotonicity and truth, independent bounded backpressure,
-and an injected durable save fault after atomic operation admission but before
-stream/artifact/claim handoff. For all four exact track selections,
+common epoch, pre-epoch system-audio/microphone callback failures in both
+orders, final-summary normalization with deterministic video/system-audio/
+microphone precedence, per-track monotonicity and truth, independent bounded
+backpressure, and an injected durable save fault after atomic operation
+admission but before stream/artifact/claim handoff. For all four exact track selections,
 the harness executes the exact production snapshot/list/inspect projector used
 by `UnifiedDaemon` and validates the prepared, cleanup-required, and recovered
 terminal responses against `aos.operation.v1` without synthesizing wire
-metadata or backfilling track truth. It also executes the production admission
-projection and validates all four responses against the recording schema. It
+metadata or backfilling track truth. Four callback-failure terminal projections
+exercise the same snapshot/list/inspect owner and schema route. It also executes
+the production admission projection and validates all four responses against
+the recording schema. It
 also covers registration availability distinct from positive-byte first-sample truth,
 positive per-track sample counts and bytes, zero-byte rejection, writer-global
 failure on every selected track, typed selected-audio failures, simultaneous

@@ -5,6 +5,7 @@ import Foundation
 let aosVoiceSegmentMinimumDuration: TimeInterval = 0.5
 let aosVoiceSegmentMaximumDuration: TimeInterval = 5
 let aosVoiceSegmentDefaultDuration: TimeInterval = 3
+let aosSegmentedMicrophoneAuthorityStopAttemptLimit = 8
 
 enum AOSMicrophoneCaptureTerminalTrigger: String, Equatable {
     case completed
@@ -383,7 +384,8 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
     private let finishLock = NSLock()
     private let inputGate = AOSCaptureInputGate()
     private var engineArming = false
-    private var engineOwned = false
+    private var injectedInputEngineStartAttempted = false
+    private var sharedOwnerStartAttempted = false
     private var captureAdmitted = false
     private var finishRequested = false
     private var finished = false
@@ -509,12 +511,11 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
     }
 
     private func completeEngineArming(
-        started: Bool,
+        started _: Bool,
         startupError: Error?
     ) -> AOSVoiceTransportFailure? {
         finishLock.lock()
         engineArming = false
-        if started { engineOwned = true }
         let cancellationWon = finishRequested
         let shouldScheduleFinish = cancellationWon && !finished
         finishLock.unlock()
@@ -797,9 +798,15 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
             self?.enqueueInput(buffer, at: time)
         }
         if let startInputEngine {
+            finishLock.lock()
+            injectedInputEngineStartAttempted = true
+            finishLock.unlock()
             try startInputEngine(handler)
             return
         }
+        finishLock.lock()
+        sharedOwnerStartAttempted = true
+        finishLock.unlock()
         let inputFormat = try nativeSession.start(handler)
         guard let converter = AVAudioConverter(
             from: inputFormat,
@@ -907,15 +914,22 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
 
     private func stopEngine() -> Bool {
         inputGate.close()
-        finishLock.lock()
-        let shouldStop = engineOwned
-        engineOwned = false
-        finishLock.unlock()
-        guard shouldStop else { return true }
-        if let stopInputEngine {
-            stopInputEngine()
+        if startInputEngine != nil {
+            finishLock.lock()
+            let shouldStop = injectedInputEngineStartAttempted
+            injectedInputEngineStartAttempted = false
+            finishLock.unlock()
+            guard shouldStop else { return inputEngineHealthy?() == false }
+            stopInputEngine?()
             return inputEngineHealthy?() == false
         }
-        return nativeSession.stop() && nativeSession.authorityAbsent
+        finishLock.lock()
+        let shouldStopSharedOwner = sharedOwnerStartAttempted
+        finishLock.unlock()
+        guard shouldStopSharedOwner else { return true }
+        for _ in 0..<aosSegmentedMicrophoneAuthorityStopAttemptLimit {
+            if nativeSession.stop(), nativeSession.authorityAbsent { return true }
+        }
+        return nativeSession.authorityAbsent
     }
 }

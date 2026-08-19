@@ -9140,6 +9140,6 @@ test('paired authority, executable M2 bindings, and the remaining M6 decision ar
   assert.equal(ledger.later_open_decisions[0].milestone, 'M6');
   assert.match(
     ledger.authority.publication_boundary,
-    /Milestone 2 publishes the executable operation plane and microphone adapter.+bounded M3A\/M3B\/M3C-V1 slices add one fixed display\/window\/region mandatory-H\.264-video producer with independently optional AAC-LC system-audio and microphone tracks/isu,
+    /Milestone 2 publishes the executable operation plane and microphone adapter.+bounded M3A\/M3B\/M3C-V2 slices add one fixed display\/window\/region mandatory-H\.264-video producer with independently optional AAC-LC system-audio and microphone tracks/isu,
   );
 });

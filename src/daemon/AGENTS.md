@@ -183,7 +183,10 @@ ahead of availability. Selected audio unavailable, no-sample,
 or failure cannot silently succeed. When the shared startup deadline settles,
 every missing selected track receives its exact failure; missing mandatory video
 is the deterministic terminal failure, followed by system audio and microphone
-when multiple tracks are silent. Writer-global
+when multiple tracks are silent. Media callback failure before common-epoch
+settlement is normalized from that final selected-track truth rather than its
+scheduling order; pre-native permission, authorization, setup-unavailable, and
+resource-conflict failures retain their exact typed code. Writer-global
 start or post-start failure stamps every selected track before terminalization.
 Media duration spans capture-start through stop admission only, and written-video
 frame progress, total artifact bytes, and content-free per-track admission
@@ -505,8 +508,11 @@ authorization.
 `microphone-native-session.swift` is the sole daemon `AVAudioEngine` input-tap
 owner. Both `segmented-microphone-capture.swift` and selected screen recording
 delegate start, health, stop, and exact authority-absence truth to it. Preserve
-the macOS 14 floor; do not add `SCRecordingOutput`, `captureMicrophone`, another
-engine/tap owner, or a screen-specific microphone authorization path.
+the macOS 14 floor. A segmented partial-start failure must consult this owner,
+perform bounded stop retries, and report uncertain absence rather than infer it
+from missing start success; the operation claim remains until exact tap/engine
+absence is reported. Do not add `SCRecordingOutput`, `captureMicrophone`,
+another engine/tap owner, or a screen-specific microphone authorization path.
 
 `connection-outbound-writer.swift` owns daemon socket output. Each connection
 has one bounded serial writer for responses and events; slow-client timeout or

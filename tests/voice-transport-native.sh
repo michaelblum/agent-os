@@ -17,6 +17,138 @@ private func require(_ condition: @autoclosure () -> Bool, _ message: String) {
     }
 }
 
+enum AOSOperationCoreError: Error, Equatable {
+    case recordingMicrophoneUnavailable
+    case recordingCleanupRequired
+}
+
+private final class InjectedMicrophoneOwnerBackend: @unchecked Sendable {
+    private let lock = NSLock()
+    private let failStart: Bool
+    private var stopResults: [Bool]
+    private var authorityPresent = false
+    private(set) var startCount = 0
+    private(set) var stopCount = 0
+
+    init(failStart: Bool, stopResults: [Bool]) {
+        self.failStart = failStart
+        self.stopResults = stopResults
+    }
+
+    func dependencies() -> AOSMicrophoneNativeSessionDependencies {
+        AOSMicrophoneNativeSessionDependencies(
+            start: { [self] _ in
+                lock.lock()
+                startCount += 1
+                authorityPresent = true
+                let shouldFail = failStart
+                lock.unlock()
+                if shouldFail {
+                    throw AOSOperationCoreError.recordingMicrophoneUnavailable
+                }
+                return AVAudioFormat(
+                    standardFormatWithSampleRate: aosVoiceCaptureSampleRate,
+                    channels: AVAudioChannelCount(aosVoiceCaptureChannels)
+                )!
+            },
+            healthy: { [self] in
+                lock.lock()
+                defer { lock.unlock() }
+                return authorityPresent
+            },
+            stop: { [self] in
+                lock.lock()
+                stopCount += 1
+                let absent = stopResults.isEmpty ? false : stopResults.removeFirst()
+                if absent { authorityPresent = false }
+                lock.unlock()
+                return absent
+            }
+        )
+    }
+
+    var authorityIsPresent: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return authorityPresent
+    }
+}
+
+private func proveSegmentedSharedOwner(
+    label: String,
+    backend: InjectedMicrophoneOwnerBackend,
+    expectsStartFailure: Bool,
+    expectedAuthorityAbsent: Bool,
+    expectedStopCount: Int
+) throws {
+    let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("aos-segmented-owner-\(label)-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(
+        at: directory,
+        withIntermediateDirectories: false,
+        attributes: [.posixPermissions: 0o700]
+    )
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let terminalSignal = DispatchSemaphore(value: 0)
+    let terminalLock = NSLock()
+    var observedTermination: AOSMicrophoneCaptureTermination?
+    var authorityPresentAtTerminal: Bool?
+    var stopCountAtTerminal: Int?
+    let nativeSession = AOSMicrophoneNativeSession(
+        dependencies: backend.dependencies()
+    )
+    let session = try AOSSegmentedMicrophoneCaptureSession(
+        owner: UUID(),
+        ref: label,
+        directoryPath: directory.path,
+        segmentDuration: 0.5,
+        maximumDuration: 1,
+        nativeSession: nativeSession,
+        authorizationState: { .authorized },
+        emit: { _, _ in },
+        terminal: { termination in
+            terminalLock.lock()
+            observedTermination = termination
+            authorityPresentAtTerminal = backend.authorityIsPresent
+            stopCountAtTerminal = backend.stopCount
+            terminalLock.unlock()
+            terminalSignal.signal()
+        }
+    )
+    do {
+        try session.start()
+        require(!expectsStartFailure, "\(label) unexpectedly started")
+        session.cancel(reason: "test_complete")
+    } catch let failure as AOSVoiceTransportFailure {
+        require(expectsStartFailure, "\(label) unexpectedly failed startup")
+        require(failure.code == "MICROPHONE_UNAVAILABLE", "\(label) failure code drifted")
+    }
+    require(
+        terminalSignal.wait(timeout: .now() + 2) == .success,
+        "\(label) did not publish bounded terminal cleanup"
+    )
+    terminalLock.lock()
+    let termination = observedTermination
+    let presentAtTerminal = authorityPresentAtTerminal
+    let terminalStopCount = stopCountAtTerminal
+    terminalLock.unlock()
+    require(backend.startCount == 1, "\(label) did not attempt one shared-owner start")
+    require(backend.stopCount == expectedStopCount, "\(label) stop/retry count drifted")
+    require(terminalStopCount == expectedStopCount, "\(label) terminal preceded its final stop attempt")
+    require(
+        termination?.authorityAbsent == expectedAuthorityAbsent,
+        "\(label) published false authority-absence truth"
+    )
+    require(
+        presentAtTerminal == !expectedAuthorityAbsent,
+        "\(label) terminal authority observation diverged from owner truth"
+    )
+    require(
+        nativeSession.authorityAbsent == expectedAuthorityAbsent,
+        "\(label) shared owner state diverged from terminal truth"
+    )
+}
+
 private func appendLittleEndian<T: FixedWidthInteger>(_ value: T, to data: inout Data) {
     var encoded = value.littleEndian
     withUnsafeBytes(of: &encoded) { data.append(contentsOf: $0) }
@@ -80,6 +212,49 @@ private final class FakeMicrophoneAuthorization: AOSMicrophoneAuthorizationProvi
 @main
 struct VoiceTransportNativeTest {
     static func main() throws {
+        try proveSegmentedSharedOwner(
+            label: "successful-start-stop",
+            backend: InjectedMicrophoneOwnerBackend(
+                failStart: false,
+                stopResults: [true]
+            ),
+            expectsStartFailure: false,
+            expectedAuthorityAbsent: true,
+            expectedStopCount: 1
+        )
+        try proveSegmentedSharedOwner(
+            label: "failed-start-absent",
+            backend: InjectedMicrophoneOwnerBackend(
+                failStart: true,
+                stopResults: [true]
+            ),
+            expectsStartFailure: true,
+            expectedAuthorityAbsent: true,
+            expectedStopCount: 1
+        )
+        try proveSegmentedSharedOwner(
+            label: "failed-start-uncertain",
+            backend: InjectedMicrophoneOwnerBackend(
+                failStart: true,
+                stopResults: Array(
+                    repeating: false,
+                    count: aosSegmentedMicrophoneAuthorityStopAttemptLimit + 1
+                )
+            ),
+            expectsStartFailure: true,
+            expectedAuthorityAbsent: false,
+            expectedStopCount: aosSegmentedMicrophoneAuthorityStopAttemptLimit + 1
+        )
+        try proveSegmentedSharedOwner(
+            label: "failed-start-retry-to-absence",
+            backend: InjectedMicrophoneOwnerBackend(
+                failStart: true,
+                stopResults: [false, false, true]
+            ),
+            expectsStartFailure: true,
+            expectedAuthorityAbsent: true,
+            expectedStopCount: 3
+        )
         var events: [String] = []
         let owner = UUID()
         let other = UUID()
@@ -859,13 +1034,14 @@ struct VoiceTransportNativeTest {
         let finiteMetrics = aosAudioFrameMetrics(interleaved)!
         require(finiteMetrics.rms.isFinite && finiteMetrics.peak.isFinite, "non-finite sample poisoned meter output")
 
-        print("voice transport native contracts passed")
+        print("voice transport native contracts passed; segmented-owner-recovery=4")
     }
 }
 SWIFT
 
 swiftc -parse-as-library \
     "$ROOT/src/daemon/microphone-authorization.swift" \
+    "$ROOT/src/daemon/microphone-native-session.swift" \
     "$ROOT/src/daemon/capture-ready-cue.swift" \
     "$ROOT/src/daemon/segmented-microphone-capture.swift" \
     "$ROOT/src/daemon/audio-playback.swift" \
