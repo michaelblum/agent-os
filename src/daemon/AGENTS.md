@@ -185,8 +185,11 @@ every missing selected track receives its exact failure; missing mandatory video
 is the deterministic terminal failure, followed by system audio and microphone
 when multiple tracks are silent. Media callback failure before common-epoch
 settlement is normalized from that final selected-track truth rather than its
-scheduling order; pre-native permission, authorization, setup-unavailable, and
-resource-conflict failures retain their exact typed code. Writer-global
+scheduling order. The adapter retains an internal failure origin at the
+startup/terminal seam, so only media-lifecycle settlement is eligible for that
+normalization; pre-native permission, authorization, writer/input setup,
+setup-unavailable, and resource-conflict failures retain their exact typed
+code. Writer-global
 start or post-start failure stamps every selected track before terminalization.
 Media duration spans capture-start through stop admission only, and written-video
 frame progress, total artifact bytes, and content-free per-track admission

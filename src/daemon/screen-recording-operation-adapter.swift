@@ -1304,12 +1304,35 @@ private func aosScreenRecordingSettledFailure(
     return .recordingEncoderFailed
 }
 
+private struct AOSScreenRecordingFailureContext: Error {
+    enum Origin {
+        case preNativeSetup
+        case mediaLifecycle
+    }
+
+    let error: Error
+    let origin: Origin
+
+    var mayNormalizeFromTrackTruth: Bool { origin == .mediaLifecycle }
+
+    static func preNativeSetup(_ error: Error) -> Self {
+        Self(error: error, origin: .preNativeSetup)
+    }
+
+    static func mediaLifecycle(_ error: Error) -> Self {
+        Self(error: error, origin: .mediaLifecycle)
+    }
+}
+
 private func aosScreenRecordingTerminalFailure(
-    _ failure: Error?,
+    _ failure: AOSScreenRecordingFailureContext?,
     progress: AOSScreenRecordingEncoderProgress
 ) -> AOSOperationCoreError? {
     guard let failure else { return nil }
-    if let typed = failure as? AOSOperationCoreError {
+    if !failure.mayNormalizeFromTrackTruth {
+        return failure.error as? AOSOperationCoreError ?? .recordingEncoderFailed
+    }
+    if let typed = failure.error as? AOSOperationCoreError {
         switch typed {
         case .recordingStartupDeadlineExceeded,
              .recordingNoFrames,
@@ -1325,7 +1348,7 @@ private func aosScreenRecordingTerminalFailure(
             return typed
         }
     }
-    return aosScreenRecordingSettledFailure(failure, summary: progress.trackSummary)
+    return aosScreenRecordingSettledFailure(failure.error, summary: progress.trackSummary)
 }
 
 final class AOSNativeScreenRecordingRuntime:
@@ -1354,7 +1377,7 @@ final class AOSNativeScreenRecordingRuntime:
     private let startupCancellation = AOSDesktopPixelStartupCancellation()
     private var startupSettled = false
     private var startupOwner: AOSDesktopPixelStartupOwner?
-    private var terminalFailure: Error?
+    private var terminalFailure: AOSScreenRecordingFailureContext?
     private var stopIntent: AOSStopIntent?
     private var stream: SCStream?
     private var microphoneSession: (any AOSMicrophoneNativeSessionControlling)?
@@ -1403,8 +1426,11 @@ final class AOSNativeScreenRecordingRuntime:
                     return
                 }
             } catch {
-                let selectedIntent = settleStartup(failure: error)
-                    ?? (error is AOSOperationCoreError ? .adapterFailed : .permissionRevoked)
+                let failure = (error as? AOSScreenRecordingFailureContext)
+                    ?? .preNativeSetup(error)
+                let selectedIntent = settleStartup(failure: failure)
+                    ?? (failure.error is AOSOperationCoreError
+                        ? .adapterFailed : .permissionRevoked)
                 await finish(intent: selectedIntent)
             }
         }
@@ -1414,7 +1440,10 @@ final class AOSNativeScreenRecordingRuntime:
         stop(intent: intent, failure: nil)
     }
 
-    private func stop(intent: AOSStopIntent, failure: Error?) {
+    private func stop(
+        intent: AOSStopIntent,
+        failure: AOSScreenRecordingFailureContext?
+    ) {
         lock.lock()
         _ = frameAdmission.close()
         _ = progressTimeline.admitStop(atNanoseconds: registry.now())
@@ -1448,12 +1477,15 @@ final class AOSNativeScreenRecordingRuntime:
         )
     }
 
-    private func settleStartup(failure: Error?) -> AOSStopIntent? {
+    private func settleStartup(
+        failure: AOSScreenRecordingFailureContext?
+    ) -> AOSStopIntent? {
         lock.lock()
         startupSettled = true
         if terminalFailure == nil { terminalFailure = failure }
         if failure != nil, stopIntent == nil {
-            stopIntent = failure is AOSOperationCoreError ? .adapterFailed : .permissionRevoked
+            stopIntent = failure?.error is AOSOperationCoreError
+                ? .adapterFailed : .permissionRevoked
         }
         guard let selectedIntent = stopIntent, !finishStarted else {
             lock.unlock()
@@ -1484,7 +1516,10 @@ final class AOSNativeScreenRecordingRuntime:
                     try self.persistProgress(progress)
                 },
                 { [weak self] error in
-                    self?.stop(intent: .adapterFailed, failure: error)
+                    self?.stop(
+                        intent: .adapterFailed,
+                        failure: .mediaLifecycle(error)
+                    )
                 }
             )
             installEncoder(session.encoder)
@@ -1586,7 +1621,10 @@ final class AOSNativeScreenRecordingRuntime:
                 try self.persistProgress(progress)
             },
             didFail: { [weak self] error in
-                self?.stop(intent: .adapterFailed, failure: error)
+                self?.stop(
+                    intent: .adapterFailed,
+                    failure: .mediaLifecycle(error)
+                )
             }
         )
         let microphoneSession = request.tracks.microphone
@@ -1604,7 +1642,10 @@ final class AOSNativeScreenRecordingRuntime:
                     try self.persistProgress(progress)
                 },
                 didFail: { [weak self] error in
-                    self?.stop(intent: .adapterFailed, failure: error)
+                    self?.stop(
+                        intent: .adapterFailed,
+                        failure: .mediaLifecycle(error)
+                    )
                 }
             )
         }
@@ -1674,7 +1715,10 @@ final class AOSNativeScreenRecordingRuntime:
                 },
                 cancellation: startupCancellation,
                 lateFailure: { [weak self] error in
-                    self?.stop(intent: .adapterFailed, failure: error)
+                    self?.stop(
+                        intent: .adapterFailed,
+                        failure: .mediaLifecycle(error)
+                    )
                 },
                 start: { [weak self] _, completion in
                     self?.admitCaptureStartAndScheduleDeadline()
@@ -1683,8 +1727,7 @@ final class AOSNativeScreenRecordingRuntime:
                 stop: { _, completion in session.stop(completion) }
             )
         } catch {
-            let summary = session.encoder.progress.trackSummary
-            throw aosScreenRecordingSettledFailure(error, summary: summary)
+            throw AOSScreenRecordingFailureContext.mediaLifecycle(error)
         }
         installStartupOwner(owner)
         if request.tracks.systemAudio || request.tracks.microphone {
@@ -1694,8 +1737,7 @@ final class AOSNativeScreenRecordingRuntime:
                 do {
                     remaining = try remainingStartupTime(until: deadline.partialValue)
                 } catch {
-                    let summary = session.encoder.progress.trackSummary
-                    throw aosScreenRecordingSettledFailure(error, summary: summary)
+                    throw AOSScreenRecordingFailureContext.mediaLifecycle(error)
                 }
                 try await Task.sleep(
                     nanoseconds: min(1_000_000, UInt64(remaining * 1_000_000_000))
@@ -1783,9 +1825,9 @@ final class AOSNativeScreenRecordingRuntime:
         lease: AOSDesktopPixelExclusiveProducerLease?
     ) async {
         var artifact: AOSArtifactFileIdentity?
-        var failure = terminalFailureSnapshot()
+        var failureContext = terminalFailureSnapshot()
         if let encoder {
-            if failure != nil {
+            if failureContext != nil {
                 encoder.cancel()
             } else {
                 do {
@@ -1819,16 +1861,18 @@ final class AOSNativeScreenRecordingRuntime:
                          .recordingMicrophoneUnavailable,
                          .recordingMicrophoneNoSamples,
                          .recordingMicrophoneFailed:
-                        failure = error
+                        failureContext = .mediaLifecycle(error)
                     default:
-                        failure = files.exists(artifactURL)
-                            ? error : AOSOperationCoreError.recordingArtifactMissing
+                        failureContext = .mediaLifecycle(
+                            files.exists(artifactURL)
+                                ? error : AOSOperationCoreError.recordingArtifactMissing
+                        )
                     }
                     encoder.cancel()
                 }
             }
-        } else if failure == nil {
-            failure = AOSOperationCoreError.recordingNoFrames
+        } else if failureContext == nil {
+            failureContext = .mediaLifecycle(AOSOperationCoreError.recordingNoFrames)
         }
         let leaseReleased = lease.map(broker.releaseExclusiveProducer) ?? true
         guard leaseReleased else {
@@ -1846,7 +1890,10 @@ final class AOSNativeScreenRecordingRuntime:
             ),
             sessionStarted: false
         )
-        failure = aosScreenRecordingTerminalFailure(failure, progress: rawProgress)
+        let failure = aosScreenRecordingTerminalFailure(
+            failureContext,
+            progress: rawProgress
+        )
         let progress = aosScreenRecordingProgress(rawProgress, applying: failure)
         let elapsedMilliseconds = admittedElapsedMilliseconds()
         adapter?.runtimeDidFinish(
@@ -1861,7 +1908,7 @@ final class AOSNativeScreenRecordingRuntime:
         )
     }
 
-    private func terminalFailureSnapshot() -> Error? {
+    private func terminalFailureSnapshot() -> AOSScreenRecordingFailureContext? {
         lock.lock()
         defer { lock.unlock() }
         return terminalFailure

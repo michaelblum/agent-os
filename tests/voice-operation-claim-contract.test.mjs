@@ -29,6 +29,12 @@ async function compileAndRunHarness(mainSource) {
       path.join(repoRoot, 'src/daemon/operation-resource-claim.swift'),
       path.join(repoRoot, 'src/daemon/operation-resource-broker.swift'),
       path.join(repoRoot, 'src/daemon/microphone-operation-adapter.swift'),
+      path.join(repoRoot, 'src/daemon/microphone-authorization.swift'),
+      path.join(repoRoot, 'src/daemon/microphone-native-session.swift'),
+      path.join(repoRoot, 'src/daemon/capture-ready-cue.swift'),
+      path.join(repoRoot, 'src/daemon/segmented-microphone-capture.swift'),
+      path.join(repoRoot, 'src/daemon/audio-playback.swift'),
+      path.join(repoRoot, 'src/daemon/voice-transport.swift'),
       main,
       '-o', executable,
     ], { cwd: repoRoot, stdio: 'pipe' })
@@ -38,34 +44,11 @@ async function compileAndRunHarness(mainSource) {
   }
 }
 
-test('microphone adapter durably owns one exclusive claim before authority and closes it after absence proof', async () => {
+test('microphone adapter claim lifecycle consumes actual segmented partial-start terminal truth', async () => {
   await compileAndRunHarness(String.raw`
 import Foundation
-
-enum AOSMicrophoneCaptureTerminalTrigger: String, Equatable {
-    case completed, cancelled, killed, ownerDisconnected, daemonShutdown, deadline
-    case permissionRevoked, adapterFailed
-}
-
-struct AOSMicrophoneCaptureTermination: Equatable {
-    let token: UUID
-    let trigger: AOSMicrophoneCaptureTerminalTrigger
-    let authorityAbsent: Bool
-}
-
-protocol AOSMicrophoneOperationClaimLease: AnyObject {
-    func bindAuthority(
-        stop: @escaping (_ force: Bool) -> Void,
-        residualDigest: @escaping () -> String?
-    ) throws
-    func markAuthorityStarted() throws
-    func noteStop(trigger: AOSMicrophoneCaptureTerminalTrigger) throws
-    func authorityDidTerminate(_ termination: AOSMicrophoneCaptureTermination)
-}
-
-protocol AOSMicrophoneOperationClaiming: AnyObject {
-    func prepareCapture(owner: UUID) throws -> any AOSMicrophoneOperationClaimLease
-}
+import AVFoundation
+import Darwin
 
 func expectCoreError(_ expected: AOSOperationCoreError, _ body: () throws -> Void) {
     do {
@@ -75,6 +58,146 @@ func expectCoreError(_ expected: AOSOperationCoreError, _ body: () throws -> Voi
         precondition(error == expected, "unexpected core error \(error)")
     } catch {
         preconditionFailure("unexpected error \(error)")
+    }
+}
+
+final class InjectedPartialStartMicrophoneOwner: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stopResults: [Bool]
+    private var authorityPresent = false
+    private var starts = 0
+    private var stops = 0
+
+    init(stopResults: [Bool]) {
+        self.stopResults = stopResults
+    }
+
+    func dependencies() -> AOSMicrophoneNativeSessionDependencies {
+        AOSMicrophoneNativeSessionDependencies(
+            start: { [self] _ in
+                lock.lock()
+                starts += 1
+                authorityPresent = true
+                lock.unlock()
+                throw AOSOperationCoreError.recordingMicrophoneUnavailable
+            },
+            healthy: { [self] in
+                lock.lock()
+                defer { lock.unlock() }
+                return authorityPresent
+            },
+            stop: { [self] in
+                lock.lock()
+                stops += 1
+                let absent = stopResults.isEmpty ? false : stopResults.removeFirst()
+                if absent { authorityPresent = false }
+                lock.unlock()
+                return absent
+            }
+        )
+    }
+
+    var startCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return starts
+    }
+
+    var stopCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return stops
+    }
+
+    var authorityIsPresent: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return authorityPresent
+    }
+}
+
+func proveIntegratedSegmentedPartialStart(
+    label: String,
+    adapter: AOSMicrophoneOperationAdapter,
+    registry: AOSOperationRegistry,
+    owner: UUID,
+    stopResults: [Bool],
+    expectedAuthorityAbsent: Bool,
+    expectedStopCount: Int
+) throws {
+    let lease = try adapter.prepareCapture(owner: owner)
+    let operation = registry.snapshot().operations.last!.identity
+    let backend = InjectedPartialStartMicrophoneOwner(stopResults: stopResults)
+    let nativeSession = AOSMicrophoneNativeSession(dependencies: backend.dependencies())
+    let parent = URL(fileURLWithPath: NSTemporaryDirectory()).resolvingSymlinksInPath()
+    let directory = parent.appendingPathComponent(
+        "aos-integrated-segmented-\(label)-\(UUID().uuidString)"
+    )
+    try FileManager.default.createDirectory(
+        at: directory,
+        withIntermediateDirectories: false,
+        attributes: [.posixPermissions: 0o700]
+    )
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let terminalSignal = DispatchSemaphore(value: 0)
+    let terminalLock = NSLock()
+    var observedTermination: AOSMicrophoneCaptureTermination?
+    var session: AOSSegmentedMicrophoneCaptureSession!
+    session = try AOSSegmentedMicrophoneCaptureSession(
+        owner: owner,
+        ref: label,
+        directoryPath: directory.path,
+        segmentDuration: 0.5,
+        maximumDuration: 1,
+        nativeSession: nativeSession,
+        authorizationState: { .authorized },
+        emit: { _, _ in },
+        terminal: { termination in
+            lease.authorityDidTerminate(termination)
+            terminalLock.lock()
+            observedTermination = termination
+            terminalLock.unlock()
+            terminalSignal.signal()
+        }
+    )
+    try lease.bindAuthority(
+        stop: { _ in session.cancel(reason: "operation_stop") },
+        residualDigest: {
+            backend.authorityIsPresent ? String(repeating: "f", count: 64) : nil
+        }
+    )
+    do {
+        try session.start()
+        preconditionFailure("\(label) partial start unexpectedly succeeded")
+    } catch let failure as AOSVoiceTransportFailure {
+        precondition(failure.code == "MICROPHONE_UNAVAILABLE")
+    }
+    precondition(
+        terminalSignal.wait(timeout: .now() + 2) == .success,
+        "\(label) actual segmented terminal callback did not arrive"
+    )
+    terminalLock.lock()
+    let termination = observedTermination
+    terminalLock.unlock()
+    precondition(backend.startCount == 1)
+    precondition(backend.stopCount == expectedStopCount)
+    precondition(termination?.trigger == .adapterFailed)
+    precondition(termination?.authorityAbsent == expectedAuthorityAbsent)
+    precondition(nativeSession.authorityAbsent == expectedAuthorityAbsent)
+    let state = registry.snapshot()
+    let operationRecord = state.operations.first { $0.identity == operation }
+    let claim = state.resourceClaims.first { $0.operation == operation }
+    if expectedAuthorityAbsent {
+        precondition(!backend.authorityIsPresent)
+        precondition(operationRecord?.state == .terminal)
+        precondition(operationRecord?.outcome == .failed)
+        precondition(claim?.state == .terminal)
+        precondition(adapter.residualDigest(operation: operation) == nil)
+    } else {
+        precondition(backend.authorityIsPresent)
+        precondition(operationRecord?.state == .cleanupRequired)
+        precondition(claim?.state == .cleanupRequired)
+        precondition(adapter.residualDigest(operation: operation) != nil)
     }
 }
 
@@ -341,20 +464,27 @@ state = registry.snapshot()
 precondition(state.operations.first { $0.identity == hostStoppedOperation }?.state == .terminal)
 precondition(state.operations.first { $0.identity == hostStoppedOperation }?.outcome == .killed)
 
-let residual = try adapter.prepareCapture(owner: owner)
-state = registry.snapshot()
-let residualOperation = state.operations.last!.identity
-try residual.bindAuthority(stop: { _ in }, residualDigest: { nil })
-try residual.markAuthorityStarted()
-residual.authorityDidTerminate(AOSMicrophoneCaptureTermination(
-    token: UUID(),
-    trigger: .adapterFailed,
-    authorityAbsent: false
-))
-state = registry.snapshot()
-precondition(state.operations.first { $0.identity == residualOperation }?.state == .cleanupRequired)
-precondition(state.resourceClaims.first { $0.operation == residualOperation }?.state == .cleanupRequired)
-precondition(adapter.residualDigest(operation: residualOperation) != nil)
+try proveIntegratedSegmentedPartialStart(
+    label: "retry-to-absence",
+    adapter: adapter,
+    registry: registry,
+    owner: owner,
+    stopResults: [false, false, true],
+    expectedAuthorityAbsent: true,
+    expectedStopCount: 3
+)
+try proveIntegratedSegmentedPartialStart(
+    label: "uncertain-absence",
+    adapter: adapter,
+    registry: registry,
+    owner: owner,
+    stopResults: Array(
+        repeating: false,
+        count: aosSegmentedMicrophoneAuthorityStopAttemptLimit + 1
+    ),
+    expectedAuthorityAbsent: false,
+    expectedStopCount: aosSegmentedMicrophoneAuthorityStopAttemptLimit + 1
+)
 `)
 })
 

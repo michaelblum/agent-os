@@ -102,7 +102,7 @@
       "worth": "This catches barrier admission under a false registry-conflict code, double operations, microphone authority before persistence/finalization, speech barge-in, duplicate AVAudioEngine/tap ownership, a recording-specific microphone resource, partial-start authority hidden by a thrown start, early claim release, unbounded or omitted stop retry, and cleanup-hidden terminal outcomes without touching a live audio device or TCC.",
       "command": "node --test tests/voice-operation-claim-contract.test.mjs && bash tests/voice-transport-native.sh",
       "replaces": [],
-      "guard": "offline fake microphone lifecycle plus a compiled actual segmented consumer/shared-owner harness with injected non-native dependencies and disposable output roots; no audio device, daemon, repo binary, or TCC use",
+      "guard": "offline lifecycle plus compiled production segmented consumer/shared-owner harnesses with injected non-native dependencies and disposable output roots; the actual segmented terminal callback drives the actual adapter/claim lifecycle for uncertain absence and retry-to-absence; no audio device, daemon, repo binary, or TCC use",
       "status": "active"
     },
     {

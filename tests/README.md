@@ -107,8 +107,10 @@ This route compiles the actual `microphone-native-session.swift` owner with the
 actual segmented consumer and voice transport. Injected non-native owner
 dependencies prove successful start/stop, failed start with immediate absence,
 persistent uncertain absence, bounded repeated stop, and retry-to-absence. The
-operation-adapter proof separately requires the exclusive microphone claim to
-remain nonterminal for uncertain absence and release only after exact absence.
+operation-adapter proof compiles that same production segmented-owner path and
+routes its actual terminal callback into the actual adapter/claim lifecycle;
+uncertain absence retains `cleanup_required` operation and claim truth, while
+retry-to-absence releases the claim and terminalizes the operation.
 No audio device, daemon, TCC, or repo binary executes.
 
 For the bounded fixed recording producer with independently optional system
@@ -138,7 +140,10 @@ the harness executes the exact production snapshot/list/inspect projector used
 by `UnifiedDaemon` and validates the prepared, cleanup-required, and recovered
 terminal responses against `aos.operation.v1` without synthesizing wire
 metadata or backfilling track truth. Four callback-failure terminal projections
-exercise the same snapshot/list/inspect owner and schema route. It also executes
+assert exact snapshot progress and terminal per-track values and precedence;
+one pre-native encoder-setup projection proves its exact typed failure is not
+normalized. All five exercise the same snapshot/list/inspect owner and schema
+route. It also executes
 the production admission projection and validates all four responses against
 the recording schema. It
 also covers registration availability distinct from positive-byte first-sample truth,

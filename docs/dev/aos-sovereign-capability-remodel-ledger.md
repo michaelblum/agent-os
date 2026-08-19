@@ -195,8 +195,9 @@ truth with positive count and bytes. Shared-deadline settlement classifies every
 missing selected track. A media callback failure before the common epoch is
 normalized from that final selected-track summary in either callback order,
 with video then system-audio then microphone terminal precedence; permission,
-authorization, setup-unavailable, and resource-conflict failures raised before
-native startup preserve their exact typed result. Written-video frame count and
+authorization, writer/input setup, setup-unavailable, and resource-conflict
+failures raised before native startup preserve their exact typed result.
+Written-video frame count and
 total artifact bytes validate against the exact per-track summary independently,
 so ready audio can advance byte progress under video-input backpressure.
 Writer-global failure marks every selected track. The generic operation

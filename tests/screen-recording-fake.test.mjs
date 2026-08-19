@@ -1733,6 +1733,59 @@ struct TerminalLifecycleCustodyHarness {
         ]
     }
 
+    static func withFailureCodes(
+        _ value: AOSScreenRecordingTrackSummary,
+        videoFailure: String?,
+        systemAudioFailure: String?,
+        microphoneFailure: String?
+    ) -> AOSScreenRecordingTrackSummary {
+        func track(
+            _ truth: AOSScreenRecordingTrackTruth,
+            failureCode: String?
+        ) -> AOSScreenRecordingTrackTruth {
+            AOSScreenRecordingTrackTruth(
+                selected: truth.selected,
+                admitted: truth.admitted,
+                available: truth.available,
+                firstSamplePresent: truth.firstSamplePresent,
+                sampleCount: truth.sampleCount,
+                sampleByteCount: truth.sampleByteCount,
+                failureCode: failureCode,
+                drained: truth.drained,
+                finalized: truth.finalized
+            )
+        }
+        return AOSScreenRecordingTrackSummary(
+            selectedTracks: value.selectedTracks,
+            finalizedTracks: value.finalizedTracks,
+            commonMediaEpochNanoseconds: value.commonMediaEpochNanoseconds,
+            video: track(value.video, failureCode: videoFailure),
+            systemAudio: track(value.systemAudio, failureCode: systemAudioFailure),
+            microphone: track(value.microphone, failureCode: microphoneFailure)
+        )
+    }
+
+    static func requirePublicSummary(
+        _ value: Any?,
+        equals expected: AOSScreenRecordingTrackSummary,
+        _ message: String
+    ) throws {
+        guard let actual = value as? [String: Any] else {
+            fatalError("\(message): track summary missing")
+        }
+        let expectedValue = aosScreenRecordingTrackSummaryValue(expected)
+        let actualData = try JSONSerialization.data(
+            withJSONObject: actual,
+            options: [.sortedKeys]
+        )
+        let expectedData = try JSONSerialization.data(
+            withJSONObject: expectedValue,
+            options: [.sortedKeys]
+        )
+        require(actualData == expectedData,
+                "\(message): exact public per-track values drifted")
+    }
+
     static func productionAtomicInitialSummaryAdmission() throws {
         var projections: [[String: Any]] = []
         for (systemAudioSelected, microphoneSelected) in [
@@ -2861,14 +2914,26 @@ struct TerminalLifecycleCustodyHarness {
             guard let summary = record.progress?.trackSummary else {
                 fatalError("pre-epoch callback terminal omitted track truth")
             }
+            let expectedSummary = withFailureCodes(
+                harnessTrackSummary(
+                    systemAudio: true,
+                    microphone: true,
+                    videoSamples: value.publishVideo ? 1 : 0,
+                    audioSamples: value.publishSystemAudio ? 1 : 0,
+                    microphoneSamples: 0,
+                    finalized: false,
+                    videoAvailable: true,
+                    audioAvailable: true,
+                    microphoneAvailable: true
+                ),
+                videoFailure: value.videoFailure,
+                systemAudioFailure: value.systemAudioFailure,
+                microphoneFailure: value.microphoneFailure
+            )
             require(record.failureCode == value.terminal.code,
                     "\(value.name) terminal precedence drifted to \(String(describing: record.failureCode))")
-            require(summary.video.failureCode == value.videoFailure,
-                    "\(value.name) video failure truth drifted")
-            require(summary.systemAudio.failureCode == value.systemAudioFailure,
-                    "\(value.name) system-audio failure truth drifted")
-            require(summary.microphone.failureCode == value.microphoneFailure,
-                    "\(value.name) microphone failure truth drifted")
+            require(summary == expectedSummary,
+                    "\(value.name) exact durable per-track truth drifted")
             let artifact = state.artifacts.first { $0.identity == admission.artifact }
             require(artifact?.state == .removed,
                     "\(value.name) failed artifact was not removed")
@@ -2886,10 +2951,63 @@ struct TerminalLifecycleCustodyHarness {
             let progress = snapshot?["progress"] as? [String: Any]
             require(terminal?["failure_code"] as? String == value.terminal.code,
                     "\(value.name) public terminal truth drifted")
-            require(progress?["track_summary"] is [String: Any],
-                    "\(value.name) public progress omitted track truth")
+            try requirePublicSummary(
+                progress?["track_summary"],
+                equals: expectedSummary,
+                "\(value.name) public snapshot progress"
+            )
+            try requirePublicSummary(
+                terminal?["track_summary"],
+                equals: expectedSummary,
+                "\(value.name) public snapshot terminal"
+            )
             projections.append(row)
         }
+
+        let setup = try RecordingEnvironment(sessionFailure: .recordingEncoderFailed)
+        let setupAdmission = try setup.adapter.start(
+            request: setup.request(),
+            connectionID: UUID()
+        )
+        try await wait("pre-native encoder setup failure did not terminalize") {
+            operation(setupAdmission, in: setup).state == .terminal
+        }
+        let setupState = setup.registry.snapshot()
+        let setupRecord = operation(setupAdmission, in: setup)
+        let setupExpectedSummary = withFailureCodes(
+            .initial(systemAudioSelected: false),
+            videoFailure: AOSOperationCoreError.recordingEncoderFailed.code,
+            systemAudioFailure: nil,
+            microphoneFailure: nil
+        )
+        require(setupRecord.failureCode == AOSOperationCoreError.recordingEncoderFailed.code,
+                "pre-native encoder setup failure was normalized")
+        require(setupRecord.progress?.trackSummary == setupExpectedSummary,
+                "pre-native encoder setup durable per-track truth drifted")
+        let setupRow = projectionRow(
+            phase: "pre_native_encoder_setup_failure",
+            systemAudioSelected: false,
+            microphoneSelected: false,
+            operation: setupRecord,
+            state: setupState
+        )
+        let setupSnapshot = setupRow["snapshot"] as? [String: Any]
+        let setupTerminal = setupSnapshot?["terminal"] as? [String: Any]
+        let setupProgress = setupSnapshot?["progress"] as? [String: Any]
+        require(setupTerminal?["failure_code"] as? String
+                    == AOSOperationCoreError.recordingEncoderFailed.code,
+                "public pre-native encoder setup failure was normalized")
+        try requirePublicSummary(
+            setupProgress?["track_summary"],
+            equals: setupExpectedSummary,
+            "pre-native encoder public snapshot progress"
+        )
+        try requirePublicSummary(
+            setupTerminal?["track_summary"],
+            equals: setupExpectedSummary,
+            "pre-native encoder public snapshot terminal"
+        )
+        projections.append(setupRow)
         let data = try JSONSerialization.data(withJSONObject: projections, options: [.sortedKeys])
         print("pre-epoch-callback-projections:\(String(data: data, encoding: .utf8)!)")
     }
@@ -3427,7 +3545,7 @@ struct TerminalLifecycleCustodyHarness {
         try await lateStartFailureAfterActiveEvidenceRequiresStop()
         await frameAdmissionClosesAtomically()
         try decoderAndTerminalTruthAreClosed()
-        print("terminal-lifecycle-custody-harness: atomic-admission=12 pre-epoch-callbacks=4 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 production-lifecycle=6 production-terminal=2 production-custody=10 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
+        print("terminal-lifecycle-custody-harness: atomic-admission=12 pre-epoch-callbacks=4 pre-native-encoder=1 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 production-lifecycle=6 production-terminal=2 production-custody=10 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
     }
 }
 `
@@ -3575,7 +3693,7 @@ test('production lifecycle and custody owners close terminal fault phases with f
     assert.equal(compile.status, 0, compile.stderr || compile.stdout)
     const run = spawnSync(binary, [], { encoding: 'utf8', timeout: 5_000 })
     assert.equal(run.status, 0, `${run.stderr}\n${run.stdout}`)
-    assert.match(run.stdout, /atomic-admission=12 pre-epoch-callbacks=4 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1/u)
+    assert.match(run.stdout, /atomic-admission=12 pre-epoch-callbacks=4 pre-native-encoder=1 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1/u)
     const projectionLine = run.stdout.split('\n').find((line) => (
       line.startsWith('atomic-initial-summary-projections:')
     ))
@@ -3600,6 +3718,7 @@ test('production lifecycle and custody owners close terminal fault phases with f
       'pre_epoch_system_then_microphone_all_missing',
       'pre_epoch_microphone_then_system_video_present',
       'pre_epoch_system_then_microphone_audio_present',
+      'pre_native_encoder_setup_failure',
     ])
     const admissionLine = run.stdout.split('\n').find((line) => (
       line.startsWith('production-admission-responses:')
@@ -3668,7 +3787,7 @@ admission_validator = Draft202012Validator(
 for response in rows['admissions']:
     errors = list(admission_validator.iter_errors(response))
     assert not errors, [error.message for error in errors]
-print('atomic-operation-schema: snapshots=16 list=16 inspect=16 admissions=4')
+print('atomic-operation-schema: snapshots=17 list=17 inspect=17 admissions=4')
 `, path.join(root, 'shared/schemas')], {
       encoding: 'utf8',
       input: JSON.stringify({
@@ -3682,7 +3801,7 @@ print('atomic-operation-schema: snapshots=16 list=16 inspect=16 admissions=4')
       0,
       `${schemaValidation.stdout}\n${schemaValidation.stderr}`,
     )
-    assert.match(schemaValidation.stdout, /snapshots=16 list=16 inspect=16 admissions=4/u)
+    assert.match(schemaValidation.stdout, /snapshots=17 list=17 inspect=17 admissions=4/u)
 
     const [lifecycle, state, adapter, unified] = await Promise.all([
       readFile(path.join(root, 'src/daemon/desktop-pixel-stream-lifecycle.swift'), 'utf8'),
