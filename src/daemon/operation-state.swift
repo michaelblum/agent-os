@@ -33,6 +33,8 @@ enum AOSOperationCoreError: Error, Equatable, CustomStringConvertible {
     case artifactDestinationExists
     case recordingBoundsExceeded
     case recordingTargetDrift
+    case recordingFollowTimeout
+    case recordingFollowUpdateFailed
     case recordingStartupDeadlineExceeded
     case recordingNoFrames
     case recordingSystemAudioUnavailable
@@ -83,6 +85,8 @@ enum AOSOperationCoreError: Error, Equatable, CustomStringConvertible {
         case .artifactDestinationExists: return "OPERATION_ARTIFACT_DESTINATION_EXISTS"
         case .recordingBoundsExceeded: return "SCREEN_RECORDING_BOUNDS_EXCEEDED"
         case .recordingTargetDrift: return "SCREEN_RECORDING_TARGET_DRIFT"
+        case .recordingFollowTimeout: return "SCREEN_RECORDING_FOLLOW_TIMEOUT"
+        case .recordingFollowUpdateFailed: return "SCREEN_RECORDING_FOLLOW_UPDATE_FAILED"
         case .recordingStartupDeadlineExceeded: return "SCREEN_RECORDING_STARTUP_DEADLINE_EXCEEDED"
         case .recordingNoFrames: return "SCREEN_RECORDING_NO_VIDEO_FRAMES"
         case .recordingSystemAudioUnavailable: return "SCREEN_RECORDING_SYSTEM_AUDIO_UNAVAILABLE"
@@ -496,6 +500,7 @@ struct AOSOperationRecord: Codable, Equatable {
     var residualDigest: String?
     var requestedBounds: AOSOperationRequestedBounds?
     var progress: AOSOperationProgress?
+    var screenRecordingGeometry: AOSScreenRecordingGeometryState?
     let createdAtNanoseconds: UInt64
     var updatedAtNanoseconds: UInt64
 }

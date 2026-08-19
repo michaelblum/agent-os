@@ -150,7 +150,8 @@ final class AOSOperationRegistry {
         adapterRegistrationID: String,
         adapterRegistrationRevision: UInt64,
         requestedBounds: AOSOperationRequestedBounds? = nil,
-        initialProgress: AOSOperationProgress? = nil
+        initialProgress: AOSOperationProgress? = nil,
+        screenRecordingGeometry: AOSScreenRecordingGeometryState? = nil
     ) throws -> AOSOperationRecord {
         let now = clock()
         return try mutateDurably { state in
@@ -190,12 +191,160 @@ final class AOSOperationRegistry {
                     elapsedMilliseconds: 0,
                     droppedFrameCount: 0
                 ) },
+                screenRecordingGeometry: screenRecordingGeometry,
                 createdAtNanoseconds: now,
                 updatedAtNanoseconds: now
             )
             state.operations.append(record)
             return record
         }
+    }
+
+    func activateScreenRecordingFollowGeometry(
+        _ identity: AOSOperationIdentity,
+        nowNanoseconds: UInt64
+    ) throws -> AOSScreenRecordingGeometryState {
+        try mutateDurably { state in
+            guard let index = state.operations.firstIndex(where: { $0.identity == identity }),
+                  state.operations[index].state == .active,
+                  var geometry = state.operations[index].screenRecordingGeometry,
+                  geometry.accepted.mode == .callerFollowed,
+                  geometry.deadlineState == .inactive,
+                  let interval = geometry.accepted.updateIntervalMilliseconds,
+                  let deadline = geometry.accepted.updateDeadlineMilliseconds else {
+                throw AOSOperationCoreError.invalidTransition
+            }
+            geometry.deadlineState = .armed
+            geometry.nextUpdateNotBeforeNanoseconds = try Self.addMilliseconds(
+                interval, to: nowNanoseconds
+            )
+            geometry.nextDeadlineNanoseconds = try Self.addMilliseconds(
+                deadline, to: nowNanoseconds
+            )
+            state.operations[index].screenRecordingGeometry = geometry
+            state.operations[index].updatedAtNanoseconds = clock()
+            return geometry
+        }
+    }
+
+    func reserveScreenRecordingFollowUpdate(
+        _ identity: AOSOperationIdentity,
+        request: AOSScreenRecordingFollowUpdateRequest,
+        candidate: AOSScreenRecordingGeometry,
+        nowNanoseconds: UInt64
+    ) throws -> AOSScreenRecordingGeometryState {
+        try mutateDurably { state in
+            guard let index = state.operations.firstIndex(where: { $0.identity == identity }),
+                  state.operations[index].state == .active,
+                  var geometry = state.operations[index].screenRecordingGeometry,
+                  geometry.accepted.mode == .callerFollowed,
+                  geometry.deadlineState == .armed,
+                  geometry.pendingUpdate == nil,
+                  geometry.accepted.geometryGeneration == request.expectedGeometryGeneration,
+                  candidate.geometryGeneration == request.expectedGeometryGeneration + 1,
+                  let notBefore = geometry.nextUpdateNotBeforeNanoseconds,
+                  let deadline = geometry.nextDeadlineNanoseconds,
+                  nowNanoseconds >= notBefore,
+                  nowNanoseconds < deadline else {
+                throw AOSOperationCoreError.generationConflict
+            }
+            geometry.pendingUpdate = AOSScreenRecordingPendingGeometryUpdate(
+                requestID: request.requestID,
+                canonicalParameterDigest: request.canonicalParameterDigest,
+                expectedGeometryGeneration: request.expectedGeometryGeneration,
+                candidate: candidate
+            )
+            state.operations[index].screenRecordingGeometry = geometry
+            state.operations[index].updatedAtNanoseconds = clock()
+            return geometry
+        }
+    }
+
+    func commitScreenRecordingFollowUpdate(
+        _ identity: AOSOperationIdentity,
+        requestID: String,
+        canonicalParameterDigest: String,
+        nowNanoseconds: UInt64
+    ) throws -> AOSScreenRecordingGeometryState {
+        try mutateDurably { state in
+            guard let index = state.operations.firstIndex(where: { $0.identity == identity }),
+                  state.operations[index].state == .active,
+                  var geometry = state.operations[index].screenRecordingGeometry,
+                  geometry.deadlineState == .armed,
+                  let pending = geometry.pendingUpdate,
+                  pending.requestID == requestID,
+                  pending.canonicalParameterDigest == canonicalParameterDigest,
+                  let interval = pending.candidate.updateIntervalMilliseconds,
+                  let deadlineDuration = pending.candidate.updateDeadlineMilliseconds,
+                  let currentDeadline = geometry.nextDeadlineNanoseconds,
+                  nowNanoseconds < currentDeadline else {
+                throw AOSOperationCoreError.generationConflict
+            }
+            geometry.accepted = pending.candidate
+            geometry.pendingUpdate = nil
+            geometry.nextUpdateNotBeforeNanoseconds = try Self.addMilliseconds(
+                interval, to: nowNanoseconds
+            )
+            geometry.nextDeadlineNanoseconds = try Self.addMilliseconds(
+                deadlineDuration, to: nowNanoseconds
+            )
+            state.operations[index].screenRecordingGeometry = geometry
+            state.operations[index].updatedAtNanoseconds = clock()
+            return geometry
+        }
+    }
+
+    func expireScreenRecordingFollowGeometry(
+        _ identity: AOSOperationIdentity,
+        expectedDeadlineNanoseconds: UInt64,
+        nowNanoseconds: UInt64
+    ) throws -> Bool {
+        try mutateDurably { state in
+            guard let index = state.operations.firstIndex(where: { $0.identity == identity }),
+                  state.operations[index].state == .active,
+                  var geometry = state.operations[index].screenRecordingGeometry,
+                  geometry.deadlineState == .armed,
+                  geometry.nextDeadlineNanoseconds == expectedDeadlineNanoseconds,
+                  nowNanoseconds >= expectedDeadlineNanoseconds else {
+                return false
+            }
+            geometry.deadlineState = .expired
+            state.operations[index].screenRecordingGeometry = geometry
+            state.operations[index].updatedAtNanoseconds = clock()
+            return true
+        }
+    }
+
+    func stopScreenRecordingFollowGeometry(
+        _ identity: AOSOperationIdentity
+    ) throws -> AOSScreenRecordingGeometryState? {
+        try mutateDurably { state in
+            guard let index = state.operations.firstIndex(where: { $0.identity == identity }),
+                  var geometry = state.operations[index].screenRecordingGeometry else {
+                return nil
+            }
+            if geometry.accepted.mode == .callerFollowed,
+               geometry.deadlineState != .expired {
+                geometry.deadlineState = .stopped
+            }
+            geometry.nextUpdateNotBeforeNanoseconds = nil
+            geometry.nextDeadlineNanoseconds = nil
+            state.operations[index].screenRecordingGeometry = geometry
+            state.operations[index].updatedAtNanoseconds = clock()
+            return geometry
+        }
+    }
+
+    private static func addMilliseconds(
+        _ milliseconds: UInt64,
+        to nanoseconds: UInt64
+    ) throws -> UInt64 {
+        let multiplied = milliseconds.multipliedReportingOverflow(by: 1_000_000)
+        let added = nanoseconds.addingReportingOverflow(multiplied.partialValue)
+        guard !multiplied.overflow, !added.overflow else {
+            throw AOSOperationCoreError.invalidRecord("screen_recording_follow_deadline")
+        }
+        return added.partialValue
     }
 
     func updateOperationProgress(
