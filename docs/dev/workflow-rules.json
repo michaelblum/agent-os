@@ -396,7 +396,7 @@
     },
     {
       "id": "screen-recording",
-      "summary": "Fixed mandatory-video and independently optional system-audio/microphone screen-recording producer, contract, custody, command, or proof changed.",
+      "summary": "Fixed or caller-followed mandatory-video and independently optional system-audio/microphone screen-recording producer, geometry, custody, command, or proof changed.",
       "patterns": [
         "src/commands/record.swift",
         "src/daemon/operation-registry.swift",
@@ -421,7 +421,7 @@
         {
           "id": "screen-recording-contract",
           "command": "bash tests/native-screen-recording-contract.sh",
-          "reason": "Validate atomic initial selected-track admission before later preparation, all four track selections, one conditional dual-resource claim-set, shared microphone-session ownership, permission-before-writer/file/native-microphone ordering, preparation-fault and boot-recovery projection/schema truth, one-budget all-selected common-epoch coordination, output-registration versus positive-byte sample truth, every-selected-track failure and precedence, fixed geometry, aggregate retirement before claim release, exact media/track-bound custody, source/help/schema convergence, and native compile without capture authority."
+          "reason": "Validate atomic initial selected-track and required geometry admission, all four fixed/followed selections, generation-CAS native crop updates, invalid/drift/deadline/native-failure/pending-recovery truth, exact public projections, shared microphone ownership and claim-set, multitrack lifecycle/failure/custody, source/help/schema convergence, and native compile without capture authority."
         }
       ],
       "verification": [],

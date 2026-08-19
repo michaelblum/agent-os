@@ -113,8 +113,8 @@ uncertain absence retains `cleanup_required` operation and claim truth, while
 retry-to-absence releases the claim and terminalizes the operation.
 No audio device, daemon, TCC, or repo binary executes.
 
-For the bounded fixed recording producer with independently optional system
-audio and microphone, use:
+For the bounded fixed or caller-followed recording producer with independently
+optional system audio and microphone, use:
 
 ```bash
 bash tests/native-screen-recording-contract.sh
@@ -122,14 +122,22 @@ bash tests/native-screen-recording-contract.sh
 
 This route validates the closed four-selection schema, mandatory H.264 video,
 independently optional AAC-LC system-audio and daemon-owned microphone tracks
-in one QuickTime writer, fixed geometry and drift behavior, shared microphone
-session ownership, authored/generated help, and a whole-source Swift typecheck. Its
+in one QuickTime writer, fixed and caller-followed geometry, generation-CAS
+updates, immutable source drift, deadline/native-failure/pending-recovery truth,
+shared microphone session ownership, authored/generated help, and a
+whole-source Swift typecheck. Its
 executable compiled harness runs the
 production recording adapter, registry, in-memory durable store, lifecycle,
 sample admission, multitrack coordination, terminal truth, custody coordinator,
 and boot recovery with injected fake clock, video/system-audio/microphone
 callbacks, writer inputs/file, a real `AOSMicrophoneNativeSession` executing
 through injected non-native dependencies, and broker dependencies. It covers
+the production follow parser, validator/coordinator, registry/store/recovery
+projector, and injected native crop seam; all four selections in fixed and
+followed admission; one concurrent winner; zero-effect invalid/stale/duplicate/
+off-source/out-of-bounds updates; every immutable source discontinuity; exact
+deadline re-arm/expiry; native failure; and unresolved pending cleanup. It also
+covers
 all six three-track first-sample orders at one
 common epoch, pre-epoch system-audio/microphone callback failures in both
 orders, final-summary normalization with deterministic video/system-audio/

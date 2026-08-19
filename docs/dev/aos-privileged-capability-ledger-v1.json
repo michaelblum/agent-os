@@ -22,7 +22,7 @@
       "publication_state": "landed",
       "revision": "227382c1bcbdab56f551a85a69b0609eebbdfa0c"
     },
-    "publication_boundary": "Milestone 2 publishes the executable operation plane and microphone adapter. The bounded M3A/M3B/M3C-V2 slices add one fixed display/window/region mandatory-H.264-video producer with independently optional AAC-LC system-audio and microphone tracks and producer-backed reveal/remove/release custody at adapter-registry revision 2. Follow geometry, public SDK roots, full M3 completion, and native live/TCC acceptance remain separately unclaimed."
+    "publication_boundary": "Milestone 2 publishes the executable operation plane and microphone adapter. The bounded M3A/M3B/M3C-V2/M3D-V1 slices add one fixed display/window/region or caller-followed-region mandatory-H.264-video producer with independently optional AAC-LC system-audio and microphone tracks, producer-backed reveal/remove/release custody, generation-CAS native crop updates, pending-intent recovery, and exact public geometry truth at adapter-registry revision 2. Public SDK roots, full M3 completion, and native live/TCC acceptance remain separately unclaimed."
   },
   "coverage": {
     "row_count": 32,
@@ -4361,7 +4361,7 @@
             "tests/screen-recording-contract.test.mjs",
             "tests/screen-recording-fake.test.mjs"
           ],
-          "summary": "AOS owns one public bounded fixed display/window/region ScreenCaptureKit producer using mandatory H.264 video and independently optional AAC-LC system-audio and daemon-owned microphone tracks in one QuickTime writer, one absolute native-start/common-media deadline, a finite generation-bound startup/retirement owner, atomic stop-sample admission, the exclusive pixel broker, operation identity/control, typed per-track availability/sample/failure truth, and recoverable exact-identity transient artifact custody. The microphone selection reuses the existing exclusive voice_io_native_session declaration and shared AVAudioEngine session owner. Followed geometry, SDK/Toolkit projection, and native-live acceptance remain absent."
+          "summary": "AOS owns one public bounded fixed display/window/region or caller-followed-region ScreenCaptureKit producer using mandatory H.264 video and independently optional AAC-LC system-audio and daemon-owned microphone tracks in one QuickTime writer, one absolute native-start/common-media deadline, a finite generation-bound startup/retirement owner, atomic stop-sample admission, the exclusive pixel broker, operation identity/control, exact geometry and per-track truth, and recoverable exact-identity transient artifact custody. Caller-followed movement uses generation-CAS native crop updates, durable pending intent, and an absolute cadence/deadline while preserving initial encoder dimensions. The microphone selection reuses the existing exclusive voice_io_native_session declaration and shared AVAudioEngine session owner. SDK/Toolkit projection and native-live acceptance remain absent."
         },
         "exposure": {
           "cli": {
@@ -4408,13 +4408,13 @@
             "one canonical display-topology observation"
           ],
           "targets": [
-            "one fixed display, exact window, or global region wholly within one display"
+            "one fixed display, exact window, fixed region, or caller-followed region wholly within one display and its bound source window"
           ],
           "depth": "Pixel plane only.",
-          "breadth": "One fixed display, exact window, or global region wholly within one display; mandatory video plus independently optional system audio and microphone.",
-          "completeness": "Public fixed recording request with four exact track selections, operation/stream/artifact identity, one H.264 plus optional AAC-LC QuickTime writer, common-epoch multitrack coordination, shared microphone-session ownership, atomic dual-resource claim admission when selected, action-specific artifact decoding, finite generation-bound startup/retirement ownership, atomic sample admission, typed per-track terminal truth, durable recoverable release custody, an executable compiled production-owner harness with fake dependencies, and native compile proof are current.",
+          "breadth": "One fixed display, exact window, fixed region, or caller-followed region within one display and its bound source window; mandatory video plus independently optional system audio and microphone.",
+          "completeness": "Public fixed or caller-followed recording requests with four exact track selections, closed follow updates/results, generation-CAS native crop and pending recovery, exact public geometry, operation/stream/artifact identity, one H.264 plus optional AAC-LC QuickTime writer, common-epoch multitrack coordination, shared microphone-session ownership, atomic dual-resource claim admission when selected, action-specific artifact decoding, finite generation-bound startup/retirement ownership, atomic sample admission, typed per-track terminal truth, durable recoverable release custody, executable production-owner harnesses with fake dependencies, and native compile proof are current.",
           "frontier": "One SCStream supplies mandatory `.screen` samples and request-selected `.audio` samples; an independent shared-owner microphone input supplies the third writer track without macOS-15-only ScreenCaptureKit APIs.",
-          "state_identity": "Canonical topology identity, display member identity, fixed geometry digest, operation generation, stream generation, and artifact generation."
+          "state_identity": "Canonical topology identity, display member identity, fixed or caller-followed geometry generation/digest and immutable binding identities, operation generation, stream generation, and artifact generation."
         },
         "control": {
           "operation_identity": "Generation-bound screen-recording.video operation at adapter-registry revision 2.",
@@ -4487,7 +4487,7 @@
             },
             {
               "path": "tests/schemas/aos-screen-recording-v1.test.mjs",
-              "claim": "Validates all four mandatory-video, optional-system-audio, and optional-microphone request/admission/progress/result selections, independent closed track truth, and hard bounds.",
+              "claim": "Validates all four mandatory-video, optional-system-audio, and optional-microphone request/admission/progress/result selections, required fixed or caller-followed geometry, closed follow update/result truth, independent closed track truth, and hard bounds.",
               "execution_class": "static",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -4495,7 +4495,7 @@
             },
             {
               "path": "tests/screen-recording-contract.test.mjs",
-              "claim": "Statically binds atomic operation identity/requested-bounds/zero-progress/initial selected-track-summary admission before later preparation, mandatory screen output, request-selected system-audio output, the shared daemon microphone-session owner, one conditional dual-resource claim-set, one H.264 plus two AAC-LC writer inputs, fixed geometry, generation-bound owner handoff, selected-track drain and terminal-truth calls, durable track-bound release ordering, and authored/generated command ownership.",
+              "claim": "Statically binds atomic operation identity/requested-bounds/zero-progress/initial selected-track-summary and geometry admission before later preparation, mandatory screen output, request-selected system-audio output, the shared daemon microphone-session owner, one conditional dual-resource claim-set, one H.264 plus two AAC-LC writer inputs, fixed or caller-followed geometry with generation-bound native crop, selected-track drain and terminal-truth calls, durable track-bound release ordering, and authored/generated command ownership.",
               "execution_class": "static",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -4505,7 +4505,7 @@
           "fake": [
             {
               "path": "tests/screen-recording-fake.test.mjs",
-              "claim": "Compiles and executes the production recording adapter, request-derived admission and exact public snapshot/list/inspect projectors used by UnifiedDaemon, generic registry/in-memory durable store/recovery, lifecycle, sample admission, three-track coordinator, terminal truth, and custody coordinator with fake clock, video/system-audio callbacks, a real AOSMicrophoneNativeSession through injected non-native dependencies, writer inputs/file, and broker dependencies. It schema-validates the four production admission responses and injects a durable save fault after operation admission but before stream/artifact/claim handoff to validate all four selected-track summaries through prepared, cleanup, recovered terminal, list, and inspect outputs without synthesized wire metadata. It covers all six three-track first-sample orders at one common epoch, microphone monotonic rejection, independent per-track backpressure, selected/unselected truth, writer-global start/post-start/finalization failure on every selected track, microphone startup failure with unavailable truth, gated availability-before-sample admission, shared-deadline missing-track precedence, standalone-microphone resource conflict before native authority, one conditional dual-resource claim-set, microphone-selected cancel/peer-loss/deadline/retirement with aggregate authority absence before claim release, callback loss, startup cancellation, late start failure after active evidence, retirement timeout/false settlement, selected-track stop/drain/finalize ordering, zero-frame/missing-artifact cleanup, release/remove admission races, release fault phases, restart recovery, topology drift, exact CFBoolean rejection of numeric track values, lossy selectors, and extra-key/type rejection.",
+              "claim": "Compiles and executes the production recording adapter, request-derived admission and exact public snapshot/list/inspect projectors used by UnifiedDaemon, generic registry/in-memory durable store/recovery, lifecycle, sample admission, three-track coordinator, terminal truth, custody coordinator, and caller-followed geometry coordinator with fake topology/window/clock/native-crop/media/file/broker dependencies. It schema-validates all four fixed and caller-followed selection admissions, proves one generation-CAS native-update winner plus exact invalid/stale/drift/deadline/native-failure/pending-recovery truth, and preserves the existing common-epoch, per-track failure/backpressure, shared microphone claim, aggregate retirement, artifact custody, durable fault, and closed-input matrix without synthesized wire metadata.",
               "execution_class": "fake",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -4515,7 +4515,7 @@
           "native": [
             {
               "path": "tests/native-screen-recording-contract.sh",
-              "claim": "Compiles the focused ScreenCaptureKit and AVAssetWriter implementation without capture authority.",
+              "claim": "Compiles the focused ScreenCaptureKit, AVAssetWriter, and caller-followed native configuration-update implementation without capture authority.",
               "execution_class": "native_compile",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -4529,7 +4529,6 @@
         "milestone": "M3",
         "disposition": "Expand",
         "gaps": [
-          "Add caller-followed geometry separately; fixed geometry is current.",
           "Run separately authorized native-live recording acceptance without folding it into offline proof."
         ],
         "exit_gate": "M3 records screen video with exact geometry and topology identity, transient stream or artifact custody, status/kill/blame/cleanup, fake proof, and explicitly gated native proof; M6 later supplies canonical SDK projection.",
@@ -4629,7 +4628,7 @@
             "tests/screen-recording-contract.test.mjs",
             "tests/screen-recording-fake.test.mjs"
           ],
-          "summary": "The bounded fixed recording route independently selects ScreenCaptureKit system audio, carries its samples on the same SCStream as mandatory video, and writes AAC-LC beside H.264 at one common epoch. The warm desktop stream remains capturesAudio=false, and no independent audio stream/tap or microphone track is implied."
+          "summary": "The bounded fixed or caller-followed recording route independently selects ScreenCaptureKit system audio, carries its samples on the same SCStream as mandatory video, and writes AAC-LC beside H.264 at one common epoch. The warm desktop stream remains capturesAudio=false, and no independent audio stream/tap or microphone track is implied."
         },
         "exposure": {
           "cli": {
@@ -4714,7 +4713,7 @@
             "system audio samples"
           ],
           "depth": "Not hierarchical.",
-          "breadth": "One explicitly selected system-audio track paired with mandatory video under one fixed recording operation.",
+          "breadth": "One explicitly selected system-audio track paired with mandatory video under one fixed or caller-followed recording operation.",
           "completeness": "Selection, output-registration availability distinct from positive-byte first-sample truth with positive count and bytes, admitted samples, monotonic timestamps, per-track bounded backpressure, audio byte progress independent of written-video frame progress, complete shared-deadline missing-track settlement, per-selected-track writer-global failure, drain, finalization, operation result, exact media identity, and custody summary are current for the optional recording track.",
           "frontier": "No independent system-audio stream or tap, microphone track, mixing, public SDK/Toolkit projection, or live/native acceptance.",
           "state_identity": "Recording operation/stream/artifact generations plus the selected system_audio track and common media epoch."
@@ -5185,7 +5184,7 @@
             "one mandatory H.264 video track and independently optional AAC-LC system-audio and microphone tracks"
           ],
           "depth": "Not hierarchical.",
-          "breadth": "One fixed recording with mandatory video and independently optional system audio and microphone; no arbitrary track set.",
+          "breadth": "One fixed or caller-followed recording with mandatory video and independently optional system audio and microphone; no arbitrary track set.",
           "completeness": "Atomic initial identity/bounds/zero-progress/selected-track-summary admission before any later authority, preparation-fault and boot-recovery summary preservation, bounded pre-start buffering and per-track backpressure, either arrival order, one common epoch, output-registration availability, positive-count/byte first-sample and successful-track truth, independent admitted-track and written-video/global-byte progress, complete shared-deadline missing-track settlement with mandatory-video precedence, per-track monotonic append, writer-global failure on every selected track, exactly-once selected-input drain and writer finalization, exact selected-track media/file identity, and cleanup are current.",
           "frontier": "Arbitrary track layouts/mixing and live/native acceptance remain absent.",
           "state_identity": "Operation/stream/artifact generations, selected/finalized tracks, common media epoch, per-track truth, and exact device, inode, byte count, content digest, and media type."
@@ -16881,7 +16880,7 @@
               "path": "shared/schemas/aos-screen-recording-v1.schema.json",
               "kind": "current"
             },
-            "responsibility": "Own the four closed fixed mandatory-video and independently optional system-audio/microphone request/admission/progress/result shapes, request-to-selected/finalized-track coupling, positive-count/byte first-sample and successful truth, exact screen-operation progress/terminal summary and failure/artifact conditionals, exact artifact/media binding, hard bounds, topology binding, and custody linkage."
+            "responsibility": "Own the four closed fixed or caller-followed mandatory-video and independently optional system-audio/microphone request/admission/progress/result shapes, closed follow update/result shapes, request-to-selected/finalized-track coupling, exact geometry/progress/terminal truth, hard bounds, topology binding, artifact/media binding, and custody linkage."
           },
           {
             "owner_id": "recording-adapter",
@@ -16889,7 +16888,7 @@
               "path": "src/daemon/screen-recording-operation-adapter.swift",
               "kind": "current"
             },
-            "responsibility": "Own atomic initial identity/requested-bounds/zero-progress/selected-track-summary operation admission before stream/artifact/claim/broker/native/file authority, then one fixed ScreenCaptureKit stream with mandatory screen video, explicitly optional system audio, and an independently selected shared-owner microphone track under the operation plane. Microphone selection consumes the existing exclusive voice_io_native_session declaration in the same claim-set as screen_capture_native_session. Mark selected tracks available only after source registration, spend one absolute deadline across native start and the remaining common-media barrier, normalize pre-common-epoch media callback failures from final selected-track truth, classify every missing selected track in video/system-audio/microphone precedence, and preserve pre-native writer/input setup and other typed failures by retaining explicit internal failure origin. Cleanup and boot recovery preserve the admitted initial summary without a later backfill."
+            "responsibility": "Own atomic initial identity/requested-bounds/zero-progress/selected-track-summary/geometry admission before stream/artifact/claim/broker/native/file authority, then one fixed or caller-followed ScreenCaptureKit stream with mandatory screen video, explicitly optional system audio, and an independently selected shared-owner microphone track under the operation plane. Microphone selection consumes the existing exclusive voice_io_native_session declaration in the same claim-set as screen_capture_native_session. Caller-followed updates route through one injected native crop seam and stop through ordinary cleanup on drift, timeout, or update failure. Mark selected tracks available only after source registration, spend one absolute startup deadline across native start and the remaining common-media barrier, preserve deterministic missing-track precedence and exact internal failure origin, and retain admitted truth through cleanup and boot recovery."
           },
           {
             "owner_id": "recording-encoder",
@@ -16913,7 +16912,15 @@
               "path": "src/daemon/screen-recording-geometry.swift",
               "kind": "current"
             },
-            "responsibility": "Own fixed display/window/region geometry, exact global-to-per-track progress bounds that permit audio bytes before written-video frames, and post-admission topology/source drift rejection; followed geometry remains absent."
+            "responsibility": "Own fixed display/window/region and caller-followed region admission geometry, exact global-to-per-track progress bounds that permit audio bytes before written-video frames, topology/source binding, and immutable drift rejection."
+          },
+          {
+            "owner_id": "recording-follow-geometry",
+            "path_ref": {
+              "path": "src/daemon/screen-recording-follow-geometry.swift",
+              "kind": "current"
+            },
+            "responsibility": "Own full-fact caller follow updates, generation CAS, one durable pending native crop, absolute cadence/deadline state, exact public geometry projection, and stop-on-drift/timeout/update-failure convergence."
           },
           {
             "owner_id": "recording-command-source",
@@ -16929,7 +16936,7 @@
               "path": "manifests/commands/source/external/50-screen-recording.json",
               "kind": "current"
             },
-            "responsibility": "Own the reviewed external route paired atomically with the M3A/M3B/M3C-V2 authored recording command source."
+            "responsibility": "Own the reviewed external route paired atomically with the M3A/M3B/M3C-V2/M3D-V1 authored recording command source."
           }
         ]
       }
@@ -17071,7 +17078,7 @@
             },
             "execution_class": "static",
             "requires_owner_authority": false,
-            "claim": "Validate mandatory video, independently optional system audio and microphone across four exact selections, follow rejection, request-to-selected/finalized-track coupling, positive-count/byte first-sample and successful truth, screen-operation progress/terminal summary and typed failure/artifact conditionals, artifact/outcome/media identity binding, closed per-track truth, fixed geometry identity, bounds, outcomes, and custody linkage."
+            "claim": "Validate mandatory video, independently optional system audio and microphone across four exact selections, required fixed or caller-followed geometry, closed update requests/results, request-to-selected/finalized-track coupling, exact content-free geometry and track truth, progress/terminal conditionals, bounds, outcomes, and custody linkage."
           },
           {
             "path_ref": {
@@ -17091,7 +17098,7 @@
             },
             "execution_class": "fake",
             "requires_owner_authority": false,
-            "claim": "Execute the production adapter, generic registry/store/recovery, exact public snapshot/list/inspect projector used by UnifiedDaemon, lifecycle, sample admission, three-track coordinator, terminal truth, and custody owners with an injected post-admission durable save fault, fake clock, video/system-audio/microphone callbacks, writer inputs/file, shared microphone session, broker, and custody dependencies. Directly validate all four selection summaries through prepared, cleanup, recovered terminal, list, and inspect outputs against aos.operation.v1 without synthesized wire metadata. Assert exact public snapshot progress and terminal per-track values plus video/system-audio/microphone precedence for every pre-common-epoch callback interleaving, and prove a pre-native encoder-setup failure preserves its exact public typed result. Also cover all six three-track first-sample orders at one common epoch, one absolute delayed-native-start/common-media budget, multi-track missing settlement and precedence, independent per-track monotonicity and backpressure, audio byte progress while written-video frames remain zero, selected/unselected registration availability and positive-count/byte first-sample truth, typed unavailable/no-sample failures, writer-global failure on every selected track, standalone-microphone resource conflict before native authority, selected-track stop/drain/finalize, one conditional dual-resource claim-set, aggregate authority absence before claim release, callback loss, cancellation/owner loss/timeout, offline recovery, zero-frame/missing-artifact failure, typed retain unavailability, custody fault phases, cleanup residuals, fixed geometry, bounds, progress persistence, custody binding, and extra-key/type rejection."
+            "claim": "Execute the production adapter, generic registry/store/recovery, exact public snapshot/list/inspect projector, lifecycle, three-track and custody owners, and caller-followed coordinator/native-update seam with injected topology, windows, monotonic clock, native crop, media, file, shared microphone, broker, and custody dependencies. Preserve all four selections in fixed and followed-region admission; prove one generation-CAS winner, no-effect invalid/stale/duplicate updates, every immutable source discontinuity, exact deadline, native failure, unresolved pending recovery, cleanup convergence, and schema-bound admission/progress/terminal geometry truth alongside the existing multitrack, resource, lifecycle, and artifact matrix."
           }
         ],
         "native": [
@@ -17102,7 +17109,7 @@
             },
             "execution_class": "native_compile",
             "requires_owner_authority": false,
-            "claim": "Compile focused ScreenCaptureKit and AVAssetWriter adapters without capture authority."
+            "claim": "Compile focused ScreenCaptureKit, AVAssetWriter, and caller-followed native configuration-update adapters without capture authority."
           },
           {
             "path_ref": {
@@ -18406,7 +18413,6 @@
           "id": "screen_video",
           "owner_ref_ids": [
             "M3.path.src_daemon_desktop_pixel_native_swift",
-            "M3.path.src_daemon_desktop_pixel_stream_lifecycle_swift",
             "M3.path.shared_schemas_aos_screen_recording_v1_schema_json",
             "M3.path.src_daemon_screen_recording_operation_adapter_swift",
             "M3.path.manifests_commands_source_aos_42_screen_recording_json",
@@ -18423,7 +18429,6 @@
           ],
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_contract_test_mjs",
             "M3.proof.tests_screen_recording_fake_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh",
             "M3.proof.tests_manual_screen_recording_native_proof_sh"
@@ -18447,7 +18452,6 @@
           ],
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_contract_test_mjs",
             "M3.proof.tests_screen_recording_fake_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh",
             "M3.proof.tests_manual_screen_recording_native_proof_sh"
@@ -18471,7 +18475,6 @@
           ],
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_contract_test_mjs",
             "M3.proof.tests_screen_recording_fake_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh",
             "M3.proof.tests_manual_screen_recording_native_proof_sh"
@@ -18489,7 +18492,6 @@
           ],
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_contract_test_mjs",
             "M3.proof.tests_screen_recording_fake_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh"
           ]
@@ -18498,7 +18500,6 @@
           "id": "fixed_geometry",
           "owner_ref_ids": [
             "M3.path.src_daemon_desktop_pixel_native_swift",
-            "M3.path.src_daemon_desktop_pixel_stream_lifecycle_swift",
             "M3.path.shared_schemas_aos_screen_recording_v1_schema_json",
             "M3.path.src_daemon_screen_recording_geometry_swift"
           ],
@@ -18508,7 +18509,6 @@
           ],
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_contract_test_mjs",
             "M3.proof.tests_screen_recording_fake_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh"
           ]
@@ -18517,18 +18517,18 @@
           "id": "caller_followed_geometry",
           "owner_ref_ids": [
             "M3.path.src_daemon_desktop_pixel_native_swift",
-            "M3.path.src_daemon_desktop_pixel_stream_lifecycle_swift",
             "M3.path.shared_schemas_aos_screen_recording_v1_schema_json",
-            "M3.path.src_daemon_screen_recording_geometry_swift"
+            "M3.path.src_daemon_screen_recording_geometry_swift",
+            "M3.path.src_daemon_screen_recording_follow_geometry_swift"
           ],
           "exit_gate_ids": [
             "geometry_reobserved_and_bound",
-            "separately_authorized_native_recording"
+            "fake_recording_proof"
           ],
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_contract_test_mjs",
             "M3.proof.tests_screen_recording_fake_test_mjs",
+            "M3.proof.tests_screen_recording_follow_geometry_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh",
             "M3.proof.tests_manual_screen_recording_native_proof_sh"
           ]
@@ -18547,7 +18547,6 @@
           ],
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_contract_test_mjs",
             "M3.proof.tests_screen_recording_fake_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh",
             "M3.proof.tests_manual_screen_recording_native_proof_sh"
@@ -18560,7 +18559,6 @@
           "criterion": "Screen video, system audio, and microphone tracks have independent availability, failure, fidelity, and custody truth under one recording operation. Media callback failure before a common epoch is normalized from the final selected-track summary, stamps every missing selected track, and selects terminal precedence video then system audio then microphone, while explicit internal failure origin preserves exact pre-native writer/input setup and other typed failures.",
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_contract_test_mjs",
             "M3.proof.tests_screen_recording_fake_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh",
             "M3.proof.tests_manual_screen_recording_native_proof_sh"
@@ -18569,11 +18567,11 @@
         },
         {
           "id": "geometry_reobserved_and_bound",
-          "criterion": "Native AX and managed DOM branches discard pre-center state, re-observe, bind exact source geometry, and reject identity discontinuity.",
+          "criterion": "Native AX and managed DOM branches discard pre-center state and re-observe. Fixed admission binds exact source geometry; caller-followed movement supplies full fresh topology/region/binding facts, advances one generation only after native crop success, and rejects every immutable identity discontinuity.",
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_contract_test_mjs",
             "M3.proof.tests_screen_recording_fake_test_mjs",
+            "M3.proof.tests_screen_recording_follow_geometry_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh",
             "M3.proof.tests_manual_screen_recording_native_proof_sh"
           ],
@@ -18584,7 +18582,6 @@
           "criterion": "Recording sources, encoder, artifact custody, and operation status obey the M2 lifecycle and owner-control plane.",
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_contract_test_mjs",
             "M3.proof.tests_screen_recording_fake_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh",
             "M3.proof.tests_manual_screen_recording_native_proof_sh"
@@ -18595,11 +18592,11 @@
         },
         {
           "id": "fake_recording_proof",
-          "criterion": "Static and fake proofs cover preparation, start, stop, failure, cleanup, geometry drift, track failure, artifact validation, and both pre-common-epoch system-audio/microphone callback orders across all missing-selected-track terminal precedences without claiming native capture.",
+          "criterion": "Static and fake proofs cover preparation, start, stop, failure, cleanup, fixed and caller-followed geometry, generation CAS, pending-intent recovery, deadline and immutable drift, track failure, artifact validation, and both pre-common-epoch system-audio/microphone callback orders across all missing-selected-track terminal precedences without claiming native capture.",
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_contract_test_mjs",
             "M3.proof.tests_screen_recording_fake_test_mjs",
+            "M3.proof.tests_screen_recording_follow_geometry_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh",
             "M3.proof.tests_manual_screen_recording_native_proof_sh"
           ],
@@ -18610,7 +18607,6 @@
           "criterion": "Native-live recording proof runs only in a separately authorized Screen Recording and microphone lane and verifies content-free outcomes.",
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_contract_test_mjs",
             "M3.proof.tests_screen_recording_fake_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh",
             "M3.proof.tests_manual_screen_recording_native_proof_sh"
@@ -18627,39 +18623,39 @@
           "kind": "current"
         },
         {
-          "id": "M3.path.src_daemon_desktop_pixel_stream_lifecycle_swift",
-          "path": "src/daemon/desktop-pixel-stream-lifecycle.swift",
-          "kind": "current"
-        },
-        {
           "id": "M3.path.shared_schemas_aos_screen_recording_v1_schema_json",
           "path": "shared/schemas/aos-screen-recording-v1.schema.json",
-          "kind": "proposed"
+          "kind": "current"
         },
         {
           "id": "M3.path.src_daemon_screen_recording_operation_adapter_swift",
           "path": "src/daemon/screen-recording-operation-adapter.swift",
-          "kind": "proposed"
+          "kind": "current"
         },
         {
           "id": "M3.path.src_daemon_screen_recording_encoder_swift",
           "path": "src/daemon/screen-recording-encoder.swift",
-          "kind": "proposed"
+          "kind": "current"
         },
         {
           "id": "M3.path.src_daemon_screen_recording_geometry_swift",
           "path": "src/daemon/screen-recording-geometry.swift",
-          "kind": "proposed"
+          "kind": "current"
+        },
+        {
+          "id": "M3.path.src_daemon_screen_recording_follow_geometry_swift",
+          "path": "src/daemon/screen-recording-follow-geometry.swift",
+          "kind": "current"
         },
         {
           "id": "M3.path.manifests_commands_source_aos_42_screen_recording_json",
           "path": "manifests/commands/source/aos/42-screen-recording.json",
-          "kind": "proposed"
+          "kind": "current"
         },
         {
           "id": "M3.path.manifests_commands_source_external_50_screen_recording_json",
           "path": "manifests/commands/source/external/50-screen-recording.json",
-          "kind": "proposed"
+          "kind": "current"
         },
         {
           "id": "M3.path.manifests_commands_aos_commands_json",
@@ -18682,28 +18678,28 @@
           "id": "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
           "case_id": null,
           "path": "tests/schemas/aos-screen-recording-v1.test.mjs",
-          "kind": "proposed",
-          "execution_class": "static"
-        },
-        {
-          "id": "M3.proof.tests_screen_recording_contract_test_mjs",
-          "case_id": null,
-          "path": "tests/screen-recording-contract.test.mjs",
-          "kind": "proposed",
+          "kind": "current",
           "execution_class": "static"
         },
         {
           "id": "M3.proof.tests_screen_recording_fake_test_mjs",
           "case_id": null,
           "path": "tests/screen-recording-fake.test.mjs",
-          "kind": "proposed",
+          "kind": "current",
+          "execution_class": "fake"
+        },
+        {
+          "id": "M3.proof.tests_screen_recording_follow_geometry_test_mjs",
+          "case_id": null,
+          "path": "tests/screen-recording-follow-geometry.test.mjs",
+          "kind": "current",
           "execution_class": "fake"
         },
         {
           "id": "M3.proof.tests_native_screen_recording_contract_sh",
           "case_id": null,
           "path": "tests/native-screen-recording-contract.sh",
-          "kind": "proposed",
+          "kind": "current",
           "execution_class": "native_compile"
         },
         {

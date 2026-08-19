@@ -2284,8 +2284,7 @@ recorded device, inode, byte count, digest, media type, internal-root
 containment, and owner root before custody mutation. Release requires an absent
 absolute destination in an existing owner-owned directory on the source
 volume. Other producers do not gain artifact success implicitly, and retain is
-specifically unavailable. Tap sampling and followed geometry remain future
-contracts.
+specifically unavailable. Tap sampling remains unavailable.
 
 The host barrier covers the registered operation plane at the recorded adapter-
 registry revision, not every legacy daemon subsystem. `reopen` does not claim
@@ -2308,8 +2307,8 @@ dependency facts.
 
 ## `aos record`
 
-`aos record screen` admits one fixed screen recording producer through the shared
-operation plane:
+`aos record screen` admits one fixed or caller-followed screen recording
+producer through the shared operation plane:
 
 ```bash
 aos record screen --display main --duration-ms 10000 --json
@@ -2317,20 +2316,40 @@ aos record screen --display 1 --region 0,0,1280,720 \
   --duration-ms 5000 --frame-rate 30 --json
 aos record screen --display main --duration-ms 10000 --system-audio --json
 aos record screen --display main --duration-ms 10000 --microphone --json
+aos record screen --display main --region 100,100,800,600 \
+  --duration-ms 10000 --geometry-mode caller_followed \
+  --binding-target target:1 --binding-observation observation:1 \
+  --binding-state state:1 --binding-session session:1 \
+  --binding-navigation navigation:1 --binding-frame frame:1 \
+  --source-window-id 77 --source-owner-pid 700 \
+  --update-interval-ms 100 --update-deadline-ms 500 --json
+aos record screen-follow-update --operation recording:7 \
+  --expected-geometry-generation 1 --region 120,100,800,600 \
+  --binding-target target:1 --binding-observation observation:2 \
+  --binding-state state:2 --binding-session session:1 \
+  --binding-navigation navigation:1 --binding-frame frame:1 \
+  --source-window-id 77 --source-owner-pid 700 --json
 ```
 
 The target is exactly one display, one current window, or one global region
 wholly contained by the selected display. Admission binds the canonical
-topology, source identity, and fixed geometry before ScreenCaptureKit authority
-starts; later drift fails the operation instead of silently reacquiring or
-following a target. Duration is 1 through 300000 milliseconds, frame rate 1
+topology, source identity, and required geometry before ScreenCaptureKit
+authority starts. Fixed is the CLI default and remains generation 1. Explicit
+`caller_followed` is region-only: the caller supplies tracking and each fresh
+region/binding, while AOS validates continuity, containment, pixel bounds,
+generation CAS, cadence, and deadline before one native crop. Accepted updates
+alone advance durable geometry truth and re-arm the absolute deadline. Invalid
+movement is rejected without crop or deadline reset; immutable drift and a
+missed deadline stop through normal cleanup. AOS does not observe, locate,
+reacquire, smooth, or transform the caller target. Duration is 1 through
+300000 milliseconds, frame rate 1
 through 60, queue depth 1 through 8, pixel count 4 through 33177600, and output
 size 1024 through 1073741824 bytes. The closed media contract is mandatory
 H.264 video in one QuickTime `.mov`, with independently selectable AAC-LC
 system-audio and microphone tracks. Omitting both flags preserves exact
 video-only output; `--system-audio`, `--microphone`, and both together are the
 other three exact selections. `video=false`, malformed track selection, and
-followed geometry fail before effects.
+malformed geometry fail before effects.
 
 The daemon remains the only microphone-authorization owner. A selected
 microphone must reach exact authorized state before writer, file, or native
@@ -2342,8 +2361,9 @@ The screen operation consumes the existing exclusive
 `screen_capture_native_session`; the registry remains revision 2.
 
 Success is admission, not completed capture. It returns exact operation,
-stream, and artifact generations plus daemon generation, geometry-binding
-digest, selected tracks, and an initial content-free track summary. Progress,
+stream, and artifact generations plus daemon generation, exact content-free
+geometry truth, selected tracks, and an initial track summary. Follow-update,
+progress,
 terminal facts, artifact identity, and custody receipts bind independent
 selected/admitted/available/sample/failure/drain/finalized truth for video and
 both optional audio tracks. Microphone availability becomes true only after

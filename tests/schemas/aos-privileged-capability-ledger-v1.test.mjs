@@ -4238,7 +4238,6 @@ const expectedCriticalMilestoneOwners = {
   "M3": {
     "screen_video": [
       "src/daemon/desktop-pixel-native.swift",
-      "src/daemon/desktop-pixel-stream-lifecycle.swift",
       "shared/schemas/aos-screen-recording-v1.schema.json",
       "src/daemon/screen-recording-operation-adapter.swift",
       "manifests/commands/source/aos/42-screen-recording.json",
@@ -4271,15 +4270,14 @@ const expectedCriticalMilestoneOwners = {
     ],
     "fixed_geometry": [
       "src/daemon/desktop-pixel-native.swift",
-      "src/daemon/desktop-pixel-stream-lifecycle.swift",
       "shared/schemas/aos-screen-recording-v1.schema.json",
       "src/daemon/screen-recording-geometry.swift"
     ],
     "caller_followed_geometry": [
       "src/daemon/desktop-pixel-native.swift",
-      "src/daemon/desktop-pixel-stream-lifecycle.swift",
       "shared/schemas/aos-screen-recording-v1.schema.json",
-      "src/daemon/screen-recording-geometry.swift"
+      "src/daemon/screen-recording-geometry.swift",
+      "src/daemon/screen-recording-follow-geometry.swift"
     ],
     "recording_artifact_custody": [
       "shared/schemas/aos-screen-recording-v1.schema.json",
@@ -7415,7 +7413,7 @@ export function validateMilestoneClosure(milestones) {
         kind === 'current' && expectedMaintainedApiPaths.includes(ownerPath)
       ));
       const maintainedApi = maintainedApiRefs.map(({ id }) => id);
-      const commandSourceKind = milestone.id === 'M2' ? 'current' : 'proposed';
+      const commandSourceKind = ['M2', 'M3'].includes(milestone.id) ? 'current' : 'proposed';
       const commandSources = milestone.path_refs.filter(({ path: ownerPath, kind }) => (
         kind === commandSourceKind && ownerPath.startsWith('manifests/commands/source/')
       ));
@@ -8962,7 +8960,7 @@ test('all tracked paths classify and named-family production/privilege scans are
   }
 });
 
-test('screen recording proof owns optional system audio and microphone, warm audio-off, custody, and public reachability', async () => {
+test('screen recording proof owns followed geometry, optional audio tracks, custody, and public reachability', async () => {
   const rows = byId(await json(ledgerRelativePath));
   const row = rows.get('screencapturekit-screen-video');
   const [pixelSource, adapter, encoder, microphoneSession] = await Promise.all([
@@ -8983,7 +8981,9 @@ test('screen recording proof owns optional system audio and microphone, warm aud
   assert.match(microphoneSession, /AVAudioEngine\(\)/u);
   assert.doesNotMatch(adapter, /SCRecordingOutput|captureMicrophone/u);
   assert.deepEqual(row.current.observation.roots, ['one canonical display-topology observation']);
-  assert.deepEqual(row.current.observation.targets, ['one fixed display, exact window, or global region wholly within one display']);
+  assert.deepEqual(row.current.observation.targets, [
+    'one fixed display, exact window, fixed region, or caller-followed region wholly within one display and its bound source window',
+  ]);
   assert.deepEqual(row.current.data_transport.transports, [
     'private in-process CMSampleBuffer delivery',
     'transient H.264 plus optional AAC-LC QuickTime artifact',
@@ -9020,7 +9020,7 @@ test('design and proof routing state the normalized static boundary', async () =
   ]);
   assert.match(
     design,
-    /Milestone 2 executable control plane plus bounded M3A fixed video and\s+M3B optional system-audio.+unimplemented M3 remainder and M4-M10\s+sections remain target design merely because they are specified here/isu,
+    /Milestone 2 executable control plane plus bounded M3A fixed video, M3B\s+optional system audio, M3C-V2 optional microphone, and M3D-V1 caller-followed\s+region geometry candidate.+unimplemented M3 remainder and M4-M10\s+sections remain target design merely because they are specified here/isu,
   );
   assert.match(design, /TRANSITION_EVENT_DUPLICATE/u);
   assert.match(design, /exact transition tuple/u);
@@ -9140,6 +9140,6 @@ test('paired authority, executable M2 bindings, and the remaining M6 decision ar
   assert.equal(ledger.later_open_decisions[0].milestone, 'M6');
   assert.match(
     ledger.authority.publication_boundary,
-    /Milestone 2 publishes the executable operation plane and microphone adapter.+bounded M3A\/M3B\/M3C-V2 slices add one fixed display\/window\/region mandatory-H\.264-video producer with independently optional AAC-LC system-audio and microphone tracks/isu,
+    /Milestone 2 publishes the executable operation plane and microphone adapter.+bounded M3A\/M3B\/M3C-V2\/M3D-V1 slices add one fixed display\/window\/region or caller-followed-region mandatory-H\.264-video producer with independently optional AAC-LC system-audio and microphone tracks/isu,
   );
 });

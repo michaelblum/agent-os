@@ -321,6 +321,25 @@ const fixedGeometryTruth = {
   },
 };
 
+const followedGeometryTruth = {
+  mode: 'caller_followed',
+  geometry_generation: 2,
+  binding_digest: SHA_B,
+  source_rect: { x: 20, y: 10, width: 100, height: 80 },
+  pixel_width: 200,
+  pixel_height: 160,
+  update_interval_ms: 100,
+  update_deadline_ms: 500,
+  last_accepted_observation_generation: 2,
+  last_accepted_state_generation: 2,
+  pending_update: false,
+  next_deadline: {
+    state: 'armed',
+    not_before_monotonic_ns: 1_500_000_000,
+    deadline_monotonic_ns: 1_600_000_000,
+  },
+};
+
 const artifactIdentity = {
   containment_root_digest: SHA_A,
   relative_locator_digest: SHA_B,
@@ -561,10 +580,33 @@ test('screen-recording operations require progress and terminal track truth plus
     progress: { ...screenBase.progress, bytes: 200, track_summary: microphoneTrackSummary },
     terminal: { ...screenBase.terminal, track_summary: microphoneTrackSummary },
   };
+  const followedActive = {
+    ...screenBase,
+    geometry: followedGeometryTruth,
+    state: 'active',
+    progress: { ...screenBase.progress, geometry: followedGeometryTruth },
+    artifacts: [],
+    cleanup: {
+      result: 'not_started',
+      residual: { classification: 'none', count: 0, digest: SHA_A },
+      completed_at: null,
+    },
+    terminal: null,
+  };
+  const followedEvent = {
+    ...event,
+    detail: { kind: 'screen_recording_geometry', geometry: followedGeometryTruth },
+  };
   assertValidation([
     target(OPERATION_ID, 'operation_snapshot', screenBase, true, 'screen success'),
     target(OPERATION_ID, 'operation_snapshot', microphoneSuccess, true, 'screen microphone success'),
     target(OPERATION_ID, 'operation_snapshot', failed, true, 'screen failure'),
+    target(OPERATION_ID, 'operation_snapshot', followedActive, true, 'followed screen active'),
+    target(EVENT_ID, 'operation_event', followedEvent, true, 'followed geometry event'),
+    target(EVENT_ID, 'operation_event', {
+      ...followedEvent,
+      detail: { ...followedEvent.detail, geometry: { ...followedGeometryTruth, pending_update: 'yes' } },
+    }, false, 'followed geometry event remains schema exact'),
     target(OPERATION_ID, 'operation_snapshot', withoutProgressSummary, false, 'screen progress summary required'),
     target(OPERATION_ID, 'operation_snapshot', withoutTerminalSummary, false, 'screen terminal summary required'),
     target(OPERATION_ID, 'operation_snapshot', withoutTerminalFailure, false, 'screen terminal failure required'),

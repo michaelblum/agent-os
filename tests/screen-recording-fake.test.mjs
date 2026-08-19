@@ -2489,6 +2489,44 @@ struct TerminalLifecycleCustodyHarness {
     }
 
     static func productionAdapterFollowGeometry() async throws {
+        for (systemAudio, microphone) in [
+            (false, false), (true, false), (false, true), (true, true),
+        ] {
+            let selection = try RecordingEnvironment()
+            let selectedRequest = try selection.request(
+                systemAudio: systemAudio,
+                microphone: microphone,
+                followed: true
+            )
+            let selectedAdmission = try selection.adapter.start(
+                request: selectedRequest,
+                connectionID: UUID()
+            )
+            require(
+                operation(selectedAdmission, in: selection).progress?.trackSummary?.selectedTracks
+                    == AOSScreenRecordingTrackSummary.selectedTrackNames(
+                        systemAudio: systemAudio,
+                        microphone: microphone
+                    ),
+                "follow admission lost one of four exact track selections"
+            )
+            try await wait("follow selection native start missing") {
+                selection.native.startWasRequested()
+            }
+            selection.native.settleStart(.success(()))
+            _ = selection.adapter.requestStop(
+                operation: selectedAdmission.operation,
+                force: false
+            )
+            try await wait("follow selection stop missing") {
+                selection.native.stopCount == 1
+            }
+            selection.native.settleStop(.success(()))
+            try await wait("follow selection did not clean up") {
+                operation(selectedAdmission, in: selection).state == .terminal
+            }
+        }
+
         let environment = try RecordingEnvironment()
         let connectionID = UUID()
         let admission = try environment.adapter.start(
@@ -2550,12 +2588,52 @@ struct TerminalLifecycleCustodyHarness {
         require(((projected["progress"] as? [String: Any])?["geometry"]
                     as? [String: Any])?["geometry_generation"] as? UInt64 == 2,
                 "progress projection lost accepted geometry")
-        _ = environment.adapter.requestStop(operation: admission.operation, force: false)
-        try await wait("follow adapter stop missing") { environment.native.stopCount == 1 }
+        var driftBinding = RecordingEnvironment.binding(observation: 3, state: 3)
+        driftBinding["source_window"] = ["window_id": 88, "owner_pid": 700]
+        let drift = try AOSScreenRecordingFollowUpdateRequest.validatingPublicValue([
+            "request_id": "follow-update-drift",
+            "canonical_parameter_digest": String(repeating: "e", count: 64),
+            "selector": [
+                "operation_id": admission.operation.id,
+                "operation_generation": admission.operation.generation,
+            ],
+            "expected_geometry_generation": 2,
+            "topology": RecordingEnvironment.topology(),
+            "target": [
+                "kind": "region", "display_ordinal": 1,
+                "global_bounds": ["x": 30, "y": 10, "width": 40, "height": 30],
+            ],
+            "binding": driftBinding,
+        ])
+        var driftResult: Result<AOSScreenRecordingGeometryState, AOSOperationCoreError>?
+        try environment.adapter.updateFollowGeometry(
+            request: drift,
+            connectionID: connectionID
+        ) { driftResult = $0 }
+        try await wait("follow drift response missing") { driftResult != nil }
+        guard case .failure(.recordingTargetDrift)? = driftResult else {
+            fatalError("follow drift lost its exact failure")
+        }
+        try await wait("follow adapter drift stop missing") {
+            environment.native.stopCount == 1
+        }
         environment.native.settleStop(.success(()))
         try await wait("follow adapter did not terminalize") {
             operation(admission, in: environment).state == .terminal
         }
+        let terminalRecord = operation(admission, in: environment)
+        require(terminalRecord.failureCode == AOSOperationCoreError.recordingTargetDrift.code,
+                "follow drift terminal lost exact failure")
+        let terminalProjection = AOSOperationPublicProjection.snapshot(
+            terminalRecord,
+            state: environment.registry.snapshot()
+        )
+        require((((terminalProjection["terminal"] as? [String: Any])?["geometry"]
+                    as? [String: Any])?["geometry_generation"] as? UInt64) == 2,
+                "terminal projection lost the last accepted geometry")
+        require(!environment.registry.snapshot().resourceClaims.contains {
+            $0.operation == admission.operation && $0.state != .terminal
+        }, "follow drift leaked a resource claim")
     }
 
     static func productionAdapterAudioTracks() async throws {
@@ -3883,13 +3961,16 @@ def validator(definition):
     )
 
 rows = json.load(sys.stdin)
+snapshot_validator = validator('operation_snapshot')
+list_validator = validator('operation_list_result')
+inspect_validator = validator('operation_inspect_result')
 for row in rows['projections']:
     snapshot = row['snapshot']
     list_result = row['list']
     inspect_result = row['inspect']
-    snapshot_errors = list(validator('operation_snapshot').iter_errors(snapshot))
-    list_errors = list(validator('operation_list_result').iter_errors(list_result))
-    inspect_errors = list(validator('operation_inspect_result').iter_errors(inspect_result))
+    snapshot_errors = list(snapshot_validator.iter_errors(snapshot))
+    list_errors = list(list_validator.iter_errors(list_result))
+    inspect_errors = list(inspect_validator.iter_errors(inspect_result))
     assert not snapshot_errors, (row['phase'], row['system_audio_selected'], [
         error.message for error in snapshot_errors
     ])

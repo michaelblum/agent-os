@@ -16,8 +16,8 @@ same-effective-UID host control over one exact adapter-registry revision
 (including status-host break-glass), bounded retained replay plus expected-
 barrier CAS, distinct artifact/claim recovery dispositions, prior-generation
 recovery across nine target machines, and split claim-set/resource/broker semantics. M2
-registers the microphone adapter and M3 registers the fixed screen-recording
-adapter at exact registry revision 2; unadapted legacy daemon subsystems remain
+registers the microphone adapter and M3 registers the fixed or caller-followed
+screen-recording adapter at exact registry revision 2; unadapted legacy daemon subsystems remain
 outside its stop-all receipts, and legacy voice output is a non-preempting
 admission sentinel on the shared native session. An empty registered selection
 and asynchronous microphone termination use bounded durable reconciliation
@@ -165,9 +165,17 @@ redaction, persistence, and GPU delivery belong to downstream adapters.
 `screen-recording-operation-adapter.swift` is the sole current downstream
 recording producer. It acquires the exact exclusive operation resource and
 broker producer lease before ScreenCaptureKit/file authority, then records one
-fixed display, exact window, or single-display global region as H.264 QuickTime
+fixed display, exact window, single-display global region, or explicit
+caller-followed region as H.264 QuickTime
 video with independently optional AAC-LC system-audio and microphone tracks in
-one writer. System audio uses the same SCStream; microphone uses the shared
+one writer. `screen-recording-follow-geometry.swift` solely owns caller-followed
+request parsing, live topology/window/source validation, one generation-CAS
+pending intent, serialized native crop updates, absolute cadence/deadline, and
+content-free geometry projection. The caller owns observation, tracking,
+smoothing, and transformation. Commit accepted geometry only after native
+configuration success; invalid/stale updates do not reset the deadline, and
+immutable drift, timeout, native failure, or unresolved recovery stop through
+normal cleanup without reacquisition. System audio uses the same SCStream; microphone uses the shared
 daemon session owner described below. It retains and revalidates the exact admitted canonical topology
 before filter creation and every sample. Video is mandatory, omitting both
 optional tracks preserves exact video-only output, and geometry never follows

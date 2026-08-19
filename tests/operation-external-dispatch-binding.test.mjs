@@ -14,15 +14,26 @@ const unifiedSource = path.join(repoRoot, 'src/daemon/unified.swift')
 
 async function compileAndRunHarness(source) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'aos-operation-spawn-binding-'))
+  const support = path.join(root, 'GeometryStateSupport.swift')
   const main = path.join(root, 'main.swift')
   const executable = path.join(root, 'spawn-binding-proof')
   try {
-    await writeFile(main, source)
+    await Promise.all([
+      writeFile(support, String.raw`
+import Foundation
+struct AOSScreenRecordingGeometryState: Codable, Equatable {}
+func aosScreenRecordingGeometryPublicValue(
+  _ state: AOSScreenRecordingGeometryState
+) -> [String: Any] { [:] }
+`),
+      writeFile(main, source),
+    ])
     execFileSync('swiftc', [
       '-module-cache-path', path.join(root, 'module-cache'),
       stateSource,
       ownerSource,
       spawnSource,
+      support,
       main,
       '-o', executable,
     ], { cwd: repoRoot, stdio: 'pipe' })

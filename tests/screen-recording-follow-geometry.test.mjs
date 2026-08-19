@@ -78,8 +78,8 @@ final class FakeTimer: AOSScreenRecordingFollowTimerControlling {
     func fire() { let value = handler; handler = nil; value?() }
 }
 
-func topology() -> AOSDisplayTopologySnapshot {
-    let native = AOSDisplayTopologyBounds(x: 0, y: 0, width: 1_920, height: 1_080)
+func topology(scale: Double = 2, width: Double = 1_920) -> AOSDisplayTopologySnapshot {
+    let native = AOSDisplayTopologyBounds(x: 0, y: 0, width: width, height: 1_080)
     return try! buildAOSDisplayTopologySnapshot(
         observation: [AOSDisplayTopologyObservationMember(
             runtimeDisplayID: 42,
@@ -89,7 +89,7 @@ func topology() -> AOSDisplayTopologySnapshot {
             isMirrored: false,
             nativeBounds: native,
             nativeVisibleBounds: native,
-            scaleFactor: 2,
+            scaleFactor: scale,
             rotation: 0
         )],
         screensHaveSeparateSpaces: true
@@ -145,7 +145,9 @@ func update(
     observation: UInt64,
     state: UInt64,
     x: Double,
-    windowID: Int = 77
+    windowID: Int = 77,
+    width: Double = 200,
+    height: Double = 100
 ) throws -> AOSScreenRecordingFollowUpdateRequest {
     try AOSScreenRecordingFollowUpdateRequest.validatingPublicValue([
         "request_id": "update-\(observation)-\(state)-\(Int(x))",
@@ -156,7 +158,7 @@ func update(
         ],
         "expected_geometry_generation": expected,
         "topology": try aosDisplayTopologyWireValue(topology()),
-        "target": region(x, 100),
+        "target": region(x, 100, width, height),
         "binding": binding(observation: observation, state: state, windowID: windowID),
     ])
 }
@@ -187,12 +189,17 @@ for tracks in trackSets {
     precondition(fixed.tracks.microphone == (tracks["microphone"] as! Bool))
 }
 
-let followedRequest = try request(mode: [
-    "mode": "caller_followed",
-    "binding": binding(observation: 1, state: 1),
-    "update_interval_ms": 100,
-    "update_deadline_ms": 500,
-], tracks: trackSets[3])
+var followedRequest: AOSScreenRecordingRequest!
+for tracks in trackSets {
+    followedRequest = try request(mode: [
+        "mode": "caller_followed",
+        "binding": binding(observation: 1, state: 1),
+        "update_interval_ms": 100,
+        "update_deadline_ms": 500,
+    ], tracks: tracks)
+    let followedGeometry = try AOSScreenRecordingGeometryValidator.resolve(followedRequest)
+    precondition(followedGeometry.mode == .callerFollowed)
+}
 let initial = try AOSScreenRecordingGeometryValidator.resolve(followedRequest)
 try AOSScreenRecordingGeometryValidator.validateCurrentBinding(
     initial,
@@ -244,21 +251,29 @@ let operation = try registry.prepareOperation(
     capabilityID: "record_screen",
     adapterRegistrationID: registration.id,
     adapterRegistrationRevision: registration.revision,
-    requestedBounds: followedRequest.requestedBounds,
+    requestedBounds: AOSOperationRequestedBounds(
+        durationMilliseconds: followedRequest.requestedBounds.durationMilliseconds,
+        frameRate: followedRequest.requestedBounds.frameRate,
+        pixelCount: 100_000,
+        queueFrames: followedRequest.requestedBounds.queueFrames,
+        maximumOutputBytes: followedRequest.requestedBounds.maximumOutputBytes
+    ),
     screenRecordingGeometry: .initial(initial)
 )
 _ = try registry.transitionOperation(operation.identity, to: .starting)
 _ = try registry.transitionOperation(operation.identity, to: .active)
 
 let timer = FakeTimer()
+var liveTopology = topology()
+var liveWindows = windows()
 var nativeCalls: [AOSScreenRecordingGeometry] = []
 var pendingNative: ((Result<Void, Error>) -> Void)?
 var stops: [(AOSStopIntent, AOSOperationCoreError)] = []
 let coordinator = AOSScreenRecordingFollowGeometryCoordinator(
     operation: operation.identity,
     registry: registry,
-    observeTopology: topology,
-    observeWindows: windows,
+    observeTopology: { liveTopology },
+    observeWindows: { liveWindows },
     nativeUpdate: { geometry, completion in
         nativeCalls.append(geometry)
         pendingNative = completion
@@ -304,6 +319,18 @@ precondition(committed.accepted.sourceRect.x == 120)
 precondition(committed.pendingUpdate == nil)
 precondition(committed.nextDeadlineNanoseconds == 1_600_000_000)
 precondition(timer.schedules == [1_500_000_000, 1_600_000_000])
+let committedPublic = aosScreenRecordingGeometryPublicValue(committed)
+precondition(committedPublic["mode"] as? String == "caller_followed")
+precondition(committedPublic["geometry_generation"] as? UInt64 == 2)
+precondition((committedPublic["source_rect"] as? [String: Any])?["x"] as? Double == 120)
+precondition(committedPublic["pixel_width"] as? Int == initial.pixelWidth)
+precondition(committedPublic["pixel_height"] as? Int == initial.pixelHeight)
+precondition(committedPublic["update_interval_ms"] as? UInt64 == 100)
+precondition(committedPublic["update_deadline_ms"] as? UInt64 == 500)
+precondition(committedPublic["last_accepted_observation_generation"] as? UInt64 == 2)
+precondition(committedPublic["last_accepted_state_generation"] as? UInt64 == 2)
+precondition(committedPublic["pending_update"] as? Bool == false)
+precondition((committedPublic["next_deadline"] as? [String: Any])?["state"] as? String == "armed")
 
 let acceptedDigest = committed.accepted.bindingDigest
 let acceptedDeadline = committed.nextDeadlineNanoseconds
@@ -339,6 +366,114 @@ coordinator.submit(repeatedObservation) { result in
 precondition(nativeCalls.count == 1)
 precondition(stops.isEmpty)
 
+let accepted = committed.accepted
+let acceptedBinding = accepted.followBinding!
+func alteredBinding(
+    target: AOSScreenRecordingBindingIdentity? = nil,
+    session: AOSScreenRecordingBindingIdentity? = nil,
+    navigation: AOSScreenRecordingBindingIdentity? = nil,
+    frame: AOSScreenRecordingBindingIdentity? = nil,
+    windowID: Int? = nil,
+    ownerPID: Int32? = nil
+) -> AOSScreenRecordingFollowBinding {
+    AOSScreenRecordingFollowBinding(
+        target: target ?? acceptedBinding.target,
+        observation: AOSScreenRecordingBindingIdentity(id: "observation", generation: 3),
+        state: AOSScreenRecordingBindingIdentity(id: "state", generation: 3),
+        session: session ?? acceptedBinding.session,
+        navigation: navigation ?? acceptedBinding.navigation,
+        frame: frame ?? acceptedBinding.frame,
+        sourceWindowID: windowID ?? acceptedBinding.sourceWindowID,
+        sourceOwnerPID: ownerPID ?? acceptedBinding.sourceOwnerPID
+    )
+}
+func directUpdate(
+    _ suffix: String,
+    binding: AOSScreenRecordingFollowBinding,
+    target: AOSScreenRecordingTarget? = nil
+) -> AOSScreenRecordingFollowUpdateRequest {
+    AOSScreenRecordingFollowUpdateRequest(
+        requestID: "drift-\(suffix)",
+        canonicalParameterDigest: String(repeating: "d", count: 64),
+        selector: operation.identity,
+        expectedGeometryGeneration: 2,
+        topology: topology(),
+        target: target ?? accepted.target,
+        binding: binding
+    )
+}
+func expectDrift(_ candidate: AOSScreenRecordingFollowUpdateRequest) {
+    let nativeCount = nativeCalls.count
+    let deadline = try! registry.inspect(operation.identity)
+        .screenRecordingGeometry!.nextDeadlineNanoseconds
+    var result: Result<AOSScreenRecordingGeometryState, AOSOperationCoreError>?
+    coordinator.submit(candidate) { result = $0 }
+    if case .failure(.recordingTargetDrift)? = result {} else {
+        preconditionFailure("immutable discontinuity was not terminal drift")
+    }
+    precondition(nativeCalls.count == nativeCount)
+    precondition(try! registry.inspect(operation.identity)
+                    .screenRecordingGeometry!.nextDeadlineNanoseconds == deadline)
+    precondition(stops.last?.1 == .recordingTargetDrift)
+}
+
+for candidate in [
+    directUpdate("target", binding: alteredBinding(target: .init(id: "target", generation: 2))),
+    directUpdate("session", binding: alteredBinding(session: .init(id: "session", generation: 2))),
+    directUpdate("navigation", binding: alteredBinding(navigation: .init(id: "navigation", generation: 2))),
+    directUpdate("frame", binding: alteredBinding(frame: .init(id: "frame", generation: 2))),
+    directUpdate("window", binding: alteredBinding(windowID: 88)),
+    directUpdate("owner", binding: alteredBinding(ownerPID: 701)),
+] { expectDrift(candidate) }
+
+let wrongDisplayTarget = AOSScreenRecordingTarget(
+    kind: accepted.target.kind,
+    displayOrdinal: accepted.target.displayOrdinal,
+    displayMemberIdentity: .displayUUID(value: "different", bytes: []),
+    windowID: nil,
+    ownerPID: nil,
+    globalBounds: accepted.target.globalBounds
+)
+expectDrift(directUpdate(
+    "display", binding: alteredBinding(), target: wrongDisplayTarget
+))
+liveTopology = topology(scale: 1.5)
+expectDrift(directUpdate("scale", binding: alteredBinding()))
+liveTopology = topology(width: 1_800)
+expectDrift(directUpdate("topology", binding: alteredBinding()))
+liveTopology = topology()
+liveWindows = []
+expectDrift(directUpdate("source-missing", binding: alteredBinding()))
+liveWindows = windows() + windows()
+expectDrift(directUpdate("source-ambiguous", binding: alteredBinding()))
+liveWindows = windows()
+
+for (invalid, expectedError) in [
+    (
+        try update(operation: operation.identity, expected: 2, observation: 3, state: 3, x: 900),
+        AOSOperationCoreError.invalidRecord("screen_recording_follow_source")
+    ),
+    (
+        try update(
+            operation: operation.identity, expected: 2, observation: 3, state: 3,
+            x: 100, width: 400, height: 200
+        ),
+        AOSOperationCoreError.recordingBoundsExceeded
+    ),
+] {
+    let nativeCount = nativeCalls.count
+    let deadline = try registry.inspect(operation.identity)
+        .screenRecordingGeometry!.nextDeadlineNanoseconds
+    coordinator.submit(invalid) { result in
+        if case .failure(let error) = result, error == expectedError {} else {
+            preconditionFailure("invalid update did not preserve its exact rejection")
+        }
+    }
+    precondition(nativeCalls.count == nativeCount)
+    let afterInvalid = try registry.inspect(operation.identity)
+    precondition(afterInvalid.screenRecordingGeometry!.nextDeadlineNanoseconds == deadline)
+}
+
 let drift = try update(
     operation: operation.identity,
     expected: 2,
@@ -373,11 +508,91 @@ precondition(publicValue["binding_digest"] as? String == acceptedDigest)
 precondition(publicValue["pending_update"] as? Bool == false)
 precondition((publicValue["next_deadline"] as? [String: Any])?["state"] as? String == "expired")
 
-print("follow-geometry: fixed-tracks=4 admission=1 native-winner=1 stale-reject=2 drift=1 deadline=1 projections=1")
+enum NativeFailure: Error { case failed }
+now = 2_000_000_000
+let failedOperation = try registry.prepareOperation(
+    ownerRoot: owner,
+    attribution: AOSOperationAttribution(projectID: "project", taskID: "failure"),
+    capabilityID: "record_screen",
+    adapterRegistrationID: registration.id,
+    adapterRegistrationRevision: registration.revision,
+    requestedBounds: followedRequest.requestedBounds,
+    screenRecordingGeometry: .initial(initial)
+)
+_ = try registry.transitionOperation(failedOperation.identity, to: .starting)
+_ = try registry.transitionOperation(failedOperation.identity, to: .active)
+var failedNative: ((Result<Void, Error>) -> Void)?
+var failedStops: [(AOSStopIntent, AOSOperationCoreError)] = []
+let failedCoordinator = AOSScreenRecordingFollowGeometryCoordinator(
+    operation: failedOperation.identity,
+    registry: registry,
+    observeTopology: { topology() },
+    observeWindows: { windows() },
+    nativeUpdate: { _, completion in failedNative = completion },
+    clock: { now },
+    timer: FakeTimer(),
+    stopOperation: { failedStops.append(($0, $1)) }
+)
+_ = try failedCoordinator.activate()
+now = 2_100_000_000
+var failedResult: Result<AOSScreenRecordingGeometryState, AOSOperationCoreError>?
+failedCoordinator.submit(try update(
+    operation: failedOperation.identity,
+    expected: 1,
+    observation: 2,
+    state: 2,
+    x: 120
+)) { failedResult = $0 }
+let reservedFailure = try registry.inspect(failedOperation.identity)
+precondition(reservedFailure.screenRecordingGeometry!.pendingUpdate != nil)
+failedNative?(.failure(NativeFailure.failed))
+if case .failure(.recordingFollowUpdateFailed)? = failedResult {} else {
+    preconditionFailure("native crop failure was not exact")
+}
+let afterNativeFailure = try registry.inspect(failedOperation.identity)
+precondition(afterNativeFailure.screenRecordingGeometry!.accepted.geometryGeneration == 1)
+precondition(afterNativeFailure.screenRecordingGeometry!.pendingUpdate != nil)
+precondition(failedStops.last?.1 == .recordingFollowUpdateFailed)
+
+_ = try AOSOperationRecovery.beginBootRecovery(
+    registry: registry,
+    newDaemonGeneration: 10,
+    claimTokenDigest: String(repeating: "e", count: 64)
+)
+let recoveredPending = try registry.inspect(failedOperation.identity)
+precondition(recoveredPending.state == .cleanupRequired)
+precondition(recoveredPending.failureCode == AOSOperationCoreError.recordingFollowUpdateFailed.code)
+precondition(recoveredPending.screenRecordingGeometry!.accepted.geometryGeneration == 1)
+precondition(recoveredPending.screenRecordingGeometry!.pendingUpdate != nil)
+precondition(recoveredPending.screenRecordingGeometry!.deadlineState == .stopped)
+let recoveredPublic = AOSOperationPublicProjection.snapshot(
+    recoveredPending,
+    state: registry.snapshot()
+)
+let recoveredGeometry = recoveredPublic["geometry"] as! [String: Any]
+precondition(recoveredGeometry["geometry_generation"] as? UInt64 == 1)
+precondition(recoveredGeometry["pending_update"] as? Bool == true)
+precondition((recoveredGeometry["next_deadline"] as? [String: Any])?["state"] as? String == "stopped")
+let recovery = registry.snapshot().recovery
+_ = try AOSOperationRecovery.reconcile(
+    registry: registry,
+    recoveryGeneration: recovery.generation,
+    claimTokenDigest: recovery.claimTokenDigest!,
+    mechanicallyAbsentOperationIDs: [operation.identity, failedOperation.identity],
+    mechanicallyAbsentClaimIDs: Set<String>(),
+    mechanicallyAbsentBrokerIDs: Set<String>()
+)
+let reconciledFailure = try registry.inspect(failedOperation.identity)
+precondition(reconciledFailure.state == .terminal)
+precondition(registry.snapshot().recovery.state == .terminal)
+
+print("follow-geometry: fixed-tracks=4 followed-tracks=4 native-winner=1 invalid=4 drift=12 deadline=1 native-failure=1 recovery=1 projections=1")
 `)
   assert.match(output, /fixed-tracks=4/u)
   assert.match(output, /native-winner=1/u)
   assert.match(output, /deadline=1/u)
+  assert.match(output, /native-failure=1/u)
+  assert.match(output, /recovery=1/u)
 })
 
 test('production adapter executes the injected native update seam and projectors', () => {
