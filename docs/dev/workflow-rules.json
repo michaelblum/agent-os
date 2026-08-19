@@ -421,7 +421,7 @@
         {
           "id": "screen-recording-contract",
           "command": "bash tests/native-screen-recording-contract.sh",
-        "reason": "Validate atomic initial selected-track and required geometry admission, all four fixed/followed selections, generation-CAS native crop updates, the actual public cancel/kill control plane before follow installation, during activation-owner contention, after timer arm, and in both first-writer races, failed-admission no-effect, invalid/drift/deadline/native-failure/pending-recovery truth, exact public projections, shared microphone ownership and claim-set, multitrack lifecycle/failure/custody, source/help/schema convergence, and native compile without capture authority."
+        "reason": "Validate atomic initial selected-track and required geometry admission, all four fixed/followed selections, generation-CAS native crop updates, the actual public cancel/kill control plane after durable starting but before concrete runtime installation, before follow activation, during activation-owner contention, after timer arm, and in both first-writer races, zero pre-install runtime/native startup effects, failed-admission no-effect, invalid/drift/deadline/native-failure/pending-recovery truth, exact public projections, shared microphone ownership and claim-set, multitrack lifecycle/failure/custody, source/help/schema convergence, and native compile without capture authority."
         }
       ],
       "verification": [],

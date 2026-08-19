@@ -376,6 +376,8 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
     private let microphoneAuthorization: AOSScreenRecordingMicrophoneAuthorizationDependencies
     private let microphoneSessionFactory: AOSScreenRecordingMicrophoneSessionFactory
     private let operationEventSink: OperationEventSink
+    private let runtimeInstallationObserver: () -> Void
+    private let runtimeStartObserver: () -> Void
     private let startupTimeout: TimeInterval
     private let topologyObserver: () -> AOSDisplayTopologySnapshot
     private let windowObserver: () -> [CaptureWindowFact]
@@ -414,6 +416,8 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
             observeDisplayTopologySnapshot,
         windowObserver: @escaping () -> [CaptureWindowFact] = observeCaptureWindowFacts,
         followActivationObserver: @escaping () -> Void = {},
+        runtimeInstallationObserver: @escaping () -> Void = {},
+        runtimeStartObserver: @escaping () -> Void = {},
         operationEventSink: @escaping OperationEventSink = { _, _ in },
         reconcileHostBarrier: @escaping () -> Void = {}
     ) throws {
@@ -434,6 +438,8 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         self.sessionFactory = sessionFactory
         self.microphoneAuthorization = microphoneAuthorization
         self.microphoneSessionFactory = microphoneSessionFactory
+        self.runtimeInstallationObserver = runtimeInstallationObserver
+        self.runtimeStartObserver = runtimeStartObserver
         self.startupTimeout = startupTimeout
         self.topologyObserver = topologyObserver
         self.windowObserver = windowObserver
@@ -458,31 +464,58 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
             geometry: geometry,
             context: context
         )
-        let runtime = AOSNativeScreenRecordingRuntime(
+        let pendingRuntime = AOSScreenRecordingPendingRuntime(
             adapter: self,
             admission: claimAdmission,
-            artifactRootURL: artifactRootURL,
-            broker: broker,
-            files: files,
-            geometry: geometry,
-            registry: registry,
-            request: request,
-            sessionFactory: sessionFactory,
-            microphoneAuthorization: microphoneAuthorization,
-            microphoneSessionFactory: microphoneSessionFactory,
-            startupTimeout: startupTimeout,
-            topologyObserver: topologyObserver,
-            windowObserver: windowObserver,
-            followActivationObserver: followActivationObserver
+            registration: registration,
+            request: request
         )
         lock.lock()
-        runtimes[claimAdmission.publicAdmission.operation] = runtime
-        lock.unlock()
-        emitGeometryEvent(
-            operation: claimAdmission.publicAdmission.operation,
-            geometry: claimAdmission.publicAdmission.geometry
-        )
-        runtime.start()
+        runtimes[claimAdmission.publicAdmission.operation] = pendingRuntime
+        do {
+            _ = try registry.transitionOperation(
+                claimAdmission.publicAdmission.operation,
+                to: .starting
+            )
+            _ = try registry.transitionStream(
+                claimAdmission.publicAdmission.stream,
+                to: .starting
+            )
+            lock.unlock()
+        } catch {
+            runtimes.removeValue(forKey: claimAdmission.publicAdmission.operation)
+            lock.unlock()
+            markCleanupRequired(claimAdmission.publicAdmission.operation)
+            throw error
+        }
+        pendingRuntime.publishStarting { [self] in
+            emitGeometryEvent(
+                operation: claimAdmission.publicAdmission.operation,
+                geometry: claimAdmission.publicAdmission.geometry
+            )
+        }
+        runtimeInstallationObserver()
+        guard pendingRuntime.installAndStart({
+            AOSNativeScreenRecordingRuntime(
+                adapter: self,
+                admission: claimAdmission,
+                artifactRootURL: artifactRootURL,
+                broker: broker,
+                files: files,
+                geometry: geometry,
+                registry: registry,
+                request: request,
+                sessionFactory: sessionFactory,
+                microphoneAuthorization: microphoneAuthorization,
+                microphoneSessionFactory: microphoneSessionFactory,
+                startupTimeout: startupTimeout,
+                topologyObserver: topologyObserver,
+                windowObserver: windowObserver,
+                followActivationObserver: followActivationObserver
+            )
+        }, didStart: runtimeStartObserver) else {
+            return claimAdmission.publicAdmission
+        }
         return claimAdmission.publicAdmission
     }
 
@@ -805,6 +838,39 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         throw AOSOperationCoreError.artifactRetainUnavailable
     }
 
+    fileprivate func pendingRuntimeDidStop(
+        _ admission: AOSScreenRecordingClaimAdmission,
+        request: AOSScreenRecordingRequest,
+        intent: AOSStopIntent
+    ) {
+        if let stopped = try? registry.stopScreenRecordingFollowGeometry(
+            admission.publicAdmission.operation
+        ) {
+            emitGeometryEvent(
+                operation: admission.publicAdmission.operation,
+                geometry: stopped
+            )
+        }
+        runtimeDidFinish(
+            admission,
+            intent: intent,
+            artifactIdentity: nil,
+            progress: AOSScreenRecordingEncoderProgress(
+                frameCount: 0,
+                byteCount: 0,
+                trackSummary: .initial(
+                    systemAudioSelected: request.tracks.systemAudio,
+                    microphoneSelected: request.tracks.microphone
+                ),
+                sessionStarted: false
+            ),
+            elapsedMilliseconds: 0,
+            requestedBounds: request.requestedBounds,
+            authorityAbsent: true,
+            failure: nil
+        )
+    }
+
     fileprivate func runtimeDidFinish(
         _ admission: AOSScreenRecordingClaimAdmission,
         intent: AOSStopIntent,
@@ -1038,8 +1104,6 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
                   Set(claims.map(\.resourceKey)) == expectedResources else {
                 throw AOSOperationCoreError.resourceDeclarationConflict
             }
-            _ = try registry.transitionOperation(operation.identity, to: .starting)
-            _ = try registry.transitionStream(stream.identity, to: .starting)
             return AOSScreenRecordingClaimAdmission(
                 publicAdmission: AOSScreenRecordingAdmission(
                     operation: operation.identity,
@@ -1174,6 +1238,135 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
             to: .cleanupRequired,
             residualDigest: residualDigest(operation: operation)
         )
+    }
+}
+
+private final class AOSScreenRecordingPendingRuntime:
+    AOSScreenRecordingRuntimeControlling,
+    @unchecked Sendable
+{
+    private weak var adapter: AOSScreenRecordingOperationAdapter?
+    private let admission: AOSScreenRecordingClaimAdmission
+    private let lock = NSLock()
+    private let registration: AOSOperationAdapterRegistration
+    private let request: AOSScreenRecordingRequest
+    private var runtime: AOSScreenRecordingRuntimeControlling?
+    private var stopAdmitted = false
+
+    init(
+        adapter: AOSScreenRecordingOperationAdapter,
+        admission: AOSScreenRecordingClaimAdmission,
+        registration: AOSOperationAdapterRegistration,
+        request: AOSScreenRecordingRequest
+    ) {
+        self.adapter = adapter
+        self.admission = admission
+        self.registration = registration
+        self.request = request
+    }
+
+    func installAndStart(
+        _ makeRuntime: () -> AOSNativeScreenRecordingRuntime,
+        didStart: () -> Void
+    ) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !stopAdmitted else { return false }
+        let runtime = makeRuntime()
+        self.runtime = runtime
+        runtime.start()
+        didStart()
+        return true
+    }
+
+    func publishStarting(_ publication: () -> Void) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !stopAdmitted else { return }
+        publication()
+    }
+
+    func admitStop(
+        _ transaction: AOSOperationStopAdmissionTransaction
+    ) throws -> AOSAdapterStopResult {
+        lock.lock()
+        if let runtime {
+            lock.unlock()
+            return try runtime.admitStop(transaction)
+        }
+        let admissionResult: AOSOperationStopAdmissionResult
+        do {
+            admissionResult = try transaction.commit()
+        } catch {
+            lock.unlock()
+            throw error
+        }
+        let record = admissionResult.operation
+        guard record.adapterRegistrationID == registration.id,
+              record.adapterRegistrationRevision == registration.revision else {
+            lock.unlock()
+            return AOSAdapterStopResult(disposition: .absent, residualDigest: nil)
+        }
+        guard record.state != .terminal else {
+            lock.unlock()
+            return AOSAdapterStopResult(disposition: .absent, residualDigest: nil)
+        }
+        guard let intent = record.stopIntent else {
+            lock.unlock()
+            return AOSAdapterStopResult(
+                disposition: .residual,
+                residualDigest: nil
+            )
+        }
+        if stopAdmitted {
+            lock.unlock()
+            return AOSAdapterStopResult(
+                disposition: .alreadyStopping,
+                residualDigest: nil
+            )
+        }
+        stopAdmitted = true
+        lock.unlock()
+        adapter?.pendingRuntimeDidStop(
+            admission,
+            request: request,
+            intent: intent
+        )
+        return AOSAdapterStopResult(
+            disposition: admissionResult.wasAlreadyAdmitted
+                ? .alreadyStopping : .accepted,
+            residualDigest: nil
+        )
+    }
+
+    func stop(intent: AOSStopIntent) {
+        lock.lock()
+        let runtime = runtime
+        lock.unlock()
+        runtime?.stop(intent: intent)
+    }
+
+    func updateFollowGeometry(
+        _ request: AOSScreenRecordingFollowUpdateRequest,
+        completion: @escaping (
+            Result<AOSScreenRecordingGeometryState, AOSOperationCoreError>
+        ) -> Void
+    ) {
+        lock.lock()
+        let runtime = runtime
+        lock.unlock()
+        guard let runtime else {
+            completion(.failure(.invalidTransition))
+            return
+        }
+        runtime.updateFollowGeometry(request, completion: completion)
+    }
+
+    func residualDigest() -> String? {
+        lock.lock()
+        let runtime = runtime
+        lock.unlock()
+        return runtime?.residualDigest()
     }
 }
 

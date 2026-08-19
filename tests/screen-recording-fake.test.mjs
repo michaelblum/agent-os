@@ -769,12 +769,14 @@ final class FakeClock: @unchecked Sendable {
 final class FakeBroker: AOSScreenRecordingBrokerControlling, @unchecked Sendable {
     private let lock = NSLock()
     private var lease: AOSDesktopPixelExclusiveProducerLease?
+    private(set) var acquireCount = 0
     private(set) var releaseCount = 0
 
     func acquireExclusiveProducer(ownerID: String) throws -> AOSDesktopPixelExclusiveProducerLease {
         lock.lock()
         defer { lock.unlock() }
         guard lease == nil else { throw AOSDesktopFrameCaptureFailure.captureFailed }
+        acquireCount += 1
         let admitted = AOSDesktopPixelExclusiveProducerLease(generation: 1, ownerID: ownerID)
         lease = admitted
         return admitted
@@ -1431,6 +1433,49 @@ final class FollowActivationBarrier: @unchecked Sendable {
     }
 }
 
+final class RuntimeInstallationBarrier: @unchecked Sendable {
+    private let condition = NSCondition()
+    private var installationEntered = false
+    private var installationReleased = false
+    private var runtimeStartCount = 0
+
+    func observe() {
+        condition.lock()
+        installationEntered = true
+        condition.broadcast()
+        while !installationReleased { condition.wait() }
+        condition.unlock()
+    }
+
+    func waitForInstallation() -> Bool {
+        condition.lock()
+        let deadline = Date().addingTimeInterval(1)
+        while !installationEntered, condition.wait(until: deadline) {}
+        let result = installationEntered
+        condition.unlock()
+        return result
+    }
+
+    func releaseInstallation() {
+        condition.lock()
+        installationReleased = true
+        condition.broadcast()
+        condition.unlock()
+    }
+
+    func observeRuntimeStart() {
+        condition.lock()
+        runtimeStartCount += 1
+        condition.unlock()
+    }
+
+    func observedRuntimeStartCount() -> Int {
+        condition.lock()
+        defer { condition.unlock() }
+        return runtimeStartCount
+    }
+}
+
 final class RecordingEnvironment {
     let adapter: AOSScreenRecordingOperationAdapter
     let broker = FakeBroker()
@@ -1455,7 +1500,9 @@ final class RecordingEnvironment {
         microphoneAuthorizationState: AOSMicrophoneAuthorizationState = .authorized,
         requestedMicrophoneAuthorizationState: AOSMicrophoneAuthorizationState = .authorized,
         startupTimeout: TimeInterval = aosDesktopPixelStreamRetirementTimeout,
-        followActivationObserver: @escaping () -> Void = {}
+        followActivationObserver: @escaping () -> Void = {},
+        runtimeInstallationObserver: @escaping () -> Void = {},
+        runtimeStartObserver: @escaping () -> Void = {}
     ) throws {
         let eventCapture = FakeOperationEventCapture()
         events = eventCapture
@@ -1516,6 +1563,8 @@ final class RecordingEnvironment {
             topologyObserver: Self.topology,
             windowObserver: Self.windows,
             followActivationObserver: followActivationObserver,
+            runtimeInstallationObserver: runtimeInstallationObserver,
+            runtimeStartObserver: runtimeStartObserver,
             operationEventSink: { event, data in
                 eventCapture.receive(event: event, data: data)
             }
@@ -2901,11 +2950,93 @@ struct TerminalLifecycleCustodyHarness {
         }
 
         for testCase in cases {
+            let phase = "pre-install \(testCase.action.rawValue)"
+            let barrier = RuntimeInstallationBarrier()
+            let environment = try RecordingEnvironment(
+                runtimeInstallationObserver: barrier.observe,
+                runtimeStartObserver: barrier.observeRuntimeStart
+            )
+            let startTask = Task.detached {
+                try environment.adapter.start(
+                    request: environment.request(followed: true),
+                    connectionID: UUID()
+                )
+            }
+            require(barrier.waitForInstallation(), "\(phase) boundary missing")
+            let starting = environment.registry.snapshot().operations.filter {
+                $0.state == .starting
+            }
+            require(starting.count == 1, "\(phase) starting operation missing")
+            let operationIdentity = starting[0].identity
+            let receipt = try issue(
+                testCase.action, environment, operationIdentity
+            )
+            requireReceipt(
+                receipt, testCase, operationIdentity, environment, phase
+            )
+            let stopped = try environment.registry.inspect(operationIdentity)
+            require(stopped.state == .terminal
+                        && stopped.stopIntent == testCase.intent
+                        && stopped.outcome == testCase.outcome
+                        && stopped.failureCode == nil
+                        && stopped.residualDigest == nil
+                        && stopped.screenRecordingGeometry?.deadlineState == .stopped,
+                    "\(phase) did not settle exact stopped geometry")
+            let stoppedState = environment.registry.snapshot()
+            let streams = stoppedState.streams.filter {
+                $0.parentOperation == operationIdentity
+            }
+            require(streams.count == 1
+                        && streams.allSatisfy { $0.state == .terminal },
+                    "\(phase) left a stream child")
+            let artifacts = stoppedState.artifacts.filter {
+                $0.parentOperation == operationIdentity
+            }
+            require(artifacts.count == 1
+                        && artifacts.allSatisfy { $0.state == .removed },
+                    "\(phase) left an artifact child")
+            let claims = stoppedState.resourceClaims.filter {
+                $0.operation == operationIdentity
+            }
+            require(claims.count == 1
+                        && claims.allSatisfy { $0.state == .terminal },
+                    "\(phase) left a claim child")
+            require(!environment.native.startWasRequested()
+                        && environment.native.stopCount == 0
+                        && environment.broker.acquireCount == 0
+                        && !environment.broker.retainsAuthority
+                        && environment.broker.releaseCount == 0,
+                    "\(phase) created unowned startup authority")
+            let replay = try issue(
+                testCase.action, environment, operationIdentity
+            )
+            require(replay == receipt, "\(phase) same-action replay drifted")
+            requireRejected(
+                testCase.opposite, environment, operationIdentity, phase
+            )
+            barrier.releaseInstallation()
+            let admission = try await startTask.value
+            require(admission.operation == operationIdentity,
+                    "\(phase) start returned a different operation")
+            require(!environment.native.startWasRequested()
+                        && environment.native.stopCount == 0
+                        && barrier.observedRuntimeStartCount() == 0
+                        && environment.broker.acquireCount == 0
+                        && !environment.broker.retainsAuthority,
+                    "\(phase) started after durable stop")
+        }
+
+        for testCase in cases {
             let phase = "pre-activation \(testCase.action.rawValue)"
-            let environment = try RecordingEnvironment()
+            let runtimeCounter = RuntimeInstallationBarrier()
+            let environment = try RecordingEnvironment(
+                runtimeStartObserver: runtimeCounter.observeRuntimeStart
+            )
             let admission = try environment.adapter.start(
                 request: environment.request(followed: true), connectionID: UUID()
             )
+            require(runtimeCounter.observedRuntimeStartCount() == 1,
+                    "\(phase) runtime start handoff was not exactly once")
             try await wait("\(phase) start missing") { environment.native.startWasRequested() }
             let admittedFrame = try environment.native.publishFrame()
             require(admittedFrame, "\(phase) startup frame rejected")
@@ -4165,7 +4296,7 @@ struct TerminalLifecycleCustodyHarness {
         try await lateStartFailureAfterActiveEvidenceRequiresStop()
         await frameAdmissionClosesAtomically()
         try decoderAndTerminalTruthAreClosed()
-        print("terminal-lifecycle-custody-harness: atomic-admission=12 pre-epoch-callbacks=4 pre-native-encoder=1 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 production-lifecycle=6 production-terminal=2 production-custody=10 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
+        print("terminal-lifecycle-custody-harness: atomic-admission=12 pre-epoch-callbacks=4 pre-native-encoder=1 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 pre-install-public-stop=2 production-lifecycle=6 production-terminal=2 production-custody=10 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
     }
 }
 `
@@ -4316,7 +4447,7 @@ test('production lifecycle and custody owners close terminal fault phases with f
     assert.equal(compile.status, 0, compile.stderr || compile.stdout)
     const run = spawnSync(binary, [], { encoding: 'utf8', timeout: 5_000 })
     assert.equal(run.status, 0, `${run.stderr}\n${run.stdout}`)
-    assert.match(run.stdout, /atomic-admission=12 pre-epoch-callbacks=4 pre-native-encoder=1 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1/u)
+    assert.match(run.stdout, /atomic-admission=12 pre-epoch-callbacks=4 pre-native-encoder=1 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 pre-install-public-stop=2/u)
     const projectionLine = run.stdout.split('\n').find((line) => (
       line.startsWith('atomic-initial-summary-projections:')
     ))

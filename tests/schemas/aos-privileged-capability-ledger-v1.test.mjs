@@ -8994,7 +8994,9 @@ test('screen recording proof owns followed geometry, optional audio tracks, cust
   assert.equal(row.current.control.artifacts.state, 'partial');
   const fakeProof = row.current.proof.fake.find(({ path: proofPath }) => proofPath === 'tests/screen-recording-fake.test.mjs');
   assert.match(fakeProof.claim, /production AOSOperationControlPlane cancel\/kill path/u);
-  assert.match(fakeProof.claim, /eight exact public stop cases/u);
+  assert.match(fakeProof.claim, /ten exact public stop cases/u);
+  assert.match(fakeProof.claim, /after durable starting but before concrete runtime installation/u);
+  assert.match(fakeProof.claim, /zero runtime start handoffs, broker acquisitions, native starts, and native stops/u);
   assert.match(fakeProof.claim, /failed-admission no-effect/u);
   const publicStopTransitions = ledger.flagship_workflow.transitions.filter(({ event }) => ['cancel', 'kill'].includes(event));
   assert.equal(publicStopTransitions.length, 4);

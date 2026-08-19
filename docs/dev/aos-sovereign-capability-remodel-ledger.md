@@ -13,8 +13,11 @@ track truth, and exact shared-owner partial-start cleanup while adding caller-ow
 tracking, generation-CAS crop updates, durable pending intent, and absolute
 follow-deadline truth without live native authority. M3D-V2 gives public
 cancel/kill one durable stop transaction that the selected adapter invokes under
-its lifecycle owner; the screen adapter admits it under the same runtime lock as
-follow installation, activation, and startup settlement. The first exact stop
+its lifecycle owner. A pending runtime owner is registered before `starting` and
+linearizes that transaction against concrete runtime installation/start handoff;
+a pre-install stop terminal-cleans with authority absent and denies the handoff.
+After handoff, the screen adapter admits it under the same runtime lock as follow
+installation, activation, and startup settlement. The first exact stop
 intent/outcome is immutable and replayable, a different later action rejects,
 failed durable admission has no adapter effect, and admitted stop ends geometry
 and its timer before terminal-clean publication.
@@ -346,7 +349,8 @@ burn-down entry only when its exit gate is met.
    M3C-V2 adds an independently optional daemon-owned AAC-LC microphone track
    with final-summary startup truth and exact shared-owner absence gating;
    M3D-V2 adds caller-followed region geometry with generation-CAS updates and
-   public cancel/kill linearized under the adapter/runtime lifecycle owner;
+   public cancel/kill linearized from a pre-`starting` pending runtime owner
+   through concrete runtime installation/start handoff and later activation;
    M4 completes AX and input surfaces; M5 unifies privileged streams; M6
    publishes canonical protocols and maintained SDKs; M7 exposes managed
    external tools; M8 converges installable skills; M9 composes Sigil flagship
@@ -364,9 +368,10 @@ M3A/M3B/M3C-V2/M3D-V2 add the bounded fixed or caller-followed mandatory-video
 producer with independently optional system-audio and microphone tracks,
 producer-backed recording artifact custody, and content-free geometry truth in
 snapshots, progress, terminal projections, recovery, and production operation
-events. Public cancel/kill and follow activation share the screen runtime owner;
-the first durable intent/outcome is replayable and cannot be overwritten by
-startup or a competing stop.
+events. Public cancel/kill first linearizes through the pending runtime owner
+registered before `starting`, then shares the installed screen runtime owner
+with follow activation; the first durable intent/outcome is replayable and
+cannot be overwritten by runtime installation, startup, or a competing stop.
 It does not publish full M3, full
 Playwright grammar, a public SDK, or changed TCC policy. Pre-0044 ADR bodies,
 archives, reports, the frozen v0 schema, and frozen fixtures remain unchanged.
