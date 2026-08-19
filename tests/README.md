@@ -137,15 +137,18 @@ projector, and injected native crop seam; all four selections in fixed and
 followed admission; one concurrent geometry winner; zero-effect invalid/stale/duplicate/
 off-source/out-of-bounds updates; every immutable source discontinuity; exact
 deadline re-arm/expiry; and the actual public `AOSOperationControlPlane`
-cancel/kill path after durable `starting` but before concrete runtime
-installation, before follow activation, while activation owns the runtime lock,
-immediately after the timer arms, and in both cancel-first/kill-first races.
-Those ten stop cases assert exact receipts, same-action replay,
+cancel/kill path immediately after the first durable `.prepared` publication
+but before provisional owner insertion, after durable `starting` but before
+concrete runtime installation, before follow activation, while activation owns
+the runtime lock, immediately after the timer arms, and in both cancel-first/
+kill-first races. Those twelve stop cases assert that prepared-publication
+control blocks until the owner exists, plus exact receipts, same-action replay,
 different-action rejection, immutable first intent/outcome, no adapter-failure
 overwrite, stopped geometry/timer, and terminal child/claim cleanup. The two
-pre-install cases prove zero runtime start handoffs, broker acquisitions, native
-starts, and native stops; the eight post-install cases prove exactly one native
-stop. Failed durable stop admission has no native effect. It also covers native
+prepared-publication and two pre-install cases prove zero runtime start
+handoffs, broker acquisitions, native starts, and native stops; the eight
+post-install cases prove exactly one native stop. Failed durable stop admission
+has no native effect. It also covers native
 failure; and unresolved pending cleanup. Accepted-source containment loss is
 also exercised through the production frame validator. Durable geometry changes
 advance one exact event sequence, and the harness captures the production
@@ -155,11 +158,13 @@ all six three-track first-sample orders at one
 common epoch, pre-epoch system-audio/microphone callback failures in both
 orders, final-summary normalization with deterministic video/system-audio/
 microphone precedence, per-track monotonicity and truth, independent bounded
-backpressure, and an injected durable save fault after atomic operation
-admission but before stream/artifact/claim handoff. For all four exact track selections,
+backpressure, and injected durable save faults after atomic operation admission
+across every later stream, artifact, claim-set, claim, and starting transition.
+Preparation failure terminal-closes exact mechanically absent children and
+claims under the same lifecycle owner. For all four exact track selections,
 the harness executes the exact production snapshot/list/inspect projector used
-by `UnifiedDaemon` and validates the prepared, cleanup-required, and recovered
-terminal responses against `aos.operation.v1` without synthesizing wire
+by `UnifiedDaemon` and validates the prepared and exact failed-terminal
+responses against `aos.operation.v1` without synthesizing wire
 metadata or backfilling track truth. Four callback-failure terminal projections
 assert exact snapshot progress and terminal per-track values and precedence;
 one pre-native encoder-setup projection proves its exact typed failure is not

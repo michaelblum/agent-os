@@ -3,19 +3,22 @@
 Program: `aos-sovereign-capability-substrate-v1`
 
 Status: Milestone 2 executable control plane plus bounded M3A fixed video, M3B
-optional system audio, M3C-V2 optional microphone, and M3D-V2 caller-followed
+optional system audio, M3C-V2 optional microphone, and M3D-V3 caller-followed
 region geometry candidate against accepted base
 `a110ba000787c8a0e3636071adb869634fccffe9`.
-The current unpublished M3D-V2 candidate preserves four exact track selections, one
+The current unpublished M3D-V3 candidate preserves four exact track selections, one
 shared daemon microphone-session owner, atomic reuse of the existing exclusive
 microphone resource, pre-common-epoch callback normalization from final selected
 track truth, and exact shared-owner partial-start cleanup while adding caller-owned
 tracking, generation-CAS crop updates, durable pending intent, and absolute
-follow-deadline truth without live native authority. M3D-V2 gives public
+follow-deadline truth without live native authority. M3D-V3 gives public
 cancel/kill one durable stop transaction that the selected adapter invokes under
-its lifecycle owner. A pending runtime owner is registered before `starting` and
-linearizes that transaction against concrete runtime installation/start handoff;
-a pre-install stop terminal-cleans with authority absent and denies the handoff.
+its lifecycle owner. That owner begins before the first durable `.prepared`
+publication and persists through pending-runtime registration and `starting`;
+a public stop that selects the prepared record blocks until the pending owner
+exists, then terminal-cleans with authority absent and denies the handoff.
+Preparation failure terminal-closes every mechanically absent child and claim
+before the lifecycle owner is released.
 After handoff, the screen adapter admits it under the same runtime lock as follow
 installation, activation, and startup settlement. The first exact stop
 intent/outcome is immutable and replayable, a different later action rejects,
@@ -47,7 +50,7 @@ state is `landed` at reviewed Sigil revision
 `227382c1bcbdab56f551a85a69b0609eebbdfa0c`; the path is external metadata,
 not an AOS-local repository path. The AOS-first paired publication sequence is
 complete. The operation plane currently registers microphone plus the bounded
-M3A/M3B/M3C-V2/M3D-V2 fixed display/window/region and caller-followed region
+M3A/M3B/M3C-V2/M3D-V3 fixed display/window/region and caller-followed region
 adapter with mandatory video and independently optional system audio and
 microphone. It does not implement full M3, M6 SDK, M7
 managed-tool, or Sigil workflow capabilities.
@@ -256,7 +259,7 @@ and retained custody remains exactly unavailable through the public response.
 | `packages/toolkit/` and `docs/api/toolkit/` | AOS-owned reusable surface layer; selected JS clients are transport-injected, but no comprehensive substrate SDK exists. | Expand | Add ownership pointer at Toolkit/status centers; no package code changes. | Publish maintained CLI/IPC/SDK projections for substrate and control-plane contracts. |
 | AOS installable skills | Generic substrate workflow guidance, constrained by current CLI/help. | Expand | Route to ADR/map and retain current command syntax. | Teach complete implemented primitives and optional caller transforms without policy. |
 | Current Gate, annotation, and Guided User Signal fidelity gaps listed by ADR 0040 | Some admitted facts still receive default redaction or omission. | Rewrite | Preserve explicit gap accounting. | Migrate each fact with exact schema/API/implementation/test ownership and explicit caller transforms. |
-| General operation-control commands and schemas | The M2 executable candidate provides generation-bound list/inspect/status/recent/cancel/kill/kill-owner, stop-all, barrier-status, and reopen through daemon IPC and CLI, with internal status/Canvas projections. Parameterless tap remains typed unavailable. M3A/M3B/M3C-V2/M3D-V2 add producer-backed screen-recording artifact reveal/remove/release, fixed or caller-followed geometry, exact content-free geometry projections, and adapter-owned atomic public stop admission while retain remains typed unavailable. Adapter-registry revision 2 contains the microphone and screen-recording adapters; a microphone-selected recording atomically consumes the existing microphone adapter's exclusive voice-session declaration beside the screen resource. | Expand | Treat the current plane as the shared substrate; retain tap target and recovery definitions without presenting sampling as current success, preserve the exact screen-recording custody and geometry boundary, and do not infer control over unadapted legacy subsystems. | Later adapters join at an exact registry revision. Public SDK projections remain M6; raw managed-tool transport remains M7. Claim-set admission stays complete-set atomic and neither microphone consumer can preempt legacy voice output. |
+| General operation-control commands and schemas | The M2 executable candidate provides generation-bound list/inspect/status/recent/cancel/kill/kill-owner, stop-all, barrier-status, and reopen through daemon IPC and CLI, with internal status/Canvas projections. Parameterless tap remains typed unavailable. M3A/M3B/M3C-V2/M3D-V3 add producer-backed screen-recording artifact reveal/remove/release, fixed or caller-followed geometry, exact content-free geometry projections, and adapter-owned atomic public stop admission while retain remains typed unavailable. Adapter-registry revision 2 contains the microphone and screen-recording adapters; a microphone-selected recording atomically consumes the existing microphone adapter's exclusive voice-session declaration beside the screen resource. | Expand | Treat the current plane as the shared substrate; retain tap target and recovery definitions without presenting sampling as current success, preserve the exact screen-recording custody and geometry boundary, and do not infer control over unadapted legacy subsystems. | Later adapters join at an exact registry revision. Public SDK projections remain M6; raw managed-tool transport remains M7. Claim-set admission stays complete-set atomic and neither microphone consumer can preempt legacy voice output. |
 | Compatibility aliases, fixed-grammar policy, and any competing ambient Playwright resolver | Fixed grammar and old resolver residue are incompatible with the target. | Retire | No runtime retirement in Milestone 0. | Delete atomically under ADR 0039 after all internal consumers migrate. |
 | `docs/archive/**` and `docs/dev/reports/**` | Historical evidence, not active authority. | Archive | Preserve unchanged and exclude from stale scans. | None; Git and explicit archive ownership preserve history. |
 | Maintained `docs/design/**` notes and current work cards | Active design exploration under `docs/AGENTS.md`; some paths carry executable-current contradiction claims. | Keep | Scan tracked regular files as active authority and classify exact contradictions path-by-path. | Promote stable decisions to ADR/API/schema owners without using a blanket design-tree exclusion. |
@@ -348,9 +351,10 @@ burn-down entry only when its exit gate is met.
    optional AAC-LC system audio to the same operation, writer, and artifact;
    M3C-V2 adds an independently optional daemon-owned AAC-LC microphone track
    with final-summary startup truth and exact shared-owner absence gating;
-   M3D-V2 adds caller-followed region geometry with generation-CAS updates and
-   public cancel/kill linearized from a pre-`starting` pending runtime owner
-   through concrete runtime installation/start handoff and later activation;
+   M3D-V3 adds caller-followed region geometry with generation-CAS updates and
+   public cancel/kill linearized by an adapter lifecycle owner held from before
+   first durable `.prepared` publication through pending runtime insertion,
+   concrete runtime installation/start handoff, and later activation;
    M4 completes AX and input surfaces; M5 unifies privileged streams; M6
    publishes canonical protocols and maintained SDKs; M7 exposes managed
    external tools; M8 converges installable skills; M9 composes Sigil flagship
@@ -364,14 +368,16 @@ burn-down entry only when its exit gate is met.
 
 Milestone 2 publishes the operation registry, operation CLI/IPC,
 status/Canvas projections, and microphone adapter described above.
-M3A/M3B/M3C-V2/M3D-V2 add the bounded fixed or caller-followed mandatory-video
+M3A/M3B/M3C-V2/M3D-V3 add the bounded fixed or caller-followed mandatory-video
 producer with independently optional system-audio and microphone tracks,
 producer-backed recording artifact custody, and content-free geometry truth in
 snapshots, progress, terminal projections, recovery, and production operation
-events. Public cancel/kill first linearizes through the pending runtime owner
-registered before `starting`, then shares the installed screen runtime owner
-with follow activation; the first durable intent/outcome is replayable and
-cannot be overwritten by runtime installation, startup, or a competing stop.
+events. Public cancel/kill that selects the first durable `.prepared` record
+blocks at the adapter lifecycle owner until pending runtime insertion, then
+shares the installed screen runtime owner with follow activation; preparation
+failure atomically terminal-closes mechanically absent children and claims
+before owner release. The first durable intent/outcome is replayable and cannot
+be overwritten by runtime installation, startup, or a competing stop.
 It does not publish full M3, full
 Playwright grammar, a public SDK, or changed TCC policy. Pre-0044 ADR bodies,
 archives, reports, the frozen v0 schema, and frozen fixtures remain unchanged.

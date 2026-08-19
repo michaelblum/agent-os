@@ -8994,9 +8994,11 @@ test('screen recording proof owns followed geometry, optional audio tracks, cust
   assert.equal(row.current.control.artifacts.state, 'partial');
   const fakeProof = row.current.proof.fake.find(({ path: proofPath }) => proofPath === 'tests/screen-recording-fake.test.mjs');
   assert.match(fakeProof.claim, /production AOSOperationControlPlane cancel\/kill path/u);
-  assert.match(fakeProof.claim, /ten exact public stop cases/u);
-  assert.match(fakeProof.claim, /after durable starting but before concrete runtime installation/u);
+  assert.match(fakeProof.claim, /twelve exact public stop cases/u);
+  assert.match(fakeProof.claim, /immediately after first durable prepared publication but before provisional owner insertion/u);
+  assert.match(fakeProof.claim, /prepared-call blocking until the owner exists/u);
   assert.match(fakeProof.claim, /zero runtime start handoffs, broker acquisitions, native starts, and native stops/u);
+  assert.match(fakeProof.claim, /Injected durable save failures across every later stream, artifact, claim-set, claim, and starting transition/u);
   assert.match(fakeProof.claim, /failed-admission no-effect/u);
   const publicStopTransitions = ledger.flagship_workflow.transitions.filter(({ event }) => ['cancel', 'kill'].includes(event));
   assert.equal(publicStopTransitions.length, 4);
@@ -9153,6 +9155,6 @@ test('paired authority, executable M2 bindings, and the remaining M6 decision ar
   assert.equal(ledger.later_open_decisions[0].milestone, 'M6');
   assert.match(
     ledger.authority.publication_boundary,
-    /Milestone 2 publishes the executable operation plane and microphone adapter.+bounded M3A\/M3B\/M3C-V2\/M3D-V2 slices add one fixed display\/window\/region or caller-followed-region mandatory-H\.264-video producer with independently optional AAC-LC system-audio and microphone tracks.+adapter-owned atomic public stop admission/isu,
+    /Milestone 2 publishes the executable operation plane and microphone adapter.+bounded M3A\/M3B\/M3C-V2\/M3D-V3 slices add one fixed display\/window\/region or caller-followed-region mandatory-H\.264-video producer with independently optional AAC-LC system-audio and microphone tracks.+adapter-owned atomic public stop admission from the first durable prepared publication/isu,
   );
 });

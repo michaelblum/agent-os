@@ -178,12 +178,16 @@ immutable drift, timeout, native failure, or unresolved recovery stop through
 normal cleanup without reacquisition. Treat loss of accepted source containment
 during production frame validation as immutable target drift; an off-source
 proposed update remains a nonterminal invalid update. Public cancel/kill supplies
-one durable stop-admission transaction to the adapter. Before publishing
-`starting`, the adapter installs a pending runtime owner that linearizes that
-transaction against concrete runtime installation and start handoff. A stop in
-that interval terminal-cleans with authority absent and permanently denies the
-handoff; after handoff, the screen runtime invokes the transaction under the
-same lock as coordinator installation, activation, and startup settlement. The first exact
+one durable stop-admission transaction to the adapter. The adapter acquires its
+lifecycle owner before the first durable `.prepared` publication and holds it
+through exact pending-runtime insertion and `starting` publication. Public
+control that selects the listable prepared record blocks at that owner, then
+the pending runtime admits the transaction before any later runtime handoff;
+preparation failure atomically terminal-closes every mechanically absent child
+and claim before releasing the owner. A stop before runtime installation
+terminal-cleans with authority absent and permanently denies the handoff; after
+handoff, the screen runtime invokes the transaction under the same lock as
+coordinator installation, activation, and startup settlement. The first exact
 intent/outcome is immutable and same-action replayable, a different later action
 is rejected, failed durable admission has no native effect, and admitted stop
 cancels the timer and persists stopped geometry before terminal-clean
