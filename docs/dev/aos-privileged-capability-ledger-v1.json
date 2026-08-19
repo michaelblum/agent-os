@@ -4505,7 +4505,7 @@
           "fake": [
             {
               "path": "tests/screen-recording-fake.test.mjs",
-              "claim": "Compiles and executes the production recording adapter, generic registry/in-memory durable store/recovery, exact public snapshot/list/inspect projector used by UnifiedDaemon, lifecycle, sample admission, three-track coordinator, terminal truth, and custody coordinator with fake clock, video/system-audio/microphone callbacks, writer inputs/file, shared microphone session, native session, and broker dependencies. It injects a durable save fault after operation admission but before stream/artifact/claim handoff and directly validates all four selected-track summaries through prepared, cleanup, recovered terminal, list, and inspect outputs against aos.operation.v1 without synthesized wire metadata. It also covers all six three-track first-sample orders at one common epoch, independent per-track monotonicity and backpressure, selected/unselected truth, typed unavailable/no-sample/failure settlement and precedence, standalone-microphone resource conflict before native authority, one conditional dual-resource claim-set, aggregate authority absence before claim release, callback loss, startup stop/task cancellation, late start failure after active evidence, retirement timeout/false settlement, selected-track stop/drain/finalize ordering, zero-frame/missing-artifact cleanup, release/remove admission races, release fault phases, restart recovery, topology drift, lossy selectors, and extra-key/type rejection.",
+              "claim": "Compiles and executes the production recording adapter, request-derived admission and exact public snapshot/list/inspect projectors used by UnifiedDaemon, generic registry/in-memory durable store/recovery, lifecycle, sample admission, three-track coordinator, terminal truth, and custody coordinator with fake clock, video/system-audio callbacks, a real AOSMicrophoneNativeSession through injected non-native dependencies, writer inputs/file, and broker dependencies. It schema-validates the four production admission responses and injects a durable save fault after operation admission but before stream/artifact/claim handoff to validate all four selected-track summaries through prepared, cleanup, recovered terminal, list, and inspect outputs without synthesized wire metadata. It covers all six three-track first-sample orders at one common epoch, microphone monotonic rejection, independent per-track backpressure, selected/unselected truth, writer-global start/post-start/finalization failure on every selected track, microphone startup failure with unavailable truth, gated availability-before-sample admission, shared-deadline missing-track precedence, standalone-microphone resource conflict before native authority, one conditional dual-resource claim-set, microphone-selected cancel/peer-loss/deadline/retirement with aggregate authority absence before claim release, callback loss, startup cancellation, late start failure after active evidence, retirement timeout/false settlement, selected-track stop/drain/finalize ordering, zero-frame/missing-artifact cleanup, release/remove admission races, release fault phases, restart recovery, topology drift, exact CFBoolean rejection of numeric track values, lossy selectors, and extra-key/type rejection.",
               "execution_class": "fake",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -5058,16 +5058,14 @@
       },
       "target": {
         "milestone": "M3",
-        "disposition": "Expand",
+        "disposition": "Retire",
         "gaps": [
-          "Choose SCRecordingOutput only when its deployment and track contract fits.",
-          "Keep microphone and system-audio track identity explicit and operation-controlled."
+          "The macOS 15-only SCRecordingOutput/captureMicrophone route is intentionally rejected while macOS 14 remains supported."
         ],
-        "exit_gate": "M3 either selects or rejects the macOS 15 recording-output path from explicit deployment facts; if selected it has exact permissions, track facts, artifact custody, cancellation, cleanup, and fallback classification.",
+        "exit_gate": "Closed: M3 rejects the macOS 15 recording-output path from the explicit macOS 14 deployment floor and selects shared AVAudioEngine microphone input plus AVAssetWriter instead.",
         "reusable_atoms": [
-          "SCRecordingOutput adapter",
           "independent audio track descriptor",
-          "minimum-OS feature gate"
+          "minimum-OS rejection fact"
         ]
       }
     },
@@ -5264,7 +5262,7 @@
           "fake": [
             {
               "path": "tests/screen-recording-fake.test.mjs",
-              "claim": "Compiles and executes the production three-track coordinator plus request, geometry, durable progress, lifecycle, sample admission, terminal truth, artifact-action decoder, and custody owners with fake writer inputs/file and other injected dependencies, including all-selected common start, zero-byte and missing audio, writer-global failures, and the remaining single startup budget; AVAssetWriter itself remains compile-only.",
+              "claim": "Compiles and executes the production three-track coordinator plus request, geometry, durable progress, lifecycle, sample admission, terminal truth, artifact-action decoder, and custody owners with fake writer inputs/file and other injected dependencies, including all-selected common start, zero-byte and missing audio, microphone monotonic rejection, writer-global start/post-start/finalization failures on every selected track, and the remaining single startup budget; AVAssetWriter itself remains compile-only.",
               "execution_class": "fake",
               "requires_owner_authority": false,
               "tcc_services": [],

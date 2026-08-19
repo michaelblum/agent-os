@@ -15,6 +15,37 @@ struct AOSScreenRecordingAdmission: Codable, Equatable {
     let artifact: AOSOperationIdentity
     let daemonGeneration: UInt64
     let geometryBindingDigest: String
+
+    func publicValue(request: AOSScreenRecordingRequest) -> [String: Any] {
+        [
+            "schema_version": "aos.screen-recording.admission-result.v1",
+            "operation": [
+                "operation_id": operation.id,
+                "operation_generation": operation.generation,
+            ],
+            "stream": [
+                "stream_id": stream.id,
+                "stream_generation": stream.generation,
+            ],
+            "artifact": [
+                "artifact_id": artifact.id,
+                "artifact_generation": artifact.generation,
+            ],
+            "daemon_generation": daemonGeneration,
+            "geometry_binding_digest": geometryBindingDigest,
+            "tracks": [
+                "video": true,
+                "system_audio": request.tracks.systemAudio,
+                "microphone": request.tracks.microphone,
+            ],
+            "track_summary": aosScreenRecordingTrackSummaryValue(.initial(
+                systemAudioSelected: request.tracks.systemAudio,
+                microphoneSelected: request.tracks.microphone
+            )),
+            "codec": AOSScreenRecordingRequest.codec,
+            "container": AOSScreenRecordingRequest.container,
+        ]
+    }
 }
 
 struct AOSScreenRecordingClaimAdmission {
@@ -105,6 +136,83 @@ struct AOSScreenRecordingNativeSession {
         self.start = start
         self.stop = stop
         self.microphoneSession = microphoneSession
+    }
+}
+
+final class AOSScreenRecordingMicrophoneInput: @unchecked Sendable {
+    let session: any AOSMicrophoneNativeSessionControlling
+
+    private let didFail: AOSScreenRecordingFailureSink
+    private weak var encoder: (any AOSScreenRecordingEncoding)?
+    private let frameAdmission: AOSDesktopPixelFrameAdmissionGate
+    private let lock = NSLock()
+    private let persistProgress: AOSScreenRecordingProgressSink
+    private let startup: AOSDesktopPixelStartupSignal
+    private var ready = false
+
+    init(
+        session: any AOSMicrophoneNativeSessionControlling,
+        encoder: any AOSScreenRecordingEncoding,
+        frameAdmission: AOSDesktopPixelFrameAdmissionGate,
+        startup: AOSDesktopPixelStartupSignal,
+        persistProgress: @escaping AOSScreenRecordingProgressSink,
+        didFail: @escaping AOSScreenRecordingFailureSink
+    ) {
+        self.session = session
+        self.encoder = encoder
+        self.frameAdmission = frameAdmission
+        self.startup = startup
+        self.persistProgress = persistProgress
+        self.didFail = didFail
+    }
+
+    func start() throws {
+        do {
+            _ = try session.start { [weak self] buffer, time in
+                self?.receive(buffer, at: time)
+            }
+            guard let encoder else {
+                throw AOSOperationCoreError.recordingCleanupRequired
+            }
+            try encoder.markAvailable(.microphone)
+            lock.lock()
+            ready = true
+            lock.unlock()
+        } catch {
+            lock.lock()
+            ready = false
+            lock.unlock()
+            _ = session.stop()
+            throw error
+        }
+    }
+
+    @discardableResult
+    func stop() -> Bool {
+        lock.lock()
+        ready = false
+        lock.unlock()
+        return session.stop()
+    }
+
+    private func receive(_ buffer: AVAudioPCMBuffer, at time: AVAudioTime) {
+        lock.lock()
+        let mayAdmit = ready
+        lock.unlock()
+        guard mayAdmit,
+              let encoder,
+              let token = frameAdmission.admit() else {
+            return
+        }
+        defer { token.complete() }
+        do {
+            try encoder.appendMicrophone(buffer, at: time)
+            let progress = encoder.progress
+            try persistProgress(progress)
+            if progress.sessionStarted { startup.succeed() }
+        } catch {
+            didFail(error)
+        }
     }
 }
 
@@ -1173,6 +1281,11 @@ private func aosScreenRecordingSettledFailure(
     _ fallback: Error,
     summary: AOSScreenRecordingTrackSummary
 ) -> AOSOperationCoreError {
+    if let typed = fallback as? AOSOperationCoreError,
+       typed == .recordingSystemAudioUnavailable
+        || typed == .recordingMicrophoneUnavailable {
+        return typed
+    }
     if !summary.video.firstSamplePresent {
         return .recordingNoFrames
     }
@@ -1463,22 +1576,22 @@ final class AOSNativeScreenRecordingRuntime:
         )
         let microphoneSession = request.tracks.microphone
             ? microphoneSessionFactory() : nil
-        let microphoneHandler: AOSMicrophoneNativeInputHandler = {
-            [weak self, weak encoder] buffer, time in
-            guard let self,
-                  let encoder,
-                  let sampleAdmission = self.frameAdmission.admit() else {
-                return
-            }
-            defer { sampleAdmission.complete() }
-            do {
-                try encoder.appendMicrophone(buffer, at: time)
-                let progress = encoder.progress
-                try self.persistProgress(progress)
-                if progress.sessionStarted { startup.succeed() }
-            } catch {
-                self.stop(intent: .adapterFailed, failure: error)
-            }
+        let microphoneInput = microphoneSession.map {
+            AOSScreenRecordingMicrophoneInput(
+                session: $0,
+                encoder: encoder,
+                frameAdmission: frameAdmission,
+                startup: startup,
+                persistProgress: { [weak self] progress in
+                    guard let self else {
+                        throw AOSOperationCoreError.recordingCleanupRequired
+                    }
+                    try self.persistProgress(progress)
+                },
+                didFail: { [weak self] error in
+                    self?.stop(intent: .adapterFailed, failure: error)
+                }
+            )
         }
         let stream = SCStream(filter: filter, configuration: configuration, delegate: output)
         let videoQueue = DispatchQueue(label: "com.aos.screen-recording.video")
@@ -1493,9 +1606,6 @@ final class AOSNativeScreenRecordingRuntime:
                 throw AOSOperationCoreError.recordingSystemAudioUnavailable
             }
         }
-        if microphoneSession != nil {
-            try encoder.markAvailable(.microphone)
-        }
         installStream(stream)
         try await startSession(AOSScreenRecordingNativeSession(
             encoder: encoder,
@@ -1503,20 +1613,18 @@ final class AOSNativeScreenRecordingRuntime:
             signal: startup,
             start: { completion in
                 do {
-                    if let microphoneSession {
-                        _ = try microphoneSession.start(microphoneHandler)
-                    }
+                    try microphoneInput?.start()
                 } catch {
                     completion(.failure(error))
                     return
                 }
                 stream.startCapture { error in
-                    if error != nil { _ = microphoneSession?.stop() }
+                    if error != nil { _ = microphoneInput?.stop() }
                     completion(error.map(Result.failure) ?? .success(()))
                 }
             },
             stop: { completion in
-                let microphoneAbsent = microphoneSession?.stop() ?? true
+                let microphoneAbsent = microphoneInput?.stop() ?? true
                 stream.stopCapture { error in
                     if let error {
                         completion(.failure(error))

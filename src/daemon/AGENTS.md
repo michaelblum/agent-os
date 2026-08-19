@@ -174,9 +174,12 @@ optional tracks preserves exact video-only output, and geometry never follows
 after admission. A bounded all-selected-track barrier starts the selected set
 at one earliest media epoch. Each track owns independent
 selected, admitted, available, sample, failure, drain, and finalized truth;
-availability begins only after successful native source/output registration, while a
-positive-byte admitted sample separately establishes first-sample truth with
-positive per-track count and byte truth. Selected audio unavailable, no-sample,
+availability begins only after successful native source/output registration,
+while a positive-byte admitted sample separately establishes first-sample truth
+with positive per-track count and byte truth. The microphone input starts the
+shared native session, marks availability only after tap/engine startup
+succeeds, and then opens callback admission; startup callbacks cannot race
+ahead of availability. Selected audio unavailable, no-sample,
 or failure cannot silently succeed. When the shared startup deadline settles,
 every missing selected track receives its exact failure; missing mandatory video
 is the deterministic terminal failure, followed by system audio and microphone
@@ -209,6 +212,8 @@ never backfills that initial truth, and cleanup plus boot recovery preserve it.
 projection, including progress and terminal truth; `UnifiedDaemon` delegates
 those complete responses to it so the production-attached fake harness executes
 the same projection without starting a daemon or synthesizing wire metadata.
+The recording admission owns one request-derived public projection for all four
+track selections, and `UnifiedDaemon` delegates the response to that projection.
 Success also requires artifact presence, while failure requires a typed terminal
 code. Stop, failure, and boot recovery must
 settle stream and shared microphone authority, drain or cancel the writer,

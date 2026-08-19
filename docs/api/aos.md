@@ -2346,12 +2346,15 @@ stream, and artifact generations plus daemon generation, geometry-binding
 digest, selected tracks, and an initial content-free track summary. Progress,
 terminal facts, artifact identity, and custody receipts bind independent
 selected/admitted/available/sample/failure/drain/finalized truth for video and
-system audio. Availability records successful native output registration and
-does not claim a first sample; only positive-byte samples establish sample
-truth. One absolute startup deadline covers native start and the remaining
-common-media barrier. Selected audio that is unavailable, never samples, or
-fails is a typed failure, and a writer-global failure marks every selected
-track; audio is never silently omitted. Successful artifact/result/custody
+both optional audio tracks. Microphone availability becomes true only after
+the shared native session has successfully installed its tap and started its
+engine; callback admission opens afterward. Availability records successful
+native output registration and does not claim a first sample; only
+positive-byte samples establish sample truth. One absolute startup deadline
+covers native start and the remaining common-media barrier. Selected audio
+that is unavailable, never samples, or fails is a typed failure, and a
+writer-global failure marks every selected track; audio is never silently
+omitted. Successful artifact/result/custody
 truth requires positive bytes for every selected finalized track and the exact
 video-only or H.264-plus-AAC QuickTime media identity. Use `aos operation status`, cancel,
 or kill for lifecycle control, then an artifact action above for custody. AOS

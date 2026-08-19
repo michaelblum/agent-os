@@ -294,9 +294,9 @@ struct AOSScreenRecordingRequest: Codable, Equatable {
               let maximumBytes = uint64(value["max_output_bytes"]),
               let tracksValue = value["tracks"] as? [String: Any],
               Set(tracksValue.keys) == ["video", "system_audio", "microphone"],
-              tracksValue["video"] as? Bool == true,
-              let systemAudio = tracksValue["system_audio"] as? Bool,
-              let microphone = tracksValue["microphone"] as? Bool,
+              exactBoolean(tracksValue["video"]) == true,
+              let systemAudio = exactBoolean(tracksValue["system_audio"]),
+              let microphone = exactBoolean(tracksValue["microphone"]),
               value["codec"] as? String == codec,
               value["container"] as? String == container,
               (AOSScreenRecordingLimits.minimumDurationMilliseconds
@@ -414,6 +414,14 @@ struct AOSScreenRecordingRequest: Codable, Equatable {
             return nil
         }
         return UInt64(integer)
+    }
+
+    private static func exactBoolean(_ value: Any?) -> Bool? {
+        guard let number = value as? NSNumber,
+              CFGetTypeID(number) == CFBooleanGetTypeID() else {
+            return nil
+        }
+        return number.boolValue
     }
 
     private static func bounds(_ value: Any?) throws -> AOSDisplayTopologyBounds {

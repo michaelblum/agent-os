@@ -3893,33 +3893,7 @@ class UnifiedDaemon {
                 let admission = try adapter.start(request: request, connectionID: connectionID)
                 sendResponseJSON(
                     to: outbound,
-                    [
-                        "schema_version": "aos.screen-recording.admission-result.v1",
-                        "operation": [
-                            "operation_id": admission.operation.id,
-                            "operation_generation": admission.operation.generation,
-                        ],
-                        "stream": [
-                            "stream_id": admission.stream.id,
-                            "stream_generation": admission.stream.generation,
-                        ],
-                        "artifact": [
-                            "artifact_id": admission.artifact.id,
-                            "artifact_generation": admission.artifact.generation,
-                        ],
-                        "daemon_generation": admission.daemonGeneration,
-                        "geometry_binding_digest": admission.geometryBindingDigest,
-                        "tracks": [
-                            "video": true,
-                            "system_audio": request.tracks.systemAudio,
-                            "microphone": false,
-                        ],
-                        "track_summary": aosScreenRecordingTrackSummaryValue(
-                            .initial(systemAudioSelected: request.tracks.systemAudio)
-                        ),
-                        "codec": AOSScreenRecordingRequest.codec,
-                        "container": AOSScreenRecordingRequest.container,
-                    ],
+                    admission.publicValue(request: request),
                     envelopeActive: true,
                     envelopeRef: envelopeRef
                 )

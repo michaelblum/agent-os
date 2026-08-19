@@ -252,8 +252,10 @@ Output registration availability is distinct from positive-byte first-sample
 truth, and one absolute startup budget covers native start plus the remaining
 common-media barrier. Successful results and custody bind the selected/finalized
 track set to the exact video-only or H.264-plus-AAC media identity.
-Microphone tracks, followed geometry, and live/native acceptance remain outside
-the current slice. The
+The macOS-15-only `SCRecordingOutput`/`captureMicrophone` route, followed
+geometry, and live/native acceptance remain outside the current slice; the
+current microphone track comes from the shared daemon `AVAudioEngine` owner
+and the macOS-14-compatible `AVAssetWriter` route. The
 broader AOS-native proof trail is still a composed sequence of command JSON and
 file-backed evidence:
 

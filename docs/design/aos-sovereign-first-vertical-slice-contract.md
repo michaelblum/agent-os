@@ -661,18 +661,18 @@ terminal until recovery mechanically verifies absence.
 ScreenCaptureKit video is public on macOS 12.3. Its system-audio output
 (`SCStreamOutputType.audio` plus `capturesAudio`) is macOS 13.
 ScreenCaptureKit microphone capture and `SCRecordingOutput` are macOS 15
-paths. `AVAssetWriter` is the public custom multitrack alternative when
-deployment floor, separate tracks, codecs, timing, or custody requires a
-writer AOS owns. The current bounded implementation selects that writer for
-mandatory H.264 video and explicitly optional AAC-LC system audio in one
-QuickTime artifact; its deterministic proof remains compile/fake only.
+paths and are explicitly rejected while AOS preserves its macOS 14 floor.
+The current bounded implementation instead selects the shared daemon
+`AVAudioEngine` microphone owner plus `AVAssetWriter` for mandatory H.264
+video and independently optional AAC-LC system-audio and microphone tracks in
+one QuickTime artifact; its deterministic proof remains compile/fake only.
 
 A recording request identifies:
 
 - exact display/window/region source and canonical topology observation;
 - video dimensions, scale, frame-rate/time bounds, codec/container choice, and
   maximum output bytes;
-- mandatory video, independently selected system-audio, and later microphone
+- mandatory video and independently selected system-audio and microphone
   tracks plus exact platform facts;
 - geometry mode;
 - transient stream and artifact ownership;

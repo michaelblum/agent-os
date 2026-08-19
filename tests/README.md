@@ -112,24 +112,27 @@ executable compiled harness runs the
 production recording adapter, registry, in-memory durable store, lifecycle,
 sample admission, multitrack coordination, terminal truth, custody coordinator,
 and boot recovery with injected fake clock, video/system-audio/microphone
-callbacks, writer inputs/file, shared microphone session, native session, and
-broker dependencies. It covers all six three-track first-sample orders at one
+callbacks, writer inputs/file, a real `AOSMicrophoneNativeSession` executing
+through injected non-native dependencies, and broker dependencies. It covers
+all six three-track first-sample orders at one
 common epoch, per-track monotonicity and truth, independent bounded backpressure,
 and an injected durable save fault after atomic operation admission but before
 stream/artifact/claim handoff. For all four exact track selections,
 the harness executes the exact production snapshot/list/inspect projector used
 by `UnifiedDaemon` and validates the prepared, cleanup-required, and recovered
 terminal responses against `aos.operation.v1` without synthesizing wire
-metadata or backfilling track truth. It
+metadata or backfilling track truth. It also executes the production admission
+projection and validates all four responses against the recording schema. It
 also covers registration availability distinct from positive-byte first-sample truth,
 positive per-track sample counts and bytes, zero-byte rejection, writer-global
 failure on every selected track, typed selected-audio failures, simultaneous
 per-track settlement with video/system-audio/microphone terminal precedence,
 standalone-microphone resource conflict before native authority, one conditional
 dual-resource claim-set and aggregate authority retirement,
-audio byte
-progress while video input is backpressured, later mandatory-video success and
-failure, one total native-start/common-barrier budget, callback
+microphone startup failure with unavailable truth, gated availability-before-
+sample admission, microphone-selected cancel/peer-loss/deadline/retirement,
+audio byte progress while video input is backpressured, later mandatory-video
+success and failure, one total native-start/common-barrier budget, callback
 loss, startup stop and task cancellation,
 late start failure after active evidence, retirement timeout/false settlement,
 selected-track stop/drain/finalize, successful-summary/media-identity schema

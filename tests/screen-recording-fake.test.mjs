@@ -351,6 +351,15 @@ struct ScreenRecordingOwnerHarness {
         try expectInvalid(request(overrides: [
             "tracks": ["video": true, "system_audio": false, "microphone": "yes"],
         ]))
+        for key in ["video", "system_audio", "microphone"] {
+            for numericBoolean in [NSNumber(value: 0), NSNumber(value: 1)] {
+                var tracks: [String: Any] = [
+                    "video": true, "system_audio": false, "microphone": false,
+                ]
+                tracks[key] = numericBoolean
+                try expectInvalid(request(overrides: ["tracks": tracks]))
+            }
+        }
         try expectInvalid(request(overrides: [
             "target": ["kind": "display", "display_ordinal": true],
         ]))
@@ -444,7 +453,7 @@ struct ScreenRecordingOwnerHarness {
             ) { _ in }
             fatalError("unbounded frame progress accepted")
         } catch AOSOperationCoreError.recordingBoundsExceeded {}
-        print("screen-recording-owner-harness: 25 assertions")
+        print("screen-recording-owner-harness: 31 assertions")
     }
 }
 `
@@ -811,9 +820,7 @@ final class FakeFiles: @unchecked Sendable {
             inode: 11,
             byteCount: 512,
             contentDigest: String(repeating: "3", count: 64),
-            mediaType: summary.selectedSystemAudio
-                ? "video/quicktime; codecs=avc1,mp4a.40.2"
-                : "video/quicktime; codecs=avc1",
+            mediaType: summary.expectedMediaType,
             trackSummary: summary
         )
     }
@@ -1029,30 +1036,69 @@ final class FakeEncoder: AOSScreenRecordingEncoding, @unchecked Sendable {
     func cancel() { lock.lock(); cancelCount += 1; lock.unlock() }
 }
 
-final class FakeMicrophoneSession: AOSMicrophoneNativeSessionControlling, @unchecked Sendable {
+final class FakeMicrophoneBackend: @unchecked Sendable {
     private let lock = NSLock()
     private var running = false
+    private var handler: AOSMicrophoneNativeInputHandler?
+    private var sampleTime: Int64 = 0
     private(set) var startCount = 0
     private(set) var stopCount = 0
+    var startFailure: AOSOperationCoreError?
 
-    var healthy: Bool { lock.lock(); defer { lock.unlock() }; return running }
-    var authorityAbsent: Bool { !healthy }
-
-    func start(_ handler: @escaping AOSMicrophoneNativeInputHandler) throws -> AVAudioFormat {
-        lock.lock(); running = true; startCount += 1; lock.unlock()
-        return AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
+    func dependencies() -> AOSMicrophoneNativeSessionDependencies {
+        AOSMicrophoneNativeSessionDependencies(
+            start: { [self] handler in
+                lock.lock()
+                startCount += 1
+                let failure = startFailure
+                if failure == nil {
+                    running = true
+                    self.handler = handler
+                }
+                lock.unlock()
+                if let failure { throw failure }
+                _ = publish()
+                return format()
+            },
+            healthy: { [self] in
+                lock.lock(); defer { lock.unlock() }; return running
+            },
+            stop: { [self] in
+                lock.lock()
+                stopCount += 1
+                running = false
+                handler = nil
+                lock.unlock()
+                return true
+            }
+        )
     }
 
-    func stop() -> Bool {
-        lock.lock(); running = false; stopCount += 1; lock.unlock()
+    func publish() -> Bool {
+        lock.lock()
+        guard running, let handler else { lock.unlock(); return false }
+        sampleTime += 1
+        let time = sampleTime
+        lock.unlock()
+        let value = format()
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: value, frameCapacity: 1) else {
+            return false
+        }
+        buffer.frameLength = 1
+        handler(buffer, AVAudioTime(sampleTime: time, atRate: value.sampleRate))
         return true
+    }
+
+    private func format() -> AVAudioFormat {
+        AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
     }
 }
 
 final class FakeNativeSession: @unchecked Sendable {
     let encoder: FakeEncoder
     let lifecycle: FakeLifecycle
-    let microphone = FakeMicrophoneSession()
+    let microphone: AOSMicrophoneNativeSession
+    let microphoneBackend: FakeMicrophoneBackend
     let signal = AOSDesktopPixelStartupSignal()
     private var frameGate: AOSDesktopPixelFrameAdmissionGate?
     private var heldFrame: AOSDesktopPixelFrameAdmissionGate.Token?
@@ -1064,30 +1110,43 @@ final class FakeNativeSession: @unchecked Sendable {
 
     init(files: FakeFiles) {
         let encoder = FakeEncoder(files: files)
+        let microphoneBackend = FakeMicrophoneBackend()
         self.encoder = encoder
+        self.microphoneBackend = microphoneBackend
+        microphone = AOSMicrophoneNativeSession(
+            dependencies: microphoneBackend.dependencies()
+        )
         lifecycle = FakeLifecycle { encoder.progress.sessionStarted }
     }
 
     func factory() -> AOSScreenRecordingSessionFactory {
-        { [self] tracks, gate, progress, _ in
+        { [self] tracks, gate, progress, didFail in
             encoder.configure(tracks)
             try encoder.markAvailable(.video)
             if tracks.systemAudio { try encoder.markAvailable(.systemAudio) }
-            if tracks.microphone { try encoder.markAvailable(.microphone) }
             lock.lock(); frameGate = gate; self.progress = progress; lock.unlock()
+            let microphoneInput = tracks.microphone
+                ? AOSScreenRecordingMicrophoneInput(
+                    session: microphone,
+                    encoder: encoder,
+                    frameAdmission: gate,
+                    startup: signal,
+                    persistProgress: progress,
+                    didFail: didFail
+                ) : nil
             return AOSScreenRecordingNativeSession(
                 encoder: encoder,
                 lifecycle: lifecycle,
                 signal: signal,
                 start: { [self] completion in
                     if tracks.microphone {
-                        do { _ = try microphone.start { _, _ in } }
+                        do { try microphoneInput?.start() }
                         catch { completion(.failure(error)); return }
                     }
                     lock.lock(); startCompletion = completion; lock.unlock()
                 },
                 stop: { [self] completion in
-                    if tracks.microphone { _ = microphone.stop() }
+                    if tracks.microphone { _ = microphoneInput?.stop() }
                     lock.lock(); stopCount += 1; stopCompletion = completion; lock.unlock()
                 },
                 microphoneSession: tracks.microphone ? microphone : nil
@@ -1118,7 +1177,10 @@ final class FakeNativeSession: @unchecked Sendable {
     }
 
     func publishMicrophone(hold: Bool = false) throws -> Bool {
-        try publish(.microphone, hold: hold)
+        precondition(!hold, "microphone callback holding is not supported")
+        let before = encoder.progress.trackSummary.microphone.sampleCount
+        guard microphoneBackend.publish() else { return false }
+        return encoder.progress.trackSummary.microphone.sampleCount > before
     }
 
     private func publish(
@@ -1767,20 +1829,68 @@ struct TerminalLifecycleCustodyHarness {
         print("atomic-initial-summary-projections:\(String(data: data, encoding: .utf8)!)")
     }
 
+    static func productionAdmissionResponses() async throws {
+        var responses: [[String: Any]] = []
+        for (systemAudio, microphone) in [
+            (false, false), (true, false), (false, true), (true, true),
+        ] {
+            let environment = try RecordingEnvironment()
+            let request = try environment.request(
+                systemAudio: systemAudio,
+                microphone: microphone
+            )
+            let admission = try environment.adapter.start(
+                request: request,
+                connectionID: UUID()
+            )
+            responses.append(admission.publicValue(request: request))
+            try await wait("admission-response native start missing") {
+                environment.native.startWasRequested()
+            }
+            environment.native.settleStart(.success(()))
+            _ = try environment.native.publishFrame()
+            if systemAudio { _ = try environment.native.publishAudio() }
+            if microphone { _ = try environment.native.publishMicrophone() }
+            try await wait("admission-response operation inactive") {
+                operation(admission, in: environment).state == .active
+            }
+            _ = environment.adapter.requestStop(operation: admission.operation, force: false)
+            try await wait("admission-response stop missing") {
+                environment.native.stopCount == 1
+            }
+            environment.native.settleStop(.success(()))
+            try await wait("admission-response operation did not close") {
+                operation(admission, in: environment).state == .terminal
+            }
+        }
+        let data = try JSONSerialization.data(withJSONObject: responses, options: [.sortedKeys])
+        print("production-admission-responses:\(String(data: data, encoding: .utf8)!)")
+    }
+
     static func requireWriterFailureTruth(
         _ summary: AOSScreenRecordingTrackSummary,
-        sessionStarted: Bool
+        sessionStarted: Bool,
+        microphoneSelected: Bool
     ) {
-        require(summary.selectedTracks == ["video", "system_audio"],
+        require(summary.selectedTracks == AOSScreenRecordingTrackSummary.selectedTrackNames(
+            systemAudio: true,
+            microphone: microphoneSelected
+        ),
                 "writer failure lost the selected set")
         require(summary.finalizedTracks.isEmpty,
                 "writer failure claimed finalized tracks")
         require((summary.commonMediaEpochNanoseconds != nil) == sessionStarted,
                 "writer failure common-epoch truth drifted")
-        for (truth, failureCode) in [
+        var failures = [
             (summary.video, AOSOperationCoreError.recordingEncoderFailed.code),
             (summary.systemAudio, AOSOperationCoreError.recordingSystemAudioFailed.code),
-        ] {
+        ]
+        if microphoneSelected {
+            failures.append(
+                (summary.microphone, AOSOperationCoreError.recordingMicrophoneFailed.code)
+            )
+        }
+        for (truth, failureCode) in failures {
             require(truth.selected && truth.admitted && truth.available,
                     "writer failure lost selected/admitted/available truth")
             require(truth.firstSamplePresent,
@@ -1887,12 +1997,13 @@ struct TerminalLifecycleCustodyHarness {
         }
 
         let monotonicWriter = FakeMultitrackWriter()
-        let monotonic = try multitrackCoordinator(monotonicWriter)
+        let monotonic = try multitrackCoordinator(monotonicWriter, microphone: true)
         try monotonic.append(harnessSample(10), track: .video)
         try monotonic.append(harnessSample(10), track: .systemAudio)
+        try monotonic.append(harnessSample(10), track: .microphone)
         do {
-            try monotonic.append(harnessSample(9), track: .systemAudio)
-            fatalError("nonmonotonic audio accepted")
+            try monotonic.append(harnessSample(9), track: .microphone)
+            fatalError("nonmonotonic microphone accepted")
         } catch AOSOperationCoreError.recordingTimestampNonMonotonic {
         }
 
@@ -2099,31 +2210,30 @@ struct TerminalLifecycleCustodyHarness {
         require(zeroByte.progress.trackSummary.systemAudio.sampleByteCount == 0,
                 "zero-byte audio established byte truth")
 
-        for audioFirst in [true, false] {
-            let writer = FakeMultitrackWriter()
-            writer.startSucceeds = false
-            let coordinator = try multitrackCoordinator(writer)
-            do {
-                if audioFirst {
-                    try coordinator.append(harnessSample(2), track: .systemAudio)
-                    try coordinator.append(harnessSample(1), track: .video)
-                } else {
-                    try coordinator.append(harnessSample(1), track: .video)
-                    try coordinator.append(harnessSample(2), track: .systemAudio)
-                }
-                fatalError("writer start failure was accepted")
-            } catch AOSOperationCoreError.recordingEncoderFailed {
-            }
-            requireWriterFailureTruth(
-                coordinator.progress.trackSummary,
-                sessionStarted: false
-            )
+        let startFailingWriter = FakeMultitrackWriter()
+        startFailingWriter.startSucceeds = false
+        let startFailing = try multitrackCoordinator(
+            startFailingWriter,
+            microphone: true
+        )
+        do {
+            try startFailing.append(harnessSample(1), track: .video)
+            try startFailing.append(harnessSample(2), track: .systemAudio)
+            try startFailing.append(harnessSample(3), track: .microphone)
+            fatalError("writer start failure was accepted")
+        } catch AOSOperationCoreError.recordingEncoderFailed {
         }
+        requireWriterFailureTruth(
+            startFailing.progress.trackSummary,
+            sessionStarted: false,
+            microphoneSelected: true
+        )
 
         let stoppedWriter = FakeMultitrackWriter()
-        let stopped = try multitrackCoordinator(stoppedWriter)
+        let stopped = try multitrackCoordinator(stoppedWriter, microphone: true)
         try stopped.append(harnessSample(1), track: .video)
         try stopped.append(harnessSample(2), track: .systemAudio)
+        try stopped.append(harnessSample(3), track: .microphone)
         stoppedWriter.forceNotWriting()
         do {
             try stopped.append(harnessSample(3), track: .video)
@@ -2132,7 +2242,8 @@ struct TerminalLifecycleCustodyHarness {
         }
         requireWriterFailureTruth(
             stopped.progress.trackSummary,
-            sessionStarted: true
+            sessionStarted: true,
+            microphoneSelected: true
         )
 
         let finalWriter = FakeMultitrackWriter()
@@ -2157,9 +2268,10 @@ struct TerminalLifecycleCustodyHarness {
 
         let failingWriter = FakeMultitrackWriter()
         failingWriter.finishSucceeds = false
-        let failing = try multitrackCoordinator(failingWriter)
+        let failing = try multitrackCoordinator(failingWriter, microphone: true)
         try failing.append(harnessSample(2), track: .systemAudio)
         try failing.append(harnessSample(1), track: .video)
+        try failing.append(harnessSample(3), track: .microphone)
         var finalizationError: Error?
         failing.finish(identity: { FakeFiles().identity(summary: $0) }) { result in
             if case .failure(let error) = result { finalizationError = error }
@@ -2178,11 +2290,18 @@ struct TerminalLifecycleCustodyHarness {
                 == AOSOperationCoreError.recordingSystemAudioFailed.code,
             "writer finalization failure was omitted from audio truth"
         )
+        require(
+            failing.progress.trackSummary.microphone.failureCode
+                == AOSOperationCoreError.recordingMicrophoneFailed.code,
+            "writer finalization failure was omitted from microphone truth"
+        )
         require(failingWriter.finishCount == 1, "failing writer finalized more than once")
         require(failingWriter.inputFinishCount[.video] == 1,
                 "failing writer did not finish video input once")
         require(failingWriter.inputFinishCount[.systemAudio] == 1,
                 "failing writer did not finish audio input once")
+        require(failingWriter.inputFinishCount[.microphone] == 1,
+                "failing writer did not finish microphone input once")
 
         let concurrentWriter = FakeMultitrackWriter()
         let concurrent = try multitrackCoordinator(concurrentWriter, maximumPending: 8)
@@ -2310,7 +2429,7 @@ struct TerminalLifecycleCustodyHarness {
                         == expectedFailure.code,
                     "microphone permission state lost its exact failure")
             require(!denied.native.startWasRequested()
-                        && denied.native.microphone.startCount == 0,
+                        && denied.native.microphoneBackend.startCount == 0,
                     "microphone permission failure acquired native authority")
             require(denied.microphoneAuthorization.requestCount == 0,
                     "settled microphone permission state was requested again")
@@ -2328,7 +2447,7 @@ struct TerminalLifecycleCustodyHarness {
         }
         require(!standaloneConflict.broker.retainsAuthority
                     && !standaloneConflict.native.startWasRequested()
-                    && standaloneConflict.native.microphone.startCount == 0,
+                    && standaloneConflict.native.microphoneBackend.startCount == 0,
                 "resource conflict acquired screen or microphone native authority")
 
         let microphone = try RecordingEnvironment(
@@ -2355,9 +2474,12 @@ struct TerminalLifecycleCustodyHarness {
             AOSScreenRecordingOperationAdapter.resourceKey,
             AOSMicrophoneOperationResourceIdentity.resourceKey,
         ]), "microphone selection claimed the wrong resources")
-        require(microphone.native.microphone.startCount == 1
+        require(microphone.native.microphoneBackend.startCount == 1
                     && microphone.native.microphone.healthy,
                 "shared microphone session did not start exactly once")
+        require(microphone.native.encoder.progress.trackSummary.microphone.available
+                    && microphone.native.encoder.progress.trackSummary.microphone.sampleCount == 0,
+                "microphone was admitted before successful startup availability")
         microphone.native.settleStart(.success(()))
         let microphoneAccepted = try microphone.native.publishMicrophone()
         require(microphoneAccepted, "microphone-first callback rejected")
@@ -2388,11 +2510,86 @@ struct TerminalLifecycleCustodyHarness {
         try await wait("microphone adapter did not terminalize") {
             operation(microphoneAdmission, in: microphone).state == .terminal
         }
-        require(microphone.native.microphone.stopCount == 1,
+        require(microphone.native.microphoneBackend.stopCount == 1,
                 "shared microphone session stopped more than once")
         require(!microphone.registry.snapshot().resourceClaims.contains {
             $0.operation == microphoneAdmission.operation && $0.state != .terminal
         }, "claims remained after aggregate authority absence")
+
+        for (intent, expectedOutcome) in [
+            (AOSStopIntent.peerLost, AOSOperationOutcome.cancelled),
+            (.deadline, .timedOut),
+        ] {
+            let interrupted = try RecordingEnvironment()
+            let interruptedAdmission = try interrupted.adapter.start(
+                request: interrupted.request(microphone: true),
+                connectionID: UUID()
+            )
+            try await wait("interrupted microphone start missing") {
+                interrupted.native.startWasRequested()
+            }
+            interrupted.native.settleStart(.success(()))
+            _ = try interrupted.native.publishMicrophone()
+            _ = try interrupted.native.publishFrame()
+            try await wait("interrupted microphone operation inactive") {
+                operation(interruptedAdmission, in: interrupted).state == .active
+            }
+            _ = try interrupted.registry.transitionOperation(
+                interruptedAdmission.operation,
+                to: .stopping,
+                stopIntent: intent
+            )
+            _ = interrupted.adapter.requestStop(
+                operation: interruptedAdmission.operation,
+                force: false
+            )
+            try await wait("interrupted microphone stop missing") {
+                interrupted.native.stopCount == 1
+            }
+            require(interrupted.native.microphone.authorityAbsent,
+                    "interrupted microphone authority outlived stop admission")
+            require(interrupted.registry.snapshot().resourceClaims.contains {
+                $0.operation == interruptedAdmission.operation && $0.state != .terminal
+            }, "interrupted microphone claims released before aggregate retirement")
+            interrupted.native.settleStop(.success(()))
+            try await wait("interrupted microphone operation did not close") {
+                operation(interruptedAdmission, in: interrupted).state == .terminal
+            }
+            require(operation(interruptedAdmission, in: interrupted).outcome
+                        == expectedOutcome,
+                    "interrupted microphone intent \(intent) produced "
+                        + "\(String(describing: operation(interruptedAdmission, in: interrupted).outcome)) "
+                        + "failure \(String(describing: operation(interruptedAdmission, in: interrupted).failureCode))")
+            require(!interrupted.registry.snapshot().resourceClaims.contains {
+                $0.operation == interruptedAdmission.operation && $0.state != .terminal
+            }, "interrupted microphone claims survived verified absence")
+        }
+
+        let microphoneStartFailure = try RecordingEnvironment()
+        microphoneStartFailure.native.microphoneBackend.startFailure =
+            .recordingMicrophoneUnavailable
+        let microphoneStartFailureAdmission = try microphoneStartFailure.adapter.start(
+            request: microphoneStartFailure.request(microphone: true),
+            connectionID: UUID()
+        )
+        try await wait("microphone start failure did not terminalize") {
+            operation(microphoneStartFailureAdmission, in: microphoneStartFailure).state
+                == .terminal
+        }
+        let failedMicrophone = operation(
+            microphoneStartFailureAdmission,
+            in: microphoneStartFailure
+        )
+        require(failedMicrophone.failureCode
+                    == AOSOperationCoreError.recordingMicrophoneUnavailable.code,
+                "microphone start failure produced \(String(describing: failedMicrophone.failureCode))")
+        require(failedMicrophone.progress?.trackSummary?.microphone.available == false
+                    && failedMicrophone.progress?.trackSummary?.microphone.sampleCount == 0
+                    && failedMicrophone.progress?.trackSummary?.microphone.failureCode
+                        == AOSOperationCoreError.recordingMicrophoneUnavailable.code,
+                "microphone start failure published false availability or sample truth")
+        require(microphoneStartFailure.native.microphone.authorityAbsent,
+                "failed real microphone session retained authority")
 
         let unavailable = try RecordingEnvironment(
             sessionFailure: .recordingSystemAudioUnavailable
@@ -2435,14 +2632,15 @@ struct TerminalLifecycleCustodyHarness {
         let bounded = try RecordingEnvironment(startupTimeout: 0.05)
         let boundedStartedAt = DispatchTime.now().uptimeNanoseconds
         let boundedAdmission = try bounded.adapter.start(
-            request: bounded.request(systemAudio: true),
+            request: bounded.request(systemAudio: true, microphone: true),
             connectionID: UUID()
         )
         try await wait("bounded audio start missing") {
             bounded.native.startWasRequested()
         }
         let boundedVideo = try bounded.native.publishFrame()
-        require(boundedVideo, "bounded audio video callback rejected")
+        let boundedAudio = try bounded.native.publishAudio()
+        require(boundedVideo && boundedAudio, "bounded three-track callbacks rejected")
         try await Task.sleep(nanoseconds: 30_000_000)
         bounded.native.settleStart(.success(()))
         try await wait("bounded audio timeout did not request retirement") {
@@ -2458,24 +2656,24 @@ struct TerminalLifecycleCustodyHarness {
         let boundedOperation = operation(boundedAdmission, in: bounded)
         require(
             boundedOperation.failureCode
-                == AOSOperationCoreError.recordingSystemAudioNoSamples.code,
-            "bounded silent audio lost its typed failure"
+                == AOSOperationCoreError.recordingMicrophoneNoSamples.code,
+            "bounded silent microphone lost its typed failure"
         )
-        require(boundedOperation.progress?.trackSummary?.systemAudio.available == true,
-                "bounded silent audio lost registration availability")
-        require(boundedOperation.progress?.trackSummary?.systemAudio.firstSamplePresent == false,
-                "bounded silent audio claimed a first sample")
-        require(boundedOperation.progress?.trackSummary?.systemAudio.sampleCount == 0,
-                "bounded silent audio claimed samples")
+        require(boundedOperation.progress?.trackSummary?.microphone.available == true,
+                "bounded silent microphone lost registration availability")
+        require(boundedOperation.progress?.trackSummary?.microphone.firstSamplePresent == false,
+                "bounded silent microphone claimed a first sample")
+        require(boundedOperation.progress?.trackSummary?.microphone.sampleCount == 0,
+                "bounded silent microphone claimed samples")
         require(
-            boundedOperation.progress?.trackSummary?.systemAudio.failureCode
-                == AOSOperationCoreError.recordingSystemAudioNoSamples.code,
-            "bounded silent audio omitted its track failure"
+            boundedOperation.progress?.trackSummary?.microphone.failureCode
+                == AOSOperationCoreError.recordingMicrophoneNoSamples.code,
+            "bounded silent microphone omitted its track failure"
         )
 
         let bothSilent = try RecordingEnvironment(startupTimeout: 0.04)
         let bothSilentAdmission = try bothSilent.adapter.start(
-            request: bothSilent.request(systemAudio: true),
+            request: bothSilent.request(systemAudio: true, microphone: true),
             connectionID: UUID()
         )
         try await wait("both-silent start missing") {
@@ -2501,11 +2699,16 @@ struct TerminalLifecycleCustodyHarness {
         require(bothSilentOperation.progress?.trackSummary?.systemAudio.failureCode
                     == AOSOperationCoreError.recordingSystemAudioNoSamples.code,
                 "both-silent operation omitted audio failure")
+        require(bothSilentOperation.progress?.trackSummary?.microphone.failureCode
+                    == AOSOperationCoreError.recordingMicrophoneNoSamples.code,
+                "both-silent operation omitted microphone failure")
         require(bothSilentOperation.progress?.trackSummary?.video.available == true
-                    && bothSilentOperation.progress?.trackSummary?.systemAudio.available == true,
+                    && bothSilentOperation.progress?.trackSummary?.systemAudio.available == true
+                    && bothSilentOperation.progress?.trackSummary?.microphone.available == true,
                 "both-silent operation confused availability with samples")
         require(bothSilentOperation.progress?.trackSummary?.video.firstSamplePresent == false
-                    && bothSilentOperation.progress?.trackSummary?.systemAudio.firstSamplePresent == false,
+                    && bothSilentOperation.progress?.trackSummary?.systemAudio.firstSamplePresent == false
+                    && bothSilentOperation.progress?.trackSummary?.microphone.firstSamplePresent == false,
                 "both-silent operation invented first samples")
 
         let audioOnly = try RecordingEnvironment(startupTimeout: 0.05)
@@ -2547,17 +2750,24 @@ struct TerminalLifecycleCustodyHarness {
     static func productionStartupUncertaintyRetainsAuthority() async throws {
         let stopped = try RecordingEnvironment()
         let admission = try stopped.adapter.start(
-            request: stopped.request(), connectionID: UUID()
+            request: stopped.request(microphone: true), connectionID: UUID()
         )
         try await wait("startup-stop native start missing") { stopped.native.startWasRequested() }
+        require(stopped.native.microphone.healthy,
+                "startup-cancel microphone authority was not established")
         _ = stopped.adapter.requestStop(operation: admission.operation, force: false)
         try await Task.sleep(nanoseconds: 5_000_000)
         require(stopped.broker.retainsAuthority, "startup stop released uncertain broker")
+        require(stopped.registry.snapshot().resourceClaims.contains {
+            $0.operation == admission.operation && $0.state != .terminal
+        }, "startup cancel released microphone claim before native settlement")
         require(stopped.native.stopCount == 0, "pending startup was stopped as active")
         stopped.native.settleStart(.failure(CancellationError()))
         try await wait("startup stop did not terminalize") {
             operation(admission, in: stopped).state == .terminal
         }
+        require(stopped.native.microphone.authorityAbsent,
+                "startup-cancel microphone authority survived terminal settlement")
 
         let lost = try RecordingEnvironment()
         let lostAdmission = try lost.adapter.start(
@@ -2577,10 +2787,12 @@ struct TerminalLifecycleCustodyHarness {
     static func productionRetirementAndFrameDrainAreAuthoritative() async throws {
         let uncertain = try RecordingEnvironment()
         let uncertainAdmission = try uncertain.adapter.start(
-            request: uncertain.request(), connectionID: UUID()
+            request: uncertain.request(microphone: true), connectionID: UUID()
         )
         try await wait("false-retirement start missing") { uncertain.native.startWasRequested() }
         uncertain.native.settleStart(.success(()))
+        _ = try uncertain.native.publishMicrophone()
+        _ = try uncertain.native.publishFrame()
         try await wait("false-retirement operation inactive") {
             operation(uncertainAdmission, in: uncertain).state == .active
         }
@@ -2591,6 +2803,11 @@ struct TerminalLifecycleCustodyHarness {
             operation(uncertainAdmission, in: uncertain).state == .cleanupRequired
         }
         require(uncertain.broker.retainsAuthority, "false retirement released broker")
+        require(uncertain.native.microphone.authorityAbsent,
+                "false screen retirement retained microphone authority")
+        require(uncertain.registry.snapshot().resourceClaims.contains {
+            $0.operation == uncertainAdmission.operation && $0.state != .terminal
+        }, "false screen retirement released claims before convergence")
         uncertain.native.lifecycle.confirmRetirement()
         try await wait("observed retirement did not converge") {
             operation(uncertainAdmission, in: uncertain).state == .terminal
@@ -3045,6 +3262,7 @@ struct TerminalLifecycleCustodyHarness {
 
     static func main() async throws {
         try productionAtomicInitialSummaryAdmission()
+        try await productionAdmissionResponses()
         try productionMultitrackCoordination()
         try await productionAdapterAudioTracks()
         try await productionLateFailureRetainsAuthority()
@@ -3083,7 +3301,7 @@ test('production request, geometry, timeline, and progress owners reject lossy s
     assert.equal(compile.status, 0, compile.stderr || compile.stdout)
     const run = spawnSync(binary, [], { encoding: 'utf8' })
     assert.equal(run.status, 0, `${run.stderr}\n${run.stdout}`)
-    assert.match(run.stdout, /25 assertions/u)
+    assert.match(run.stdout, /31 assertions/u)
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true })
   }
@@ -3097,9 +3315,12 @@ test('runtime ownership wires topology validation and throwing progress before e
   ])
   assert.match(geometry, /let admittedTopology: AOSDisplayTopologySnapshot/u)
   assert.match(geometry, /canonicalTopologyData\(observedTopology\)[\s\S]*canonicalTopologyData\(geometry\.admittedTopology\)/u)
-  const frameValidation = adapter.indexOf('try validateBinding()')
-  const frameAppend = adapter.indexOf('try encoder.append(sampleBuffer, track: track)')
-  const frameProgress = adapter.indexOf('try persistProgress(progress)')
+  const streamOutput = adapter.slice(adapter.indexOf(
+    'private final class AOSScreenRecordingStreamOutput',
+  ))
+  const frameValidation = streamOutput.indexOf('try validateBinding()')
+  const frameAppend = streamOutput.indexOf('try encoder.append(sampleBuffer, track: track)')
+  const frameProgress = streamOutput.indexOf('try persistProgress(progress)')
   assert.ok(frameValidation >= 0 && frameValidation < frameAppend && frameAppend < frameProgress)
   assert.doesNotMatch(adapter, /try\?\s+aosPersistScreenRecordingProgress/u)
   assert.ok((adapter.match(/try aosPersistScreenRecordingProgress/gu) ?? []).length >= 2)
@@ -3219,6 +3440,14 @@ test('production lifecycle and custody owners close terminal fault phases with f
       'prepared', 'cleanup', 'recovered', 'prepared', 'cleanup', 'recovered',
       'prepared', 'cleanup', 'recovered', 'prepared', 'cleanup', 'recovered',
     ])
+    const admissionLine = run.stdout.split('\n').find((line) => (
+      line.startsWith('production-admission-responses:')
+    ))
+    assert.ok(admissionLine, run.stdout)
+    const admissionResponses = JSON.parse(admissionLine.slice(
+      'production-admission-responses:'.length,
+    ))
+    assert.equal(admissionResponses.length, 4)
     const schemaValidation = spawnSync('python3', ['-c', String.raw`
 import json, os, sys
 from jsonschema import Draft202012Validator, FormatChecker, RefResolver
@@ -3247,7 +3476,7 @@ def validator(definition):
     )
 
 rows = json.load(sys.stdin)
-for row in rows:
+for row in rows['projections']:
     snapshot = row['snapshot']
     list_result = row['list']
     inspect_result = row['inspect']
@@ -3265,10 +3494,23 @@ for row in rows:
     ])
     assert list_result['operations'] == [snapshot]
     assert inspect_result['snapshot'] == snapshot
-print('atomic-operation-schema: snapshots=12 list=12 inspect=12')
+recording_id = next(key for key in store if key.endswith('/aos-screen-recording-v1.schema.json'))
+target = {
+    '$schema': 'https://json-schema.org/draft/2020-12/schema',
+    '$ref': recording_id + '#/$defs/admission_result',
+}
+admission_validator = Draft202012Validator(
+    target,
+    resolver=RefResolver.from_schema(target, store=store),
+    format_checker=FormatChecker(),
+)
+for response in rows['admissions']:
+    errors = list(admission_validator.iter_errors(response))
+    assert not errors, [error.message for error in errors]
+print('atomic-operation-schema: snapshots=12 list=12 inspect=12 admissions=4')
 `, path.join(root, 'shared/schemas')], {
       encoding: 'utf8',
-      input: JSON.stringify(projections),
+      input: JSON.stringify({ projections, admissions: admissionResponses }),
       timeout: 20_000,
     })
     assert.equal(
@@ -3276,7 +3518,7 @@ print('atomic-operation-schema: snapshots=12 list=12 inspect=12')
       0,
       `${schemaValidation.stdout}\n${schemaValidation.stderr}`,
     )
-    assert.match(schemaValidation.stdout, /snapshots=12 list=12 inspect=12/u)
+    assert.match(schemaValidation.stdout, /snapshots=12 list=12 inspect=12 admissions=4/u)
 
     const [lifecycle, state, adapter, unified] = await Promise.all([
       readFile(path.join(root, 'src/daemon/desktop-pixel-stream-lifecycle.swift'), 'utf8'),
@@ -3290,6 +3532,7 @@ print('atomic-operation-schema: snapshots=12 list=12 inspect=12')
     assert.match(state, /aosDecodeArtifactActionRequest/u)
     assert.match(adapter, /AOSArtifactReleaseCoordinator/u)
     assert.match(unified, /aosDecodeArtifactActionRequest/u)
+    assert.match(unified, /admission\.publicValue\(request: request\)/u)
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true })
   }
