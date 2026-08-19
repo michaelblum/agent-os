@@ -316,44 +316,51 @@ test('authority topology is schema-valid, unique, local, and publication-honest'
   const changedCapabilityIDs = new Set(
     authority.verification.current_only_projection.allowed_capability_current_changes,
   );
-  const m3aCapabilityCurrentChanges = new Set([
+  const m3CapabilityCurrentChanges = new Set([
     'screencapturekit-screen-video',
+    'screencapturekit-system-audio',
     'avassetwriter-custom-multitrack',
   ]);
   const currentProjectionExceptions = new Set([
     ...changedCapabilityIDs,
-    ...m3aCapabilityCurrentChanges,
+    ...m3CapabilityCurrentChanges,
   ]);
   assert.equal(
     currentLedger.inventory_revision,
     authority.verification.current_only_projection.expected_inventory_revision,
   );
   assert.deepEqual(
-    currentOnlyProjection(currentLedger, currentProjectionExceptions, m3aCapabilityCurrentChanges),
-    currentOnlyProjection(baselineLedger, currentProjectionExceptions, m3aCapabilityCurrentChanges),
-    'M2 plus the explicit M3A overlay must preserve all other current capability truth',
+    currentOnlyProjection(currentLedger, currentProjectionExceptions, m3CapabilityCurrentChanges),
+    currentOnlyProjection(baselineLedger, currentProjectionExceptions, m3CapabilityCurrentChanges),
+    'M2 plus the explicit M3A/M3B overlay must preserve all other current capability truth',
   );
   const currentRows = new Map(currentLedger.capabilities.map((row) => [row.id, row.current]));
   const baselineRows = new Map(baselineLedger.capabilities.map((row) => [row.id, row.current]));
   for (const id of changedCapabilityIDs) {
     assert.notDeepEqual(currentRows.get(id), baselineRows.get(id), `${id} must carry executable M2 truth`);
   }
-  for (const id of m3aCapabilityCurrentChanges) {
-    assert.notDeepEqual(currentRows.get(id), baselineRows.get(id), `${id} must carry executable M3A truth`);
+  for (const id of m3CapabilityCurrentChanges) {
+    assert.notDeepEqual(currentRows.get(id), baselineRows.get(id), `${id} must carry executable M3 truth`);
   }
   const screenVideo = currentRows.get('screencapturekit-screen-video');
   assert.equal(screenVideo.implementation.state, 'partial');
   assert.equal(screenVideo.exposure.cli.state, 'complete');
-  assert.match(screenVideo.implementation.summary, /video producer.+H\.264 in QuickTime/iu);
-  assert.match(screenVideo.observation.frontier, /system audio and microphone output are explicitly absent/iu);
+  assert.match(screenVideo.implementation.summary, /mandatory H\.264 video.+optional AAC-LC system audio/iu);
+  assert.match(screenVideo.observation.frontier, /request-selected `\.audio` samples/iu);
+  const systemAudio = currentRows.get('screencapturekit-system-audio');
+  assert.equal(systemAudio.implementation.state, 'partial');
+  assert.equal(systemAudio.exposure.cli.state, 'complete');
+  assert.match(systemAudio.observation.completeness, /monotonic timestamps.+bounded backpressure/iu);
   const assetWriter = currentRows.get('avassetwriter-custom-multitrack');
   assert.equal(assetWriter.implementation.state, 'partial');
-  assert.deepEqual(assetWriter.observation.targets, ['one H.264 QuickTime video track']);
-  assert.match(assetWriter.observation.breadth, /no audio input/iu);
+  assert.deepEqual(assetWriter.observation.targets, [
+    'one mandatory H.264 video track and explicitly optional AAC-LC system-audio track',
+  ]);
+  assert.match(assetWriter.observation.completeness, /one common epoch.+exactly-once/iu);
   const writerDisposition = currentLedger.coverage
     .source_disposition_by_capability['avassetwriter-custom-multitrack'];
   assert.equal(writerDisposition.disposition, 'positive');
-  assert.match(writerDisposition.boundary_claim, /video input is current; multitrack and audio inputs remain absent/iu);
+  assert.match(writerDisposition.boundary_claim, /mandatory H\.264 video.+optional AAC-LC system audio.+common media epoch/iu);
   const inputEvent = currentRows.get('global-input-event-observation');
   const baselineInputEvent = baselineRows.get('global-input-event-observation');
   const inputListenBinding = inputEvent.exposure.cli.bindings.find(({ form_id: id }) => id === 'listen-hotkey');

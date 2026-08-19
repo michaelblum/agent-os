@@ -21,6 +21,10 @@ const schemas = Object.fromEntries(schemaNames.map((name) => {
   const schema = JSON.parse(fs.readFileSync(path.join(schemaDirectory, name), 'utf8'));
   return [schema.$id, schema];
 }));
+const recordingSchema = JSON.parse(fs.readFileSync(
+  path.join(schemaDirectory, 'aos-screen-recording-v1.schema.json'),
+  'utf8',
+));
 const ids = Object.keys(schemas);
 const byName = Object.fromEntries(schemaNames.map((name) => [
   name,
@@ -74,7 +78,7 @@ function validateCases(cases) {
   const result = spawnSync('python3', ['-c', pythonValidator], {
     cwd: repoRoot,
     encoding: 'utf8',
-    input: JSON.stringify({ schemas: Object.values(schemas), cases }),
+    input: JSON.stringify({ schemas: [...Object.values(schemas), recordingSchema], cases }),
     timeout: 20_000,
   });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
@@ -251,6 +255,34 @@ const tap = {
   updated_at: TIMESTAMP,
 };
 
+const videoTrackSummary = {
+  selected_tracks: ['video'],
+  finalized_tracks: ['video'],
+  common_media_epoch_ns: 1,
+  video: {
+    selected: true, admitted: true, available: true, first_sample_present: true,
+    sample_count: 1, sample_byte_count: 100, failure_code: null,
+    drained: true, finalized: true,
+  },
+  system_audio: {
+    selected: false, admitted: false, available: false, first_sample_present: false,
+    sample_count: 0, sample_byte_count: 0, failure_code: null,
+    drained: true, finalized: true,
+  },
+};
+
+const audioTrackSummary = {
+  selected_tracks: ['video', 'system_audio'],
+  finalized_tracks: ['video', 'system_audio'],
+  common_media_epoch_ns: 1,
+  video: videoTrackSummary.video,
+  system_audio: {
+    selected: true, admitted: true, available: true, first_sample_present: true,
+    sample_count: 1, sample_byte_count: 100, failure_code: null,
+    drained: true, finalized: true,
+  },
+};
+
 const artifactIdentity = {
   containment_root_digest: SHA_A,
   relative_locator_digest: SHA_B,
@@ -259,6 +291,7 @@ const artifactIdentity = {
   size_bytes: 100,
   content_digest: SHA_C,
   media_type: 'video/quicktime; codecs=avc1',
+  track_summary: videoTrackSummary,
 };
 
 const artifact = {
@@ -421,6 +454,82 @@ test('operation, lineage, stream, target tap/artifact, recovery, event, and barr
   ]);
 });
 
+test('screen-recording operations require progress and terminal track truth plus success artifact and failure truth', () => {
+  const screenBase = {
+    ...operation,
+    adapter_registration: {
+      adapter_registration_id: 'screen-recording-adapter',
+      adapter_registration_revision: 2,
+    },
+    capability_id: 'screen-recording.video',
+    state: 'terminal',
+    progress: {
+      items: 1,
+      bytes: 100,
+      duration_ms: 20,
+      last_event_sequence: 1,
+      track_summary: videoTrackSummary,
+    },
+    artifacts: [{ id: 'artifact-1', generation: 1 }],
+    cleanup: zeroCleanup,
+    terminal: {
+      outcome: 'succeeded',
+      trigger: 'adapter_complete',
+      blame: 'adapter',
+      duration_ms: 20,
+      completed_at: TIMESTAMP,
+      failure_code: null,
+      track_summary: videoTrackSummary,
+    },
+    started_at: TIMESTAMP,
+  };
+  const failedTrackSummary = {
+    selected_tracks: ['video'],
+    finalized_tracks: [],
+    common_media_epoch_ns: null,
+    video: {
+      selected: true, admitted: true, available: true, first_sample_present: false,
+      sample_count: 0, sample_byte_count: 0,
+      failure_code: 'SCREEN_RECORDING_NO_VIDEO_FRAMES', drained: false, finalized: false,
+    },
+    system_audio: videoTrackSummary.system_audio,
+  };
+  const failed = {
+    ...screenBase,
+    progress: { ...screenBase.progress, items: 0, bytes: 0, track_summary: failedTrackSummary },
+    artifacts: [],
+    terminal: {
+      ...screenBase.terminal,
+      outcome: 'failed',
+      trigger: 'adapter_failure',
+      failure_code: 'SCREEN_RECORDING_NO_VIDEO_FRAMES',
+      track_summary: failedTrackSummary,
+    },
+  };
+  const withoutProgressSummary = structuredClone(screenBase);
+  delete withoutProgressSummary.progress.track_summary;
+  const withoutTerminalSummary = structuredClone(failed);
+  delete withoutTerminalSummary.terminal.track_summary;
+  const withoutTerminalFailure = structuredClone(failed);
+  delete withoutTerminalFailure.terminal.failure_code;
+  assertValidation([
+    target(OPERATION_ID, 'operation_snapshot', screenBase, true, 'screen success'),
+    target(OPERATION_ID, 'operation_snapshot', failed, true, 'screen failure'),
+    target(OPERATION_ID, 'operation_snapshot', withoutProgressSummary, false, 'screen progress summary required'),
+    target(OPERATION_ID, 'operation_snapshot', withoutTerminalSummary, false, 'screen terminal summary required'),
+    target(OPERATION_ID, 'operation_snapshot', withoutTerminalFailure, false, 'screen terminal failure required'),
+    target(OPERATION_ID, 'operation_snapshot', { ...screenBase, artifacts: [] }, false, 'screen success artifact required'),
+    target(OPERATION_ID, 'operation_snapshot', {
+      ...screenBase,
+      terminal: { ...screenBase.terminal, failure_code: 'SCREEN_RECORDING_ENCODER_FAILED' },
+    }, false, 'screen success cannot carry failure'),
+    target(OPERATION_ID, 'operation_snapshot', {
+      ...failed,
+      terminal: { ...failed.terminal, failure_code: null },
+    }, false, 'screen failure must be typed'),
+  ]);
+});
+
 test('tap remains unavailable while artifact roots expose producer custody and typed failures', () => {
   const tapUnavailable = {
     v: 1,
@@ -450,6 +559,7 @@ test('tap remains unavailable while artifact roots expose producer custody and t
     byte_count: 100,
     content_digest: SHA_A,
     media_type: 'video/quicktime; codecs=avc1',
+    track_summary: videoTrackSummary,
     path: '/private/tmp/artifact.mov',
   };
   const removedArtifactResult = {
@@ -479,7 +589,9 @@ test('tap remains unavailable while artifact roots expose producer custody and t
     target(ARTIFACT_ID, 'artifact_custody_result', { ...releasedArtifactResult, state: 'removed' }, false, 'release must report released'),
     target(ARTIFACT_ID, 'artifact_custody_result', { ...artifactResult, path: undefined }, false, 'reveal requires a path'),
     target(ARTIFACT_ID, 'artifact_custody_result', { ...artifactResult, media_type: 'video/quicktime; codecs=vp09' }, false, 'custody media type and codec are exact'),
+    target(ARTIFACT_ID, 'artifact_custody_result', { ...artifactResult, track_summary: audioTrackSummary }, false, 'AAC summary requires the exact AAC media identity'),
     target(ARTIFACT_ID, 'artifact_snapshot', { ...artifact, identity: { ...artifactIdentity, media_type: 'video/quicktime' } }, false, 'snapshot media type requires the exact avc1 parameter'),
+    target(ARTIFACT_ID, 'artifact_snapshot', { ...artifact, identity: { ...artifactIdentity, track_summary: audioTrackSummary } }, false, 'AAC artifact identity requires the exact AAC media identity'),
     target(
       ARTIFACT_ID,
       null,
@@ -491,6 +603,7 @@ test('tap remains unavailable while artifact roots expose producer custody and t
   const daemonErrorCodes = daemonResponseSchema.oneOf[1].properties.code.enum;
   assert.ok(daemonErrorCodes.includes('OPERATION_TAP_UNAVAILABLE'));
   assert.ok(daemonErrorCodes.includes('OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE'));
+  assert.ok(daemonErrorCodes.includes('OPERATION_ARTIFACT_RETAIN_UNAVAILABLE'));
 });
 
 test('mechanical lineage and the four server origin variants are exact and closed', () => {

@@ -165,26 +165,57 @@ redaction, persistence, and GPU delivery belong to downstream adapters.
 recording producer. It acquires the exact exclusive operation resource and
 broker producer lease before ScreenCaptureKit/file authority, then records one
 fixed display, exact window, or single-display global region as H.264 QuickTime
-video. It retains and revalidates the exact admitted canonical topology before
-filter creation and every frame. Its closed track contract is video-only: system
-audio and microphone are false, and it never follows geometry after admission.
-Media duration spans capture-start through stop admission only, and nonzero
-frame/byte progress plus terminal progress persist durably. A finite startup
-deadline hands off the generation-bound native owner before any start request;
+video with explicitly optional AAC-LC system audio in one writer and one
+SCStream. It retains and revalidates the exact admitted canonical topology
+before filter creation and every sample. Video is mandatory, omitted system
+audio preserves exact video-only output, microphone is rejected, and geometry
+never follows after admission. A bounded either-arrival-order barrier starts
+both selected tracks at one earliest media epoch. Each track owns independent
+selected, admitted, available, sample, failure, drain, and finalized truth;
+availability begins only after successful native output registration, while a
+positive-byte admitted sample separately establishes first-sample truth with
+positive per-track count and byte truth. Selected audio unavailable, no-sample,
+or failure cannot silently succeed. When the shared startup deadline settles,
+every missing selected track receives its exact failure; missing mandatory video
+is the deterministic terminal failure when both tracks are silent. Writer-global
+start or post-start failure stamps every selected track before terminalization.
+Media duration spans capture-start through stop admission only, and written-video
+frame progress, total artifact bytes, and content-free per-track admission
+progress persist durably. Total bytes may advance from ready audio while video
+input is backpressured; global bounds validate against the exact per-track
+summary without equating zero video frames to zero total bytes. One
+finite absolute startup deadline covers native start and the remaining
+selected-track/common-media barrier budget; it hands off the generation-bound
+native owner before any start request.
 callback loss, startup stop, or cancellation retains that owner until native
 retirement is proven. First-frame evidence remains active even if its delayed
 start callback fails, so exactly one stop must settle before authority release.
-Stop atomically closes frame admission, drains only
-already-admitted frames, and requires at least one frame plus a finalized,
-nonempty artifact before success. Stop, failure, and boot recovery must settle
-stream authority, drain or cancel the writer, release the broker and operation
-claim, and remove any unoffered file before terminalizing.
+Stop atomically closes sample admission, drains only already-admitted video and
+audio samples, finishes both selected writer inputs and the writer exactly once,
+and requires positive-byte successful truth for every selected track plus a
+finalized, nonempty artifact with the exact video-only or H.264-plus-AAC media
+identity before success. Public screen-recording progress and terminal receipts
+require the exact track summary. The adapter derives its closed initial
+selected-track summary from the decoded request and passes it as zero progress
+to the generic `prepareOperation` transaction, so operation identity, requested
+bounds, and selected-track truth become durable in one save before any stream,
+artifact, claim, broker, native, writer, or file authority. Later preparation
+never backfills that initial truth, and cleanup plus boot recovery preserve it.
+`operation-state.swift` owns the exact public snapshot, list, and inspect
+projection, including progress and terminal truth; `UnifiedDaemon` delegates
+those complete responses to it so the production-attached fake harness executes
+the same projection without starting a daemon or synthesizing wire metadata.
+Success also requires artifact presence, while failure requires a typed terminal
+code. Stop, failure, and boot recovery must
+settle stream authority, drain or cancel the writer, release the broker and
+operation claim, and remove any unoffered file before terminalizing.
 Offered artifacts support owner- and generation-bound reveal, remove, and
 same-volume no-overwrite release; release persists the exact generation,
 source, destination, and phase before mutation and recovery resolves only to
 released, rolled back, or explicit residual truth. Release and remove admission
 CAS the same offered artifact; no generic transition may clear a live release.
-Retain is typed unavailable.
+Retain is typed unavailable. Artifact identity and every custody result bind
+the exact selected-track summary.
 Every artifact action is decoded against its action-specific exact key and type
 set before registry or custody effects. Offline schema, an executable compiled
 production-owner lifecycle/custody harness with fake dependencies, and native

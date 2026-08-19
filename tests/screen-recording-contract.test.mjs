@@ -6,7 +6,7 @@ import test from 'node:test'
 const root = path.resolve(import.meta.dirname, '..')
 const read = (file) => readFile(path.join(root, file), 'utf8')
 
-test('recording producer pins exact caps, media pair, target drift, and no audio output', async () => {
+test('recording producer pins exact caps, fixed targets, and one optional same-stream AAC-LC track', async () => {
   const [geometry, encoder, adapter] = await Promise.all([
     read('src/daemon/screen-recording-geometry.swift'),
     read('src/daemon/screen-recording-encoder.swift'),
@@ -17,15 +17,29 @@ test('recording producer pins exact caps, media pair, target drift, and no audio
   }
   assert.match(encoder, /AVVideoCodecType\.h264/u)
   assert.match(encoder, /AVAssetWriter\(outputURL: outputURL, fileType: \.mov\)/u)
-  assert.equal((encoder.match(/AVAssetWriterInput\(/gu) ?? []).length, 1)
-  assert.doesNotMatch(encoder, /mediaType:\s*\.audio|AVAudio|audioSettings/u)
-  assert.match(adapter, /configuration\.capturesAudio = false/u)
-  assert.doesNotMatch(adapter, /addStreamOutput\([^\n]+type:\s*\.audio/u)
+  assert.equal((encoder.match(/AVAssetWriterInput\(/gu) ?? []).length, 2)
+  assert.match(encoder, /mediaType:\s*\.audio/u)
+  assert.match(encoder, /kAudioFormatMPEG4AAC/u)
+  assert.match(encoder, /AVSampleRateKey:\s*48_000/u)
+  assert.match(adapter, /configuration\.capturesAudio = request\.tracks\.systemAudio/u)
+  assert.match(adapter, /addStreamOutput\(output, type: \.audio/u)
+  const videoOutput = adapter.indexOf('addStreamOutput(output, type: .screen')
+  const videoAvailable = adapter.indexOf('encoder.markAvailable(.video)')
+  const audioOutput = adapter.indexOf('addStreamOutput(output, type: .audio')
+  const audioAvailable = adapter.indexOf('encoder.markAvailable(.systemAudio)')
+  assert.ok(videoOutput >= 0 && videoOutput < videoAvailable)
+  assert.ok(audioOutput >= 0 && audioOutput < audioAvailable)
+  assert.equal((adapter.match(/let stream = SCStream\(/gu) ?? []).length, 1)
+  assert.match(adapter, /resourceKey = "screen_capture_native_session"/u)
   assert.match(adapter, /validateCurrentBinding/u)
   assert.match(geometry, /let admittedTopology: AOSDisplayTopologySnapshot/u)
   assert.match(geometry, /canonicalTopologyData\(observedTopology\)[\s\S]*canonicalTopologyData\(geometry\.admittedTopology\)/u)
   assert.match(adapter, /recordingTargetDrift/u)
   assert.match(adapter, /aosStartDesktopPixelStreams/u)
+  const startupDeadline = adapter.indexOf('let deadline = startedAt.addingReportingOverflow')
+  const nativeStartup = adapter.indexOf('try await aosStartDesktopPixelStreams')
+  assert.ok(startupDeadline >= 0 && startupDeadline < nativeStartup)
+  assert.ok((adapter.match(/remainingStartupTime\(until: deadline\.partialValue\)/gu) ?? []).length >= 2)
   assert.match(adapter, /ownerGeneration: admission\.publicAdmission\.operation\.generation/u)
   assert.match(adapter, /ownerReady: \{ \[weak self\] owner in/u)
   assert.match(adapter, /acquireExclusiveProducer/u)
@@ -33,13 +47,14 @@ test('recording producer pins exact caps, media pair, target drift, and no audio
   const filterValidation = adapter.lastIndexOf('AOSScreenRecordingGeometryValidator.validateCurrentBinding(', adapter.indexOf('let filter: SCContentFilter'))
   assert.ok(filterValidation >= 0 && filterValidation < adapter.indexOf('let filter: SCContentFilter'))
   const frameValidation = adapter.indexOf('try validateBinding()')
-  const frameAppend = adapter.indexOf('try encoder.append(sampleBuffer)')
+  const frameAppend = adapter.indexOf('try encoder.append(sampleBuffer, track: track)')
   assert.ok(frameValidation >= 0 && frameValidation < frameAppend)
 })
 
 test('effectful recording decoders and progress publication are exact and fail closed', async () => {
-  const [geometry, adapter, unified] = await Promise.all([
+  const [geometry, encoder, adapter, unified] = await Promise.all([
     read('src/daemon/screen-recording-geometry.swift'),
+    read('src/daemon/screen-recording-encoder.swift'),
     read('src/daemon/screen-recording-operation-adapter.swift'),
     read('src/daemon/unified.swift'),
   ])
@@ -58,8 +73,12 @@ test('effectful recording decoders and progress publication are exact and fail c
   assert.match(adapter, /admitCaptureStart/u)
   assert.match(adapter, /admitStop/u)
   assert.match(adapter, /waitForDrain/u)
-  assert.match(adapter, /AOSScreenRecordingTerminalTruth\.requireFrames/u)
+  const encoderFinish = adapter.indexOf('encoder.finish { continuation.resume(with: $0) }')
+  const requireFrames = adapter.indexOf('AOSScreenRecordingTerminalTruth.requireFrames(')
+  assert.ok(encoderFinish >= 0 && encoderFinish < requireFrames)
   assert.match(adapter, /AOSScreenRecordingTerminalTruth\.requireFinalizedArtifact/u)
+  assert.match(encoder, /guard bytes > 0 else \{ return \}/u)
+  assert.match(encoder, /recordWriterFailureLocked/u)
 })
 
 test('durability and custody ordering is producer-backed and retain is specifically unavailable', async () => {
@@ -70,11 +89,26 @@ test('durability and custody ordering is producer-backed and retain is specifica
     read('src/daemon/unified.swift'),
   ])
   const operation = adapter.indexOf('registry.prepareOperation(')
+  const initialSummary = adapter.indexOf('let initialTrackSummary = AOSScreenRecordingTrackSummary.initial(')
+  const initialProgress = adapter.indexOf('let initialProgress = AOSOperationProgress(')
   const stream = adapter.indexOf('registry.prepareStream(')
   const artifact = adapter.indexOf('registry.prepareArtifact(')
   const native = adapter.indexOf('broker.acquireExclusiveProducer(')
+  assert.ok(initialSummary >= 0 && initialSummary < initialProgress && initialProgress < operation)
   assert.ok(operation >= 0 && stream > operation && artifact > stream)
   assert.ok(native > artifact)
+  const preparation = adapter.slice(adapter.indexOf('private func prepare('), adapter.indexOf('private func releaseClaim('))
+  assert.match(preparation, /requestedBounds: request\.requestedBounds,\s*initialProgress: initialProgress/u)
+  assert.doesNotMatch(preparation, /updateOperationProgress/u)
+  assert.match(registry, /initialProgress: AOSOperationProgress\? = nil/u)
+  assert.match(registry, /progress: initialProgress \?\? requestedBounds\.map/u)
+  assert.match(state, /enum AOSOperationPublicProjection/u)
+  assert.match(state, /static func snapshot\(/u)
+  assert.match(state, /static func list\(/u)
+  assert.match(state, /static func inspect\(/u)
+  assert.match(unified, /AOSOperationPublicProjection\.list\(/u)
+  assert.match(unified, /AOSOperationPublicProjection\.inspect\(/u)
+  assert.doesNotMatch(unified, /private func operationSnapshot\(/u)
   const release = adapter.slice(adapter.indexOf('func releaseArtifact('), adapter.indexOf('func recoverArtifactRelease('))
   const preparedRelease = release.indexOf('registry.prepareArtifactRelease(')
   const linkedRelease = release.indexOf('files.linkDestination(')
@@ -86,6 +120,7 @@ test('durability and custody ordering is producer-backed and retain is specifica
   assert.match(registry, /durable\.artifacts\[index\]\.pendingAction == nil/u)
   assert.doesNotMatch(state, /enum AOSArtifactPendingAction[^}]*case[^}]*release/su)
   assert.match(registry, /\.offered, \.released, \.retained, \.removed/u)
+  assert.match(state, /artifact\.mediaType == expectedSummary\.expectedMediaType/u)
   assert.match(unified, /revision: 2,[\s\S]*registrations: \[registration, screenRecordingRegistration\]/u)
 })
 

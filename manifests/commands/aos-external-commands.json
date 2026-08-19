@@ -3104,7 +3104,7 @@
     },
     {
       "path": ["record"],
-      "summary": "Create one bounded H.264 QuickTime recording of a fixed display, window, or global region.",
+      "summary": "Create one bounded H.264 QuickTime recording of a fixed display, window, or global region with optional same-stream AAC-LC system audio.",
       "executable": "$AOS_PATH",
       "argv_prefix": ["__record"],
       "cwd": "repo",

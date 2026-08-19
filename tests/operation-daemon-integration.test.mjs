@@ -51,11 +51,12 @@ test('daemon operation integration retains secure routing and exact wire boundar
 })
 
 test('source-free tap and producer-backed recording custody expose exact typed boundaries', async () => {
-  const [unified, control, state, command] = await Promise.all([
+  const [unified, control, state, command, responseSchema] = await Promise.all([
     readFile(path.join(repoRoot, 'src/daemon/unified.swift'), 'utf8'),
     readFile(path.join(repoRoot, 'src/daemon/operation-control.swift'), 'utf8'),
     readFile(path.join(repoRoot, 'src/daemon/operation-state.swift'), 'utf8'),
     readFile(path.join(repoRoot, 'src/commands/operation.swift'), 'utf8'),
+    readFile(path.join(repoRoot, 'shared/schemas/daemon-response.schema.json'), 'utf8'),
   ])
 
   assert.match(unified, /case "tap":\s*throw AOSOperationCoreError\.tapUnavailable/u)
@@ -69,6 +70,11 @@ test('source-free tap and producer-backed recording custody expose exact typed b
   assert.doesNotMatch(control, /AOSOperationTapBuffer|AOSOperationTapAdmission/u)
   assert.match(state, /case \.tapUnavailable: return "OPERATION_TAP_UNAVAILABLE"/u)
   assert.match(state, /case \.artifactRetainUnavailable: return "OPERATION_ARTIFACT_RETAIN_UNAVAILABLE"/u)
+  const retainRoute = unified.indexOf('try adapter.retainArtifact(selector)')
+  const typedResponse = unified.indexOf('catch let error as AOSOperationCoreError', retainRoute)
+  assert.ok(retainRoute >= 0 && typedResponse > retainRoute)
+  assert.ok(JSON.parse(responseSchema).oneOf[1].properties.code.enum
+    .includes('OPERATION_ARTIFACT_RETAIN_UNAVAILABLE'))
   assert.match(state, /AOSArtifactReleaseCoordinator/u)
   assert.match(state, /source == \.absent, destination == \.exact/u)
   assert.match(unified, /resolution == \.rolledBack[\s\S]*removeRecoveredRolledBackArtifact/u)

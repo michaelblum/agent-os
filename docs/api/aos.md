@@ -2213,7 +2213,8 @@ substitutes for daemon authorization.
 
 `aos operation` is the public, policy-free control plane for work registered by
 an AOS operation adapter. The registry currently contains native microphone
-capture and fixed video-only screen recording at adapter-registry revision 2.
+capture and fixed screen recording with mandatory video plus optional system
+audio at adapter-registry revision 2.
 The surface reports mechanical facts and performs requested controls. It does
 not decide whether a human or agent should stop work, and it accepts neither
 caller intent nor a caller-supplied owner-root claim.
@@ -2307,13 +2308,14 @@ dependency facts.
 
 ## `aos record`
 
-`aos record screen` admits one fixed screen-video producer through the shared
+`aos record screen` admits one fixed screen recording producer through the shared
 operation plane:
 
 ```bash
 aos record screen --display main --duration-ms 10000 --json
 aos record screen --display 1 --region 0,0,1280,720 \
   --duration-ms 5000 --frame-rate 30 --json
+aos record screen --display main --duration-ms 10000 --system-audio --json
 ```
 
 The target is exactly one display, one current window, or one global region
@@ -2322,16 +2324,29 @@ topology, source identity, and fixed geometry before ScreenCaptureKit authority
 starts; later drift fails the operation instead of silently reacquiring or
 following a target. Duration is 1 through 300000 milliseconds, frame rate 1
 through 60, queue depth 1 through 8, pixel count 4 through 33177600, and output
-size 1024 through 1073741824 bytes. The closed media contract is H.264 in a
-QuickTime `.mov`, with `video=true`, `system_audio=false`, and
-`microphone=false`.
+size 1024 through 1073741824 bytes. The closed media contract is mandatory
+H.264 video in one QuickTime `.mov`, with explicit optional AAC-LC system audio.
+Omitting `--system-audio` preserves exact video-only output. `video=false`,
+`microphone=true`, malformed track selection, and followed geometry fail before
+effects.
 
 Success is admission, not completed capture. It returns exact operation,
-stream, and artifact generations plus daemon generation and geometry-binding
-digest. Use `aos operation status`, cancel, or kill for lifecycle control, then
-an artifact action above for custody. AOS owns the transient file until remove
-or same-volume release, and boot recovery removes abandoned internal recording
-artifacts. This slice has offline, fake, schema, and native compile-only proof;
+stream, and artifact generations plus daemon generation, geometry-binding
+digest, selected tracks, and an initial content-free track summary. Progress,
+terminal facts, artifact identity, and custody receipts bind independent
+selected/admitted/available/sample/failure/drain/finalized truth for video and
+system audio. Availability records successful native output registration and
+does not claim a first sample; only positive-byte samples establish sample
+truth. One absolute startup deadline covers native start and the remaining
+common-media barrier. Selected audio that is unavailable, never samples, or
+fails is a typed failure, and a writer-global failure marks every selected
+track; audio is never silently omitted. Successful artifact/result/custody
+truth requires positive bytes for every selected finalized track and the exact
+video-only or H.264-plus-AAC QuickTime media identity. Use `aos operation status`, cancel,
+or kill for lifecycle control, then an artifact action above for custody. AOS
+owns the transient file until remove or same-volume release, and boot recovery
+removes abandoned internal recording artifacts. This slice has offline, fake,
+schema, and native compile-only proof;
 live pixels, files, permissions, daemon restart, and crash behavior are not
 accepted by those checks.
 

@@ -171,6 +171,7 @@ good_requests = [
     {"v":1,"service":"operation","action":"cancel","data":{**operation_request,"selector":operation_selector}},
     {"v":1,"service":"operation","action":"kill_owner","data":{**operation_request,"filters":{"agent_id":"agent-1","project_id":"project-1"}}},
     {"v":1,"service":"operation","action":"record_screen","data":screen_recording_request},
+    {"v":1,"service":"operation","action":"record_screen","data":{**screen_recording_request,"tracks":{"video":True,"system_audio":True,"microphone":False}}},
     {"v":1,"service":"operation","action":"tap","data":operation_request},
     {"v":1,"service":"operation","action":"artifact_reveal","data":{**operation_request,"selector":artifact_selector}},
     {"v":1,"service":"operation","action":"artifact_remove","data":{**operation_request,"selector":artifact_selector}},
@@ -243,7 +244,8 @@ bad_requests = [
     {"v":1,"service":"operation","action":"artifact_release","data":{**operation_request,"selector":artifact_selector}},  # release requires a destination
     {"v":1,"service":"operation","action":"artifact_release","data":{**operation_request,"selector":artifact_selector,"destination":"/private/tmp/x.mov","extra":True}},  # release data is closed
     {"v":1,"service":"operation","action":"artifact_release","data":{**operation_request,"selector":artifact_selector,"destination":7}},  # release destination type is exact
-    {"v":1,"service":"operation","action":"record_screen","data":{**screen_recording_request,"tracks":{"video":True,"system_audio":True,"microphone":False}}},  # audio tracks are closed off
+    {"v":1,"service":"operation","action":"record_screen","data":{**screen_recording_request,"tracks":{"video":True,"system_audio":False,"microphone":True}}},  # microphone remains structurally rejected
+    {"v":1,"service":"operation","action":"record_screen","data":{**screen_recording_request,"tracks":{"video":True,"system_audio":"yes","microphone":False}}},  # system audio selection is exact Boolean
     {"v":1,"service":"operation","action":"stop_all","data":{**operation_request,"schema_version":"aos.host-stop-barrier.stop-all-request.v1","action":"stop_all"}},  # stop-all requires exact barrier CAS
     {"v":1,"service":"operation","action":"barrier_status","data":{**operation_request,"schema_version":"aos.host-stop-barrier.status-request.v1","action":"barrier_status","caller_origin":"status_item_host"}},  # origin evidence is server-attached
     {"v":1,"service":"operation","action":"recent","data":{**operation_request,"task_id":"task-1"}},  # filters are a closed nested object
@@ -285,6 +287,7 @@ good_responses = [
     {"v":1,"status":"error","error":"host barrier generation changed","code":"OPERATION_BARRIER_GENERATION_CONFLICT"},
     {"v":1,"status":"error","error":"OPERATION_TAP_UNAVAILABLE","code":"OPERATION_TAP_UNAVAILABLE","ref":"tap-request-1"},
     {"v":1,"status":"error","error":"OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE","code":"OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE","ref":"artifact-request-1"},
+    {"v":1,"status":"error","error":"OPERATION_ARTIFACT_RETAIN_UNAVAILABLE","code":"OPERATION_ARTIFACT_RETAIN_UNAVAILABLE","ref":"artifact-retain-request-1"},
     {"v":1,"status":"success","data":{"schema_version":"aos.operation.external-spawn-intent-response.v1","request_id":"33333333-3333-4333-8333-333333333333","spawn_record_id":"55555555-5555-4555-8555-555555555555","one_time_binding_token":external_binding_token,"operation_id":operation_selector["operation_id"],"operation_generation":operation_selector["operation_generation"],"adapter_registration_id":"microphone-capture-adapter","adapter_registration_revision":1}},
     {"v":1,"status":"success","data":{"schema_version":"aos.operation.external-spawn-child-admit-response.v1","request_id":"44444444-4444-4444-8444-444444444444","spawn_record_id":"55555555-5555-4555-8555-555555555555","operation_id":operation_selector["operation_id"],"operation_generation":operation_selector["operation_generation"],"child_pid":1234,"child_pid_generation":1234000001,"parent_edge_digest":"9"*64,"platform_code_directory_hash":"a"*40,"platform_code_directory_hash_algorithm":"sha256_truncated_cdhash_20_bytes","outcome":"generation_bound_spawn_child_admitted"}},
     {"v":1,"status":"success","data":{"schema_version":"aos.operation.external-spawn-abandon-response.v1","request_id":"55555555-5555-4555-8555-555555555555","spawn_record_id":"55555555-5555-4555-8555-555555555555","operation_id":operation_selector["operation_id"],"operation_generation":operation_selector["operation_generation"],"outcome":"prepared_operation_abandoned"}},

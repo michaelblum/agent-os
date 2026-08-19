@@ -106,6 +106,7 @@ func aosPersistScreenRecordingProgress(
     byteCount: UInt64,
     elapsedMilliseconds: UInt64,
     bounds: AOSOperationRequestedBounds,
+    trackSummary: AOSScreenRecordingTrackSummary,
     persist: (AOSOperationProgress) throws -> Void
 ) throws -> AOSOperationProgress {
     let multipliedFrames = bounds.durationMilliseconds.multipliedReportingOverflow(
@@ -120,17 +121,74 @@ func aosPersistScreenRecordingProgress(
           frameCount <= frameLimit.partialValue,
           elapsedMilliseconds <= bounds.durationMilliseconds,
           byteCount <= bounds.maximumOutputBytes,
-          (frameCount == 0) == (byteCount == 0) else {
+          validProgressSummary(
+            trackSummary,
+            frameCount: frameCount,
+            byteCount: byteCount
+          ) else {
         throw AOSOperationCoreError.recordingBoundsExceeded
     }
     let progress = AOSOperationProgress(
         frameCount: frameCount,
         byteCount: byteCount,
         elapsedMilliseconds: elapsedMilliseconds,
-        droppedFrameCount: 0
+        droppedFrameCount: 0,
+        trackSummary: trackSummary
     )
     try persist(progress)
     return progress
+}
+
+private func validProgressSummary(
+    _ summary: AOSScreenRecordingTrackSummary,
+    frameCount: UInt64,
+    byteCount: UInt64
+) -> Bool {
+    let selected = summary.systemAudio.selected
+        ? ["video", "system_audio"] : ["video"]
+    guard summary.selectedTracks == selected,
+          summary.video.selected,
+          summary.video.admitted,
+          summary.systemAudio.selected == summary.systemAudio.admitted,
+          frameCount <= summary.video.sampleCount,
+          byteCount == 0
+            || summary.video.firstSamplePresent
+            || summary.systemAudio.firstSamplePresent,
+          validTrackTruth(summary.video) else {
+        return false
+    }
+    if summary.systemAudio.selected {
+        guard validTrackTruth(summary.systemAudio) else { return false }
+    } else {
+        guard !summary.systemAudio.available,
+              !summary.systemAudio.firstSamplePresent,
+              summary.systemAudio.sampleCount == 0,
+              summary.systemAudio.sampleByteCount == 0,
+              summary.systemAudio.failureCode == nil,
+              summary.systemAudio.drained,
+              summary.systemAudio.finalized else {
+            return false
+        }
+    }
+    let finalized = selected.filter {
+        $0 == "video" ? summary.video.finalized : summary.systemAudio.finalized
+    }
+    return summary.finalizedTracks == finalized
+}
+
+private func validTrackTruth(_ truth: AOSScreenRecordingTrackTruth) -> Bool {
+    let hasPositiveSample = truth.sampleCount > 0 && truth.sampleByteCount > 0
+    guard truth.firstSamplePresent == hasPositiveSample,
+          !truth.firstSamplePresent || truth.available,
+          !truth.finalized || truth.drained else {
+        return false
+    }
+    if truth.finalized && truth.selected {
+        return truth.admitted
+            && truth.available
+            && truth.failureCode == nil
+    }
+    return true
 }
 
 struct AOSScreenRecordingTracks: Codable, Equatable {
@@ -138,7 +196,9 @@ struct AOSScreenRecordingTracks: Codable, Equatable {
     let systemAudio: Bool
     let microphone: Bool
 
-    static let videoOnly = Self(video: true, systemAudio: false, microphone: false)
+    static func fixed(systemAudio: Bool) -> Self {
+        Self(video: true, systemAudio: systemAudio, microphone: false)
+    }
 }
 
 enum AOSScreenRecordingTargetKind: String, Codable {
@@ -214,7 +274,7 @@ struct AOSScreenRecordingRequest: Codable, Equatable {
               let tracksValue = value["tracks"] as? [String: Any],
               Set(tracksValue.keys) == ["video", "system_audio", "microphone"],
               tracksValue["video"] as? Bool == true,
-              tracksValue["system_audio"] as? Bool == false,
+              let systemAudio = tracksValue["system_audio"] as? Bool,
               tracksValue["microphone"] as? Bool == false,
               value["codec"] as? String == codec,
               value["container"] as? String == container,
@@ -242,7 +302,7 @@ struct AOSScreenRecordingRequest: Codable, Equatable {
             maximumPixelCount: maximumPixels,
             maximumQueueFrames: queueFrames,
             maximumOutputBytes: maximumBytes,
-            tracks: .videoOnly,
+            tracks: .fixed(systemAudio: systemAudio),
             codec: codec,
             container: container
         )
@@ -377,7 +437,8 @@ struct AOSScreenRecordingRequest: Codable, Equatable {
 
 enum AOSScreenRecordingGeometryValidator {
     static func resolve(_ request: AOSScreenRecordingRequest) throws -> AOSScreenRecordingGeometry {
-        guard request.tracks == .videoOnly,
+        guard request.tracks.video,
+              !request.tracks.microphone,
               request.codec == AOSScreenRecordingRequest.codec,
               request.container == AOSScreenRecordingRequest.container,
               let display = request.topology.displays.first(where: {

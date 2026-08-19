@@ -97,22 +97,40 @@ with the exact command and guard posture.
 `node scripts/aos-dev-workflow.mjs recommend --json` enforces this only for
 changed proof assets; untouched legacy tests remain runnable debt.
 
-For the bounded fixed video-only recording producer, use:
+For the bounded fixed recording producer with optional system audio, use:
 
 ```bash
 bash tests/native-screen-recording-contract.sh
 ```
 
-This route validates the closed schema, exact H.264/QuickTime and no-audio
-source contract, fixed geometry and drift behavior, authored/generated help,
-and a whole-source Swift typecheck. Its executable compiled harness runs the
+This route validates the closed schema, mandatory H.264 video, optional AAC-LC
+system audio in one QuickTime writer and SCStream, fixed geometry and drift
+behavior, authored/generated help, and a whole-source Swift typecheck. Its
+executable compiled harness runs the
 production recording adapter, registry, in-memory durable store, lifecycle,
-frame admission, terminal truth, custody coordinator, and boot recovery with
-injected fake clock, native session, encoder/file, and broker dependencies. It
-covers callback loss, startup stop and task cancellation, late start failure
-after active evidence, retirement timeout/false settlement, stop/frame drain,
-zero/missing-artifact cleanup, release/remove races, every release fault phase,
-restart recovery, and decoder extra-key/type rejection. It does not execute
+sample admission, multitrack coordination, terminal truth, custody coordinator,
+and boot recovery with injected fake clock, video/audio callbacks, writer
+inputs/file, native session, and broker dependencies. It covers both arrival
+orders, one common epoch, per-track monotonicity and truth, bounded backpressure,
+and an injected durable save fault after atomic operation admission but before
+stream/artifact/claim handoff. For both video-only and selected-audio requests,
+the harness executes the exact production snapshot/list/inspect projector used
+by `UnifiedDaemon` and validates the prepared, cleanup-required, and recovered
+terminal responses against `aos.operation.v1` without synthesizing wire
+metadata or backfilling track truth. It
+also covers registration availability distinct from positive-byte first-sample truth,
+positive per-track sample counts and bytes, zero-byte rejection, writer-global
+failure on every selected track, typed selected-audio failures, both-silent
+per-track settlement with mandatory-video terminal precedence, audio byte
+progress while video input is backpressured, later mandatory-video success and
+failure, one total native-start/common-barrier budget, callback
+loss, startup stop and task cancellation,
+late start failure after active evidence, retirement timeout/false settlement,
+dual-track stop/drain/finalize, successful-summary/media-identity schema
+coupling, required screen progress/terminal summaries and typed failure/artifact
+truth, zero/missing-artifact cleanup, typed retain unavailability, release/remove
+races, every release fault phase, restart recovery, and decoder extra-key/type
+rejection. It does not execute
 ScreenCaptureKit, AVAssetWriter, filesystem effects, `./aos`, the daemon, TCC,
 native UI, pixels, or media.
 

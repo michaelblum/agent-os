@@ -237,12 +237,18 @@ primitive.
 
 ## Diagnostics And Evidence Trace
 
-AOS exposes bounded fixed screen-video recording, but not a Playwright-style
+AOS exposes bounded fixed screen recording, but not a Playwright-style
 trace bundle or caller-followed page video. The recording primitive is
 `aos record screen`: one fixed display, exact current window, or global region;
-H.264 QuickTime video only; hard duration/frame/pixel/queue/byte bounds; and an
-operation-owned transient artifact. System audio, microphone tracks, followed
-geometry, and live/native acceptance remain outside the current slice. The
+mandatory H.264 video with an explicitly selected optional AAC-LC system-audio
+track in one QuickTime writer; hard duration/frame/pixel/queue/byte bounds; and
+an operation-owned transient artifact. Omission remains exact video-only.
+Output registration availability is distinct from positive-byte first-sample
+truth, and one absolute startup budget covers native start plus the remaining
+common-media barrier. Successful results and custody bind the selected/finalized
+track set to the exact video-only or H.264-plus-AAC media identity.
+Microphone tracks, followed geometry, and live/native acceptance remain outside
+the current slice. The
 broader AOS-native proof trail is still a composed sequence of command JSON and
 file-backed evidence:
 

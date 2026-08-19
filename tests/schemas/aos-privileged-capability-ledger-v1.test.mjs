@@ -90,6 +90,9 @@ const expectedCliFormIds = {
   "screencapturekit-screen-video": [
     "record-screen"
   ],
+  "screencapturekit-system-audio": [
+    "record-screen"
+  ],
   "ax-element-observation": [
     "see-capture",
     "see-observe",
@@ -228,6 +231,26 @@ const expectedCliFormIds = {
 };
 const expectedCliBindingsByCapability = {
   "screencapturekit-screen-video": [
+    {
+      "form_id": "record-screen",
+      "help_source": "manifests/commands/source/aos/42-screen-recording.json",
+      "route_path": "record",
+      "route_source": "manifests/commands/source/external/50-screen-recording.json",
+      "route_selectors": [
+        {
+          "path": [
+            "record"
+          ],
+          "when": null,
+          "executable": "$AOS_PATH",
+          "argv_prefix": [
+            "__record"
+          ]
+        }
+      ]
+    }
+  ],
+  "screencapturekit-system-audio": [
     {
       "form_id": "record-screen",
       "help_source": "manifests/commands/source/aos/42-screen-recording.json",
@@ -4534,13 +4557,19 @@ const expectedSourceDisposition = {
     "named_absent_symbols": []
   },
   "screencapturekit-system-audio": {
-    "disposition": "named_negative",
-    "source_probes": [],
-    "named_absent_symbols": [
-      "capturesAudio = true",
-      "SCStreamOutputType.audio",
-      "addStreamOutput(type: .audio)"
-    ]
+    "disposition": "positive",
+    "source_probes": [
+      {
+        "path": "src/daemon/screen-recording-operation-adapter.swift",
+        "classification": "production_source",
+        "markers": [
+          "configuration.capturesAudio = request.tracks.systemAudio",
+          "type: .audio",
+          "sampleRate = 48_000"
+        ]
+      }
+    ],
+    "named_absent_symbols": []
   },
   "screencapturekit-microphone-recording-output": {
     "disposition": "named_negative",
@@ -4560,7 +4589,10 @@ const expectedSourceDisposition = {
         "markers": [
           "AVAssetWriter(outputURL:",
           "mediaType: .video",
-          "AVVideoCodecType.h264"
+          "AVVideoCodecType.h264",
+          "mediaType: .audio",
+          "kAudioFormatMPEG4AAC",
+          "writer.startSession(atSourceTime:"
         ]
       }
     ],
@@ -7721,7 +7753,7 @@ export async function validateCliReverseClosure(ledger) {
   if ([...union].some((key) => !authored.has(key)) || [...authored].some((key) => !union.has(key))) {
     errors.push(semanticError('CLI_REVERSE_CLOSURE_MISMATCH', 'authored-bound-paths'));
   }
-  if (bindingOccurrences !== 102 || selectorOccurrences !== 108 || failClosed.size !== 6) {
+  if (bindingOccurrences !== 103 || selectorOccurrences !== 109 || failClosed.size !== 6) {
     errors.push(semanticError('CLI_OCCURRENCE_COUNT_INVALID', [bindingOccurrences, selectorOccurrences, failClosed.size].join(':')));
   }
   return errors;
@@ -8721,8 +8753,8 @@ test('flagship exact transition emissions cover failures, cleanup, and atomic fo
 test('authored CLI route tuples reverse-close functional and fail-closed selectors', async () => {
   const ledger = await json(ledgerRelativePath);
   expectNoErrors(await validateCliReverseClosure(ledger));
-  assert.equal(ledger.capabilities.flatMap((row) => row.current.exposure.cli.bindings).length, 102);
-  assert.equal(ledger.capabilities.flatMap((row) => row.current.exposure.cli.bindings.flatMap((binding) => binding.route_selectors)).length, 108);
+  assert.equal(ledger.capabilities.flatMap((row) => row.current.exposure.cli.bindings).length, 103);
+  assert.equal(ledger.capabilities.flatMap((row) => row.current.exposure.cli.bindings.flatMap((binding) => binding.route_selectors)).length, 109);
   assert.equal(ledger.coverage.fail_closed_cli_routes.length, 6);
 });
 
@@ -8928,7 +8960,7 @@ test('all tracked paths classify and named-family production/privilege scans are
   }
 });
 
-test('screen video proof owns fixed video output, audio-off, custody, and public reachability', async () => {
+test('screen recording proof owns optional system audio, warm audio-off, custody, and public reachability', async () => {
   const rows = byId(await json(ledgerRelativePath));
   const row = rows.get('screencapturekit-screen-video');
   const [pixelSource, adapter, encoder] = await Promise.all([
@@ -8937,16 +8969,17 @@ test('screen video proof owns fixed video output, audio-off, custody, and public
     read('src/daemon/screen-recording-encoder.swift'),
   ]);
   assert.match(pixelSource, /configuration\.capturesAudio\s*=\s*false/u);
-  assert.match(adapter, /configuration\.capturesAudio\s*=\s*false/u);
+  assert.match(adapter, /configuration\.capturesAudio\s*=\s*request\.tracks\.systemAudio/u);
   assert.match(adapter, /addStreamOutput\(\s*output,\s*type:\s*\.screen,/su);
-  assert.doesNotMatch(adapter, /configuration\.capturesAudio\s*=\s*true/u);
-  assert.doesNotMatch(adapter, /addStreamOutput\([^)]*type:\s*\.audio/su);
+  assert.match(adapter, /addStreamOutput\(\s*output,\s*type:\s*\.audio,/su);
   assert.match(encoder, /AVVideoCodecKey:\s*AVVideoCodecType\.h264/u);
+  assert.match(encoder, /AVFormatIDKey:\s*kAudioFormatMPEG4AAC/u);
+  assert.match(encoder, /writer\.startSession\(atSourceTime:/u);
   assert.deepEqual(row.current.observation.roots, ['one canonical display-topology observation']);
   assert.deepEqual(row.current.observation.targets, ['one fixed display, exact window, or global region wholly within one display']);
   assert.deepEqual(row.current.data_transport.transports, [
     'private in-process CMSampleBuffer delivery',
-    'transient H.264 QuickTime artifact',
+    'transient H.264 plus optional AAC-LC QuickTime artifact',
   ]);
   assert.equal(row.current.exposure.cli.state, 'complete');
   assert.equal(row.current.exposure.ipc.state, 'complete');
@@ -8980,7 +9013,7 @@ test('design and proof routing state the normalized static boundary', async () =
   ]);
   assert.match(
     design,
-    /Milestone 2 executable control plane plus bounded M3A fixed video-only.+unimplemented M3 remainder and M4-M10\s+sections remain target design merely because they are specified here/isu,
+    /Milestone 2 executable control plane plus bounded M3A fixed video and\s+M3B optional system-audio.+unimplemented M3 remainder and M4-M10\s+sections remain target design merely because they are specified here/isu,
   );
   assert.match(design, /TRANSITION_EVENT_DUPLICATE/u);
   assert.match(design, /exact transition tuple/u);
@@ -9021,8 +9054,8 @@ test('design and proof routing state the normalized static boundary', async () =
   assert.match(entry.contract, /canonical proof-index and workflow reachability/u);
   assert.match(entry.contract, /fifteen-form generation-bound operation\/tap\/artifact\/barrier grammar/u);
   assert.match(entry.contract, /41-operation\.json and 49-operation\.json/u);
-  assert.match(entry.contract, /102 functional bindings and 108 functional selectors/u);
-  assert.match(entry.contract, /fixed video-only screen recording/u);
+  assert.match(entry.contract, /103 functional bindings and 109 functional selectors/u);
+  assert.match(entry.contract, /mandatory-video plus optional-system-audio recording/u);
   assert.match(entry.contract, /six fail-closed selectors/u);
   assert.match(entry.contract, /tracked regular-file production sources/u);
   assert.match(entry.contract, /reviewed SDK snapshot/u);
@@ -9100,6 +9133,6 @@ test('paired authority, executable M2 bindings, and the remaining M6 decision ar
   assert.equal(ledger.later_open_decisions[0].milestone, 'M6');
   assert.match(
     ledger.authority.publication_boundary,
-    /Milestone 2 publishes the executable operation plane and microphone adapter.+bounded M3A slice adds one fixed display\/window\/region H\.264 QuickTime video-only producer/isu,
+    /Milestone 2 publishes the executable operation plane and microphone adapter.+bounded M3A\/M3B slices add one fixed display\/window\/region mandatory-H\.264-video producer with explicitly optional AAC-LC system audio/isu,
   );
 });
