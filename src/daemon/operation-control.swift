@@ -79,28 +79,29 @@ final class AOSOperationControlPlane {
         filter: AOSOperationFilter = .init()
     ) throws -> AOSOperationControlReceipt {
         try validateOrdinaryCaller(context)
-        let selected = try registry.mutateDurably { state -> [AOSOperationRecord] in
-            guard state.daemonGeneration == context.expectedDaemonGeneration else {
-                throw AOSOperationCoreError.generationConflict
-            }
-            let selected = state.operations.filter {
+        let state = registry.snapshot()
+        guard state.daemonGeneration == context.expectedDaemonGeneration else {
+            throw AOSOperationCoreError.generationConflict
+        }
+        let selected = state.operations.filter {
                 $0.ownerRoot == context.authenticatedOwnerRoot
                     && $0.state != .terminal
                     && filter.matches($0)
             }.sorted { $0.identity < $1.identity }
-            let selectedIDs = Set(selected.map(\.identity))
-            let now = registry.now()
-            for index in state.operations.indices where selectedIDs.contains(state.operations[index].identity) {
-                state.operations[index].stopIntent = .ownerKill
-                state.operations[index].updatedAtNanoseconds = now
-                if [.starting, .active].contains(state.operations[index].state) {
-                    state.operations[index].state = .stopping
-                }
-            }
-            return selected
-        }
         for operation in selected {
-            applyAdapterStop(operation: operation, force: true, terminalOutcome: .killed)
+            let admission = makeStopAdmission(
+                operation: operation.identity,
+                expectedDaemonGeneration: context.expectedDaemonGeneration,
+                expectedOwnerRoot: context.authenticatedOwnerRoot,
+                stopIntent: .ownerKill,
+                terminalOutcome: .killed
+            )
+            try applyAdapterStop(
+                operation: operation,
+                admission: admission,
+                stopIntent: .ownerKill,
+                terminalOutcome: .killed
+            )
         }
         return try makeOrdinaryReceipt(
             action: .killOwner,
@@ -190,15 +191,6 @@ final class AOSOperationControlPlane {
                 // record through its adapter so claims close before terminal
                 // publication and barrier reconciliation.
                 signal = selected
-                let selectedIDs = Set(selected.map(\.identity))
-                let now = registry.now()
-                for index in state.operations.indices where selectedIDs.contains(state.operations[index].identity) {
-                    state.operations[index].stopIntent = .hostStop
-                    state.operations[index].updatedAtNanoseconds = now
-                    if [.starting, .active].contains(state.operations[index].state) {
-                        state.operations[index].state = .stopping
-                    }
-                }
                 outcome = .closingStarted
             case .closing:
                 guard let durable = state.barrier.stopSnapshot else {
@@ -510,31 +502,25 @@ final class AOSOperationControlPlane {
         let force = action == .kill
         let stopIntent: AOSStopIntent = force ? .kill : .cancel
         let outcome: AOSOperationOutcome = force ? .killed : .cancelled
-        let selected = try registry.mutateDurably { state -> AOSOperationRecord in
-            guard state.daemonGeneration == context.expectedDaemonGeneration else {
-                throw AOSOperationCoreError.generationConflict
-            }
-            guard let index = state.operations.firstIndex(where: { $0.identity == operation }) else {
-                throw AOSOperationCoreError.operationNotFound
-            }
-            guard state.operations[index].ownerRoot == context.authenticatedOwnerRoot else {
-                throw AOSOperationCoreError.ownerMismatch
-            }
-            if state.operations[index].state == .terminal {
-                guard state.operations[index].stopIntent == stopIntent,
-                      state.operations[index].outcome == outcome else {
-                    throw AOSOperationCoreError.invalidTransition
-                }
-                return state.operations[index]
-            }
-            state.operations[index].stopIntent = stopIntent
-            state.operations[index].updatedAtNanoseconds = registry.now()
-            if [.starting, .active].contains(state.operations[index].state) {
-                state.operations[index].state = .stopping
-            }
-            return state.operations[index]
-        }
-        applyAdapterStop(operation: selected, force: force, terminalOutcome: outcome)
+        let selected = try selectOrdinaryOperation(
+            context: context,
+            operation: operation,
+            stopIntent: stopIntent,
+            terminalOutcome: outcome
+        )
+        let admission = makeStopAdmission(
+            operation: operation,
+            expectedDaemonGeneration: context.expectedDaemonGeneration,
+            expectedOwnerRoot: context.authenticatedOwnerRoot,
+            stopIntent: stopIntent,
+            terminalOutcome: outcome
+        )
+        try applyAdapterStop(
+            operation: selected,
+            admission: admission,
+            stopIntent: stopIntent,
+            terminalOutcome: outcome
+        )
         return try makeOrdinaryReceipt(
             action: action,
             ownerRootID: context.authenticatedOwnerRoot.ownerID,
@@ -544,42 +530,140 @@ final class AOSOperationControlPlane {
         )
     }
 
+    private func selectOrdinaryOperation(
+        context: AOSOrdinaryControlContext,
+        operation: AOSOperationIdentity,
+        stopIntent: AOSStopIntent,
+        terminalOutcome: AOSOperationOutcome
+    ) throws -> AOSOperationRecord {
+        let state = registry.snapshot()
+        guard state.daemonGeneration == context.expectedDaemonGeneration else {
+            throw AOSOperationCoreError.generationConflict
+        }
+        guard let selected = state.operations.first(where: { $0.identity == operation }) else {
+            throw AOSOperationCoreError.operationNotFound
+        }
+        guard selected.ownerRoot == context.authenticatedOwnerRoot else {
+            throw AOSOperationCoreError.ownerMismatch
+        }
+        if let existing = selected.stopIntent {
+            guard existing == stopIntent,
+                  selected.outcome == nil || selected.outcome == terminalOutcome else {
+                throw AOSOperationCoreError.invalidTransition
+            }
+        } else if selected.outcome != nil {
+            throw AOSOperationCoreError.invalidTransition
+        }
+        return selected
+    }
+
+    private func makeStopAdmission(
+        operation: AOSOperationIdentity,
+        expectedDaemonGeneration: UInt64,
+        expectedOwnerRoot: AOSMechanicalOwnerRoot?,
+        stopIntent: AOSStopIntent,
+        terminalOutcome: AOSOperationOutcome
+    ) -> AOSOperationStopAdmissionTransaction {
+        AOSOperationStopAdmissionTransaction { [registry] in
+            try registry.mutateDurably { state in
+                guard state.daemonGeneration == expectedDaemonGeneration else {
+                    throw AOSOperationCoreError.generationConflict
+                }
+                guard let index = state.operations.firstIndex(where: {
+                    $0.identity == operation
+                }) else {
+                    throw AOSOperationCoreError.operationNotFound
+                }
+                if let expectedOwnerRoot,
+                   state.operations[index].ownerRoot != expectedOwnerRoot {
+                    throw AOSOperationCoreError.ownerMismatch
+                }
+                var wroteAdmission = false
+                let alreadyAdmitted: Bool
+                if let existing = state.operations[index].stopIntent {
+                    guard existing == stopIntent,
+                          state.operations[index].outcome == nil
+                            || state.operations[index].outcome == terminalOutcome else {
+                        throw AOSOperationCoreError.invalidTransition
+                    }
+                    alreadyAdmitted = state.operations[index].outcome == terminalOutcome
+                } else {
+                    guard state.operations[index].outcome == nil else {
+                        throw AOSOperationCoreError.invalidTransition
+                    }
+                    state.operations[index].stopIntent = stopIntent
+                    wroteAdmission = true
+                    alreadyAdmitted = false
+                }
+                if state.operations[index].outcome == nil {
+                    state.operations[index].outcome = terminalOutcome
+                    wroteAdmission = true
+                }
+                if wroteAdmission {
+                    if [.starting, .active].contains(state.operations[index].state) {
+                        state.operations[index].state = .stopping
+                    }
+                    state.operations[index].updatedAtNanoseconds = registry.now()
+                }
+                return AOSOperationStopAdmissionResult(
+                    operation: state.operations[index],
+                    wasAlreadyAdmitted: alreadyAdmitted
+                )
+            }
+        }
+    }
+
     private func applyAdapterStop(
         operation: AOSOperationRecord,
-        force: Bool,
+        admission: AOSOperationStopAdmissionTransaction,
+        stopIntent: AOSStopIntent,
         terminalOutcome: AOSOperationOutcome
-    ) {
+    ) throws {
         guard let adapter = registry.runtimeAdapter(
             id: operation.adapterRegistrationID,
             revision: operation.adapterRegistrationRevision
         ) else {
-            try? updateAdapterResult(
+            _ = try admission.commit()
+            try updateAdapterResult(
                 operation.identity,
                 result: AOSAdapterStopResult(
                     disposition: .residual,
                     residualDigest: AOSOperationDigest.empty(.residualSet)
                 ),
+                stopIntent: stopIntent,
                 terminalOutcome: terminalOutcome
             )
             return
         }
-        let result = adapter.requestStop(operation: operation.identity, force: force)
-        try? updateAdapterResult(operation.identity, result: result, terminalOutcome: terminalOutcome)
+        let result = try adapter.admitStop(
+            operation: operation.identity,
+            admission: admission
+        )
+        try updateAdapterResult(
+            operation.identity,
+            result: result,
+            stopIntent: stopIntent,
+            terminalOutcome: terminalOutcome
+        )
     }
 
     private func updateAdapterResult(
         _ operation: AOSOperationIdentity,
         result: AOSAdapterStopResult,
+        stopIntent: AOSStopIntent,
         terminalOutcome: AOSOperationOutcome
     ) throws {
         try registry.mutateDurably { state in
             guard let index = state.operations.firstIndex(where: { $0.identity == operation }) else {
                 throw AOSOperationCoreError.operationNotFound
             }
+            guard state.operations[index].stopIntent == stopIntent,
+                  state.operations[index].outcome == terminalOutcome else {
+                throw AOSOperationCoreError.invalidTransition
+            }
             guard state.operations[index].state != .terminal else { return }
             switch result.disposition {
             case .absent:
-                state.operations[index].outcome = terminalOutcome
                 if AOSOperationRegistry.hasNonterminalChildren(
                     in: state,
                     operation: operation
@@ -593,7 +677,6 @@ final class AOSOperationControlPlane {
                 }
             case .residual:
                 state.operations[index].state = .cleanupRequired
-                state.operations[index].outcome = terminalOutcome
                 state.operations[index].residualDigest = result.residualDigest
                     ?? AOSOperationDigest.empty(.residualSet)
             case .accepted, .alreadyStopping:
@@ -609,25 +692,48 @@ final class AOSOperationControlPlane {
         var hasPending = false
         var hasResidual = false
         for operation in selected {
+            let admission = makeStopAdmission(
+                operation: operation.identity,
+                expectedDaemonGeneration: operation.daemonGeneration,
+                expectedOwnerRoot: nil,
+                stopIntent: .hostStop,
+                terminalOutcome: .killed
+            )
             guard let adapter = registry.runtimeAdapter(
                 id: operation.adapterRegistrationID,
                 revision: operation.adapterRegistrationRevision
             ) else {
                 hasResidual = true
+                guard (try? admission.commit()) != nil else { continue }
                 try? updateAdapterResult(
                     operation.identity,
                     result: AOSAdapterStopResult(
                         disposition: .residual,
                         residualDigest: AOSOperationDigest.empty(.residualSet)
                     ),
+                    stopIntent: .hostStop,
                     terminalOutcome: .killed
                 )
                 continue
             }
-            let result = adapter.requestStop(operation: operation.identity, force: true)
+            let result: AOSAdapterStopResult
+            do {
+                result = try adapter.admitStop(
+                    operation: operation.identity,
+                    admission: admission
+                )
+            } catch {
+                hasResidual = true
+                continue
+            }
             if [.accepted, .alreadyStopping].contains(result.disposition) { hasPending = true }
             if result.disposition == .residual { hasResidual = true }
-            try? updateAdapterResult(operation.identity, result: result, terminalOutcome: .killed)
+            try? updateAdapterResult(
+                operation.identity,
+                result: result,
+                stopIntent: .hostStop,
+                terminalOutcome: .killed
+            )
         }
         if hasResidual {
             _ = reconcileHostBarrierWithBoundedRetry(markIncompleteAsCleanupRequired: true)

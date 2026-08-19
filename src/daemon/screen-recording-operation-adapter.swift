@@ -67,6 +67,9 @@ struct AOSScreenRecordingMicrophoneAuthorizationDependencies {
 }
 
 protocol AOSScreenRecordingRuntimeControlling: AnyObject {
+    func admitStop(
+        _ admission: AOSOperationStopAdmissionTransaction
+    ) throws -> AOSAdapterStopResult
     func stop(intent: AOSStopIntent)
     func updateFollowGeometry(
         _ request: AOSScreenRecordingFollowUpdateRequest,
@@ -504,31 +507,34 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         runtime.updateFollowGeometry(request, completion: completion)
     }
 
-    func requestStop(operation: AOSOperationIdentity, force: Bool) -> AOSAdapterStopResult {
-        guard let record = try? registry.inspect(operation),
-              record.adapterRegistrationID == registration.id,
-              record.adapterRegistrationRevision == registration.revision else {
-            return AOSAdapterStopResult(disposition: .absent, residualDigest: nil)
-        }
-        if record.state == .terminal {
-            return AOSAdapterStopResult(disposition: .absent, residualDigest: nil)
-        }
-        let intent: AOSStopIntent = record.stopIntent
-            ?? (force ? .kill : .cancel)
+    func admitStop(
+        operation: AOSOperationIdentity,
+        admission: AOSOperationStopAdmissionTransaction
+    ) throws -> AOSAdapterStopResult {
         lock.lock()
-        let runtime = runtimes[operation]
-        lock.unlock()
-        guard let runtime else {
+        guard let runtime = runtimes[operation] else {
+            let admitted: AOSOperationStopAdmissionResult
+            do {
+                admitted = try admission.commit()
+            } catch {
+                lock.unlock()
+                throw error
+            }
+            lock.unlock()
+            guard admitted.operation.adapterRegistrationID == registration.id,
+                  admitted.operation.adapterRegistrationRevision == registration.revision else {
+                return AOSAdapterStopResult(disposition: .absent, residualDigest: nil)
+            }
+            if admitted.operation.state == .terminal {
+                return AOSAdapterStopResult(disposition: .absent, residualDigest: nil)
+            }
             return AOSAdapterStopResult(
                 disposition: .residual,
                 residualDigest: residualDigest(operation: operation)
             )
         }
-        runtime.stop(intent: intent)
-        if [.starting, .active].contains(record.state) {
-            _ = try? registry.transitionOperation(operation, to: .stopping, stopIntent: intent)
-        }
-        return AOSAdapterStopResult(disposition: .accepted, residualDigest: nil)
+        lock.unlock()
+        return try runtime.admitStop(admission)
     }
 
     func emitGeometryEvent(
@@ -867,36 +873,43 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
             }
             try releaseClaims(admission.claims, authorityAbsent: authorityAbsent)
             let operation = try registry.inspect(publicAdmission.operation)
+            let finalIntent = operation.stopIntent ?? intent
             if operation.state == .starting || operation.state == .active {
                 _ = try registry.transitionOperation(
                     publicAdmission.operation,
                     to: .stopping,
-                    stopIntent: intent
+                    stopIntent: finalIntent
                 )
             } else if operation.state == .cleanupRequired {
                 _ = try registry.transitionOperation(
                     publicAdmission.operation,
                     to: .recovering,
-                    stopIntent: intent
+                    stopIntent: finalIntent
                 )
             }
             let outcome: AOSOperationOutcome
-            if failure != nil {
+            let failureCode: String?
+            if let durableOutcome = operation.outcome {
+                outcome = durableOutcome
+                failureCode = operation.failureCode
+            } else if failure != nil {
                 outcome = .failed
+                failureCode = (failure as? AOSOperationCoreError)?.code
             } else {
-                switch intent {
+                switch finalIntent {
                 case .complete: outcome = .succeeded
                 case .cancel, .peerLost, .transportLost: outcome = .cancelled
                 case .kill, .ownerKill, .hostStop: outcome = .killed
                 case .deadline: outcome = .timedOut
                 case .permissionRevoked, .adapterFailed: outcome = .failed
                 }
+                failureCode = nil
             }
             _ = try registry.terminalizeOperationAfterVerifiedCleanup(
                 publicAdmission.operation,
-                stopIntent: intent,
+                stopIntent: finalIntent,
                 outcome: outcome,
-                failureCode: (failure as? AOSOperationCoreError)?.code
+                failureCode: failureCode
             )
         } catch {
             markCleanupRequired(admission.publicAdmission.operation)
@@ -1537,6 +1550,42 @@ final class AOSNativeScreenRecordingRuntime:
         stop(intent: intent, failure: nil)
     }
 
+    func admitStop(
+        _ admission: AOSOperationStopAdmissionTransaction
+    ) throws -> AOSAdapterStopResult {
+        lock.lock()
+        let admissionResult: AOSOperationStopAdmissionResult
+        do {
+            admissionResult = try admission.commit()
+        } catch {
+            lock.unlock()
+            throw error
+        }
+        let record = admissionResult.operation
+        guard record.adapterRegistrationID == adapter?.registration.id,
+              record.adapterRegistrationRevision == adapter?.registration.revision else {
+            lock.unlock()
+            return AOSAdapterStopResult(disposition: .absent, residualDigest: nil)
+        }
+        guard record.state != .terminal else {
+            lock.unlock()
+            return AOSAdapterStopResult(disposition: .absent, residualDigest: nil)
+        }
+        guard let intent = record.stopIntent else {
+            lock.unlock()
+            return AOSAdapterStopResult(
+                disposition: .residual,
+                residualDigest: residualDigest()
+            )
+        }
+        admitStopWhileLocked(intent: intent, failure: nil)
+        lock.unlock()
+        return AOSAdapterStopResult(
+            disposition: admissionResult.wasAlreadyAdmitted ? .alreadyStopping : .accepted,
+            residualDigest: nil
+        )
+    }
+
     func updateFollowGeometry(
         _ request: AOSScreenRecordingFollowUpdateRequest,
         completion: @escaping (
@@ -1558,6 +1607,14 @@ final class AOSNativeScreenRecordingRuntime:
         failure: AOSScreenRecordingFailureContext?
     ) {
         lock.lock()
+        admitStopWhileLocked(intent: intent, failure: failure)
+        lock.unlock()
+    }
+
+    private func admitStopWhileLocked(
+        intent: AOSStopIntent,
+        failure: AOSScreenRecordingFailureContext?
+    ) {
         _ = frameAdmission.close()
         _ = progressTimeline.admitStop(atNanoseconds: registry.now())
         if stopIntent == nil {
@@ -1567,13 +1624,11 @@ final class AOSNativeScreenRecordingRuntime:
         stopFollowGeometryWhileLocked()
         let cancelStartup = !startupSettled
         guard startupSettled, !finishStarted else {
-            lock.unlock()
             if cancelStartup { startupCancellation.cancel() }
             return
         }
         finishStarted = true
         let selectedIntent = stopIntent ?? intent
-        lock.unlock()
         if cancelStartup { startupCancellation.cancel() }
         Task.detached(priority: .utility) { [self] in
             await finish(intent: selectedIntent)

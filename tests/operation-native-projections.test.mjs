@@ -73,8 +73,12 @@ import Foundation
 final class FakeAdapter: AOSOperationControlAdapter {
     let registration: AOSOperationAdapterRegistration
     init(_ registration: AOSOperationAdapterRegistration) { self.registration = registration }
-    func requestStop(operation: AOSOperationIdentity, force: Bool) -> AOSAdapterStopResult {
-        AOSAdapterStopResult(disposition: .absent, residualDigest: nil)
+    func admitStop(
+        operation: AOSOperationIdentity,
+        admission: AOSOperationStopAdmissionTransaction
+    ) throws -> AOSAdapterStopResult {
+        _ = try admission.commit()
+        return AOSAdapterStopResult(disposition: .absent, residualDigest: nil)
     }
     func residualDigest(operation: AOSOperationIdentity) -> String? { nil }
 }

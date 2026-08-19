@@ -9,9 +9,40 @@ struct AOSAdapterStopResult: Codable, Equatable {
     let residualDigest: String?
 }
 
+struct AOSOperationStopAdmissionResult {
+    let operation: AOSOperationRecord
+    let wasAlreadyAdmitted: Bool
+}
+
+final class AOSOperationStopAdmissionTransaction {
+    typealias DurableAdmission = () throws -> AOSOperationStopAdmissionResult
+
+    private let lock = NSLock()
+    private let durableAdmission: DurableAdmission
+    private var invoked = false
+
+    init(_ durableAdmission: @escaping DurableAdmission) {
+        self.durableAdmission = durableAdmission
+    }
+
+    func commit() throws -> AOSOperationStopAdmissionResult {
+        lock.lock()
+        guard !invoked else {
+            lock.unlock()
+            throw AOSOperationCoreError.invalidTransition
+        }
+        invoked = true
+        lock.unlock()
+        return try durableAdmission()
+    }
+}
+
 protocol AOSOperationControlAdapter: AnyObject {
     var registration: AOSOperationAdapterRegistration { get }
-    func requestStop(operation: AOSOperationIdentity, force: Bool) -> AOSAdapterStopResult
+    func admitStop(
+        operation: AOSOperationIdentity,
+        admission: AOSOperationStopAdmissionTransaction
+    ) throws -> AOSAdapterStopResult
     func residualDigest(operation: AOSOperationIdentity) -> String?
 }
 
@@ -624,8 +655,24 @@ final class AOSOperationRegistry {
                 throw AOSOperationCoreError.residualsPresent
             }
             state.operations[index].state = newState
-            if let stopIntent { state.operations[index].stopIntent = stopIntent }
-            if let outcome { state.operations[index].outcome = outcome }
+            if let stopIntent {
+                if let existing = state.operations[index].stopIntent {
+                    guard existing == stopIntent else {
+                        throw AOSOperationCoreError.invalidTransition
+                    }
+                } else {
+                    state.operations[index].stopIntent = stopIntent
+                }
+            }
+            if let outcome {
+                if let existing = state.operations[index].outcome {
+                    guard existing == outcome else {
+                        throw AOSOperationCoreError.invalidTransition
+                    }
+                } else {
+                    state.operations[index].outcome = outcome
+                }
+            }
             if newState == .terminal {
                 guard state.operations[index].outcome != nil else {
                     throw AOSOperationCoreError.invalidRecord("terminal_operation_outcome")
@@ -660,8 +707,22 @@ final class AOSOperationRegistry {
                 throw AOSOperationCoreError.residualsPresent
             }
             state.operations[index].state = .terminal
-            if let stopIntent { state.operations[index].stopIntent = stopIntent }
-            state.operations[index].outcome = outcome
+            if let stopIntent {
+                if let existing = state.operations[index].stopIntent {
+                    guard existing == stopIntent else {
+                        throw AOSOperationCoreError.invalidTransition
+                    }
+                } else {
+                    state.operations[index].stopIntent = stopIntent
+                }
+            }
+            if let existing = state.operations[index].outcome {
+                guard existing == outcome else {
+                    throw AOSOperationCoreError.invalidTransition
+                }
+            } else {
+                state.operations[index].outcome = outcome
+            }
             state.operations[index].failureCode = failureCode
             state.operations[index].residualDigest = nil
             state.operations[index].updatedAtNanoseconds = now
