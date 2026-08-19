@@ -128,6 +128,7 @@ test('screen recording proof owns public stop from first durable prepared public
   assert.match(proof.contract, /public cancel\/kill call that selects the prepared record blocks until the pending owner exists/u);
   assert.match(proof.guard, /twelve exact public stop cases/u);
   assert.match(proof.guard, /two prepared-publication and two pre-install cases assert zero runtime start handoffs/u);
+  assert.match(proof.guard, /blocked durable stop-save case proves bounded startup return/u);
   assert.match(proof.guard, /exact failed-terminal cleanup with no nonterminal child or claim/u);
 });
 

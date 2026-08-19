@@ -187,7 +187,10 @@ preparation failure atomically terminal-closes every mechanically absent child
 and claim before releasing the owner. A stop before runtime installation
 terminal-cleans with authority absent and permanently denies the handoff; after
 handoff, the screen runtime invokes the transaction under the same lock as
-coordinator installation, activation, and startup settlement. The first exact
+coordinator installation, activation, and startup settlement. An already-entered
+stop whose durable save remains blocked can consume only the bounded startup
+wait: native handoff stays denied and the exact pending owner remains keyed until
+that transaction settles. The first exact
 intent/outcome is immutable and same-action replayable, a different later action
 is rejected, failed durable admission has no native effect, and admitted stop
 cancels the timer and persists stopped geometry before terminal-clean

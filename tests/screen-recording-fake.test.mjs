@@ -3088,6 +3088,62 @@ struct TerminalLifecycleCustodyHarness {
             )
         }
 
+        do {
+            let testCase = cases[0]
+            let phase = "blocked-stop-store"
+            let store = StopAdmissionBarrierStore(firstIntent: testCase.intent)
+            let barrier = PreparedPublicationBarrier()
+            let runtimeCounter = RuntimeInstallationBarrier()
+            let environment = try RecordingEnvironment(
+                store: store,
+                startupTimeout: 0.05,
+                preparedPublicationObserver: barrier.observePublication,
+                runtimeStartObserver: runtimeCounter.observeRuntimeStart,
+                stopAdmissionObserver: barrier.observeStopAdmission
+            )
+            let startTask = Task.detached {
+                try environment.adapter.start(
+                    request: environment.request(followed: true),
+                    connectionID: UUID()
+                )
+            }
+            guard let operationIdentity = barrier.waitForPublication() else {
+                fatalError("\(phase) durable prepared publication missing")
+            }
+            let stopTask = Task.detached {
+                defer { barrier.markStopCompleted() }
+                return try issue(testCase.action, environment, operationIdentity)
+            }
+            require(barrier.waitForStopAdmission(),
+                    "\(phase) public control did not reach the adapter")
+            barrier.releasePublication()
+            require(store.waitForAdmission(),
+                    "\(phase) durable stop save did not block")
+            let admission = try await startTask.value
+            require(admission.operation == operationIdentity,
+                    "\(phase) bounded start returned a different operation")
+            require(!barrier.didStopComplete()
+                        && !environment.native.startWasRequested()
+                        && environment.native.stopCount == 0
+                        && runtimeCounter.observedRuntimeStartCount() == 0
+                        && environment.broker.acquireCount == 0
+                        && environment.broker.releaseCount == 0
+                        && !environment.broker.retainsAuthority,
+                    "\(phase) hung admission leaked a later authority effect")
+            store.releaseAdmission()
+            let receipt = try await stopTask.value
+            requireReceipt(receipt, testCase, operationIdentity, environment, phase)
+            requireStopped(admission, environment, testCase, phase)
+            requireClean(admission, environment, phase)
+            require(!environment.native.startWasRequested()
+                        && environment.native.stopCount == 0
+                        && runtimeCounter.observedRuntimeStartCount() == 0
+                        && environment.broker.acquireCount == 0
+                        && environment.broker.releaseCount == 0
+                        && !environment.broker.retainsAuthority,
+                    "\(phase) resumed into a later authority effect")
+        }
+
         for testCase in cases {
             let phase = "pre-install \(testCase.action.rawValue)"
             let barrier = RuntimeInstallationBarrier()
@@ -4435,7 +4491,7 @@ struct TerminalLifecycleCustodyHarness {
         try await lateStartFailureAfterActiveEvidenceRequiresStop()
         await frameAdmissionClosesAtomically()
         try decoderAndTerminalTruthAreClosed()
-        print("terminal-lifecycle-custody-harness: atomic-admission=22 pre-epoch-callbacks=4 pre-native-encoder=1 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 prepared-publication-public-stop=2 pre-install-public-stop=2 production-lifecycle=6 production-terminal=2 production-custody=10 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
+        print("terminal-lifecycle-custody-harness: atomic-admission=22 pre-epoch-callbacks=4 pre-native-encoder=1 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 prepared-publication-public-stop=2 blocked-stop-store=1 pre-install-public-stop=2 production-lifecycle=6 production-terminal=2 production-custody=10 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
     }
 }
 `
@@ -4586,7 +4642,7 @@ test('production lifecycle and custody owners close terminal fault phases with f
     assert.equal(compile.status, 0, compile.stderr || compile.stdout)
     const run = spawnSync(binary, [], { encoding: 'utf8', timeout: 5_000 })
     assert.equal(run.status, 0, `${run.stderr}\n${run.stdout}`)
-    assert.match(run.stdout, /atomic-admission=22 pre-epoch-callbacks=4 pre-native-encoder=1 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 prepared-publication-public-stop=2 pre-install-public-stop=2/u)
+    assert.match(run.stdout, /atomic-admission=22 pre-epoch-callbacks=4 pre-native-encoder=1 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 prepared-publication-public-stop=2 blocked-stop-store=1 pre-install-public-stop=2/u)
     const projectionLine = run.stdout.split('\n').find((line) => (
       line.startsWith('atomic-initial-summary-projections:')
     ))

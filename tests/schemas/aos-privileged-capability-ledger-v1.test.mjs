@@ -8998,6 +8998,7 @@ test('screen recording proof owns followed geometry, optional audio tracks, cust
   assert.match(fakeProof.claim, /immediately after first durable prepared publication but before provisional owner insertion/u);
   assert.match(fakeProof.claim, /prepared-call blocking until the owner exists/u);
   assert.match(fakeProof.claim, /zero runtime start handoffs, broker acquisitions, native starts, and native stops/u);
+  assert.match(fakeProof.claim, /blocked durable stop-save case proves bounded startup return/u);
   assert.match(fakeProof.claim, /Injected durable save failures across every later stream, artifact, claim-set, claim, and starting transition/u);
   assert.match(fakeProof.claim, /failed-admission no-effect/u);
   const publicStopTransitions = ledger.flagship_workflow.transitions.filter(({ event }) => ['cancel', 'kill'].includes(event));

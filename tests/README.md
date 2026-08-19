@@ -148,7 +148,9 @@ overwrite, stopped geometry/timer, and terminal child/claim cleanup. The two
 prepared-publication and two pre-install cases prove zero runtime start
 handoffs, broker acquisitions, native starts, and native stops; the eight
 post-install cases prove exactly one native stop. Failed durable stop admission
-has no native effect. It also covers native
+has no native effect. One blocked durable stop-save case proves the startup wait
+is bounded, the keyed pending owner survives until settlement, and no later
+runtime, broker, or native effect escapes. It also covers native
 failure; and unresolved pending cleanup. Accepted-source containment loss is
 also exercised through the production frame validator. Durable geometry changes
 advance one exact event sequence, and the harness captures the production

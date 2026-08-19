@@ -18,7 +18,9 @@ publication and persists through pending-runtime registration and `starting`;
 a public stop that selects the prepared record blocks until the pending owner
 exists, then terminal-cleans with authority absent and denies the handoff.
 Preparation failure terminal-closes every mechanically absent child and claim
-before the lifecycle owner is released.
+before the lifecycle owner is released. A blocked durable stop save consumes
+only the bounded startup wait: native handoff remains denied and its exact
+pending owner stays keyed until the transaction settles.
 After handoff, the screen adapter admits it under the same runtime lock as follow
 installation, activation, and startup settlement. The first exact stop
 intent/outcome is immutable and replayable, a different later action rejects,
@@ -376,7 +378,9 @@ events. Public cancel/kill that selects the first durable `.prepared` record
 blocks at the adapter lifecycle owner until pending runtime insertion, then
 shares the installed screen runtime owner with follow activation; preparation
 failure atomically terminal-closes mechanically absent children and claims
-before owner release. The first durable intent/outcome is replayable and cannot
+before owner release. A blocked durable stop save has a bounded startup wait
+and keeps the exact pending owner without later authority handoff. The first
+durable intent/outcome is replayable and cannot
 be overwritten by runtime installation, startup, or a competing stop.
 It does not publish full M3, full
 Playwright grammar, a public SDK, or changed TCC policy. Pre-0044 ADR bodies,
