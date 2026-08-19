@@ -1124,9 +1124,53 @@ struct IntegratedHarness {
             ) && !environment.broker.retainsAuthority
             && !environment.driver.startWasRequested(),
             "pre-authority control did not settle geometry, children, and authority")
-        require(summary.finalizedTracks == summary.selectedTracks
-            && summary.video.drained && summary.video.finalized,
-            "pre-authority control left selected tracks unsettled")
+        require(terminal.failureCode == nil,
+                "pre-authority cancel/kill invented a terminal failure")
+        requirePreAuthorityTrackTruth(summary, failureCode: nil)
+    }
+
+    static func requirePreAuthorityTrackTruth(
+        _ summary: AOSScreenRecordingTrackSummary,
+        failureCode: String?
+    ) {
+        let tracks: [(String, AOSScreenRecordingTrackTruth)] = [
+            (AOSScreenRecordingTrackKind.video.rawValue, summary.video),
+            (AOSScreenRecordingTrackKind.systemAudio.rawValue, summary.systemAudio),
+            (AOSScreenRecordingTrackKind.microphone.rawValue, summary.microphone),
+        ]
+        let selected = tracks.filter { $0.1.selected }
+        let unselected = tracks.filter { !$0.1.selected }
+        require(summary.selectedTracks == selected.map(\.0)
+            && summary.finalizedTracks.isEmpty
+            && summary.commonMediaEpochNanoseconds == nil
+            && selected.allSatisfy { truth in
+                let value = truth.1
+                return value.admitted && !value.available && !value.firstSamplePresent
+                    && value.sampleCount == 0 && value.sampleByteCount == 0
+                    && value.failureCode == failureCode && value.drained && !value.finalized
+            }
+            && unselected.allSatisfy { truth in
+                let value = truth.1
+                return !value.admitted && !value.available && !value.firstSamplePresent
+                    && value.sampleCount == 0 && value.sampleByteCount == 0
+                    && value.failureCode == nil && value.drained && value.finalized
+            },
+            "pre-authority selected-track settlement drifted")
+    }
+
+    static func appendPreAuthorityProjection(
+        _ admission: AOSScreenRecordingAdmission,
+        receipt: AOSOperationControlReceipt,
+        environment: Environment
+    ) {
+        let values = projection(operation(admission, environment), state: environment.registry.snapshot())
+        let control = controlProjection(receipt, environment: environment)
+        append("lists", values.0)
+        append("inspects", values.1)
+        append("controls", control)
+        append("responses", responseEnvelope(values.0))
+        append("responses", responseEnvelope(values.1))
+        append("responses", responseEnvelope(control))
     }
 
     static func requireBoundedFaultOutcome(_ environment: Environment, _ label: String) {
@@ -1424,6 +1468,9 @@ struct IntegratedHarness {
                 && !prepared.driver.startWasRequested(),
                 "prepared interleaving resumed after stop")
             requirePreAuthorityTerminal(preparedAdmission, prepared)
+            appendPreAuthorityProjection(
+                preparedAdmission, receipt: preparedReceipt, environment: prepared
+            )
 
             let installBarrier = Barrier()
             let preinstall = try Environment(preinstall: { installBarrier.block() })
@@ -1465,6 +1512,9 @@ struct IntegratedHarness {
                 && !preinstall.driver.startWasRequested(),
                 "pre-install stop resumed native start")
             requirePreAuthorityTerminal(installAdmission, preinstall)
+            appendPreAuthorityProjection(
+                installAdmission, receipt: installReceipt, environment: preinstall
+            )
         }
 
         for pair in [(AOSOrdinaryControlAction.cancel, AOSOrdinaryControlAction.kill),
@@ -1935,6 +1985,22 @@ struct IntegratedHarness {
                 && !environment.driver.startWasRequested(),
                 "\(family.rawValue) fault leaked authority")
             requireBoundedFaultOutcome(environment, family.rawValue)
+            if family == .activation {
+                let state = environment.registry.snapshot()
+                let terminal = state.operations[0]
+                require(terminal.state == .terminal
+                    && terminal.stopIntent == .adapterFailed
+                    && terminal.outcome == .failed
+                    && terminal.failureCode == AOSOperationCoreError.storeUnavailable.code
+                    && !AOSOperationRegistry.hasNonterminalChildren(
+                        in: state, operation: terminal.identity
+                    ),
+                    "pre-authority preparation failure did not terminal-clean")
+                requirePreAuthorityTrackTruth(
+                    terminal.progress!.trackSummary!,
+                    failureCode: AOSOperationCoreError.storeUnavailable.code
+                )
+            }
             append("faults", family.rawValue)
         }
 
@@ -2127,12 +2193,12 @@ test('complete landed M3 recording executes as one production-attached offline s
     assert.ok(line, run.stdout)
     const evidence = JSON.parse(line.slice('m3e-evidence:'.length))
     assert.equal(evidence.admissions.length, 8)
-    assert.equal(evidence.lists.length, 8)
-    assert.equal(evidence.inspects.length, 8)
+    assert.equal(evidence.lists.length, 12)
+    assert.equal(evidence.inspects.length, 12)
     assert.ok(evidence.events.length >= 8)
-    assert.equal(evidence.responses.length, 32)
+    assert.equal(evidence.responses.length, 44)
     assert.equal(evidence.requests.length, 10)
-    assert.equal(evidence.controls.length, 2)
+    assert.equal(evidence.controls.length, 6)
     assert.equal(evidence.failed_lists.length, 1)
     assert.equal(evidence.failed_inspects.length, 1)
     const validate = spawnSync('python3', ['-c', String.raw`
@@ -2171,12 +2237,12 @@ for validator, values in checks:
     for value in values:
         errors=list(validator.iter_errors(value))
         assert not errors,[error.message for error in errors]
-print('m3e-schemas: requests=10 admissions=8 follow=1 list=9 inspect=9 controls=2 custody=3 responses=32')
+print('m3e-schemas: requests=10 admissions=8 follow=1 list=13 inspect=13 controls=6 custody=3 responses=44')
 `, path.join(repoRoot, 'shared/schemas')], {
       encoding: 'utf8', input: JSON.stringify(evidence), timeout: 20_000,
     })
     assert.equal(validate.status, 0, `${validate.stdout}\n${validate.stderr}`)
-    assert.match(validate.stdout, /m3e-schemas: requests=10 admissions=8 follow=1 list=9 inspect=9 controls=2 custody=3 responses=32/u)
+    assert.match(validate.stdout, /m3e-schemas: requests=10 admissions=8 follow=1 list=13 inspect=13 controls=6 custody=3 responses=44/u)
   } finally {
     await rm(buildRoot, { recursive: true, force: true })
   }

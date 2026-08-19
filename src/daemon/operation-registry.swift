@@ -846,6 +846,7 @@ final class AOSOperationRegistry {
             }
             if var progress = state.operations[operationIndex].progress,
                let summary = progress.trackSummary {
+                let terminalFailureCode = outcome == .failed ? failureCode : nil
                 func settled(_ value: AOSScreenRecordingTrackTruth)
                     -> AOSScreenRecordingTrackTruth {
                     AOSScreenRecordingTrackTruth(
@@ -855,18 +856,29 @@ final class AOSOperationRegistry {
                         firstSamplePresent: value.firstSamplePresent,
                         sampleCount: value.sampleCount,
                         sampleByteCount: value.sampleByteCount,
-                        failureCode: value.failureCode,
+                        failureCode: value.failureCode
+                            ?? (value.selected ? terminalFailureCode : nil),
                         drained: value.selected ? true : value.drained,
-                        finalized: value.selected ? true : value.finalized
+                        finalized: value.finalized
                     )
+                }
+                let video = settled(summary.video)
+                let systemAudio = settled(summary.systemAudio)
+                let microphone = settled(summary.microphone)
+                let finalizedTracks = [
+                    (AOSScreenRecordingTrackKind.video.rawValue, video),
+                    (AOSScreenRecordingTrackKind.systemAudio.rawValue, systemAudio),
+                    (AOSScreenRecordingTrackKind.microphone.rawValue, microphone),
+                ].compactMap {
+                    $0.1.selected && $0.1.finalized ? $0.0 : nil
                 }
                 progress.trackSummary = AOSScreenRecordingTrackSummary(
                     selectedTracks: summary.selectedTracks,
-                    finalizedTracks: summary.selectedTracks,
+                    finalizedTracks: finalizedTracks,
                     commonMediaEpochNanoseconds: summary.commonMediaEpochNanoseconds,
-                    video: settled(summary.video),
-                    systemAudio: settled(summary.systemAudio),
-                    microphone: settled(summary.microphone)
+                    video: video,
+                    systemAudio: systemAudio,
+                    microphone: microphone
                 )
                 state.operations[operationIndex].progress = progress
             }

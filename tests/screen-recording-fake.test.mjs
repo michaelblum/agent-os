@@ -2178,6 +2178,30 @@ struct TerminalLifecycleCustodyHarness {
                 systemAudioSelected: systemAudioSelected,
                 microphoneSelected: microphoneSelected
             )
+            func terminalTruth(
+                _ value: AOSScreenRecordingTrackTruth
+            ) -> AOSScreenRecordingTrackTruth {
+                AOSScreenRecordingTrackTruth(
+                    selected: value.selected,
+                    admitted: value.admitted,
+                    available: value.available,
+                    firstSamplePresent: value.firstSamplePresent,
+                    sampleCount: value.sampleCount,
+                    sampleByteCount: value.sampleByteCount,
+                    failureCode: value.failureCode ?? (value.selected
+                        ? AOSOperationCoreError.storeUnavailable.code : nil),
+                    drained: value.selected ? true : value.drained,
+                    finalized: value.finalized
+                )
+            }
+            let expectedTerminalSummary = AOSScreenRecordingTrackSummary(
+                selectedTracks: expectedSummary.selectedTracks,
+                finalizedTracks: [],
+                commonMediaEpochNanoseconds: nil,
+                video: terminalTruth(expectedSummary.video),
+                systemAudio: terminalTruth(expectedSummary.systemAudio),
+                microphone: terminalTruth(expectedSummary.microphone)
+            )
             let prepared = preparedState.operations[0]
             require(prepared.progress?.frameCount == 0
                         && prepared.progress?.byteCount == 0
@@ -2202,7 +2226,7 @@ struct TerminalLifecycleCustodyHarness {
                         && terminal.failureCode
                             == AOSOperationCoreError.storeUnavailable.code,
                     "post-publication durable fault did not terminal-clean")
-            require(terminal.progress?.trackSummary == expectedSummary,
+            require(terminal.progress?.trackSummary == expectedTerminalSummary,
                     "terminal failure erased exact selected-track truth")
             let expectedStreamCount = failingSaveCall >= 5 ? 1 : 0
             let expectedArtifactCount = failingSaveCall >= 6 ? 1 : 0
