@@ -1193,6 +1193,40 @@ final class FakeMicrophoneRegistrationAdapter: AOSOperationControlAdapter {
     func residualDigest(operation: AOSOperationIdentity) -> String? { nil }
 }
 
+final class FakeMicrophoneAuthorization: @unchecked Sendable {
+    private let lock = NSLock()
+    private var state: AOSMicrophoneAuthorizationState
+    private let requestedState: AOSMicrophoneAuthorizationState
+    private(set) var requestCount = 0
+
+    init(
+        state: AOSMicrophoneAuthorizationState,
+        requestedState: AOSMicrophoneAuthorizationState = .authorized
+    ) {
+        self.state = state
+        self.requestedState = requestedState
+    }
+
+    func dependencies() -> AOSScreenRecordingMicrophoneAuthorizationDependencies {
+        AOSScreenRecordingMicrophoneAuthorizationDependencies(
+            status: { [self] in lock.lock(); defer { lock.unlock() }; return state },
+            request: { [self] _ in
+                lock.lock()
+                let before = state
+                requestCount += 1
+                state = requestedState
+                lock.unlock()
+                return AOSMicrophoneAuthorizationRequestResult(
+                    before: before,
+                    after: requestedState,
+                    attempted: true,
+                    completed: true
+                )
+            }
+        )
+    }
+}
+
 final class RecordingEnvironment {
     let adapter: AOSScreenRecordingOperationAdapter
     let broker = FakeBroker()
@@ -1200,6 +1234,7 @@ final class RecordingEnvironment {
     let files: FakeFiles
     let native: FakeNativeSession
     let microphoneAdapter: FakeMicrophoneRegistrationAdapter
+    let microphoneAuthorization: FakeMicrophoneAuthorization
     let owner = AOSMechanicalOwnerRoot(
         ownerID: "recording-owner", effectiveUID: 501, pid: 100, pidGeneration: 3,
         executableIdentityDigest: String(repeating: "a", count: 64)
@@ -1211,11 +1246,17 @@ final class RecordingEnvironment {
         store existingStore: AOSOperationStateStore? = nil,
         files existingFiles: FakeFiles? = nil,
         sessionFailure: AOSOperationCoreError? = nil,
+        microphoneAuthorizationState: AOSMicrophoneAuthorizationState = .authorized,
+        requestedMicrophoneAuthorizationState: AOSMicrophoneAuthorizationState = .authorized,
         startupTimeout: TimeInterval = aosDesktopPixelStreamRetirementTimeout
     ) throws {
         files = existingFiles ?? FakeFiles()
         native = FakeNativeSession(files: files)
         microphoneAdapter = try FakeMicrophoneRegistrationAdapter()
+        microphoneAuthorization = FakeMicrophoneAuthorization(
+            state: microphoneAuthorizationState,
+            requestedState: requestedMicrophoneAuthorizationState
+        )
         let registration = try AOSScreenRecordingOperationAdapter.makeRegistration()
         let registrations = try AOSAdapterRegistrySnapshot.make(
             revision: 2,
@@ -1260,17 +1301,7 @@ final class RecordingEnvironment {
             },
             files: files.dependencies(),
             sessionFactory: selectedFactory,
-            microphoneAuthorization: AOSScreenRecordingMicrophoneAuthorizationDependencies(
-                status: { .authorized },
-                request: { _ in
-                    AOSMicrophoneAuthorizationRequestResult(
-                        before: .authorized,
-                        after: .authorized,
-                        attempted: false,
-                        completed: true
-                    )
-                }
-            ),
+            microphoneAuthorization: microphoneAuthorization.dependencies(),
             startupTimeout: startupTimeout
         )
         try registry.installRuntimeAdapters([microphoneAdapter, adapter])
@@ -1334,6 +1365,57 @@ final class RecordingEnvironment {
             custodyDigest: files.identity.contentDigest
         )
         return artifact.identity
+    }
+
+    func holdStandaloneMicrophoneClaim() throws -> AOSOperationIdentity {
+        let initial = registry.snapshot()
+        guard let declaration = initial.adapterRegistry.declaration(
+            resourceKey: AOSMicrophoneOperationResourceIdentity.resourceKey
+        ) else {
+            throw AOSOperationCoreError.adapterRegistryConflict
+        }
+        let operation = try registry.prepareOperation(
+            ownerRoot: owner,
+            attribution: AOSOperationAttribution(taskID: "standalone-microphone-task"),
+            capabilityID: "microphone-capture-adapter",
+            adapterRegistrationID: microphoneAdapter.registration.id,
+            adapterRegistrationRevision: microphoneAdapter.registration.revision
+        )
+        let resourceGeneration = initial.resourceClaims
+            .filter { $0.resourceKey == declaration.resourceKey }
+            .map(\.resourceGeneration).max() ?? 0
+        let transaction = try AOSOperationResourceTransaction.prepare(
+            registry: registry,
+            operation: operation.identity,
+            expectedBarrierGeneration: initial.barrier.generation,
+            expectedAdapterRegistry: initial.adapterRegistry,
+            requests: [AOSResourceClaimRequest(
+                adapterRegistrationID: declaration.adapterRegistrationID,
+                adapterRegistrationRevision: declaration.adapterRegistrationRevision,
+                resourceKey: declaration.resourceKey,
+                admissionMode: declaration.admissionMode,
+                resourceDeclarationDigest: declaration.declarationDigest,
+                expectedResourceGeneration: resourceGeneration,
+                expectedBrokerGeneration: nil,
+                expectedSubscriberSetRevision: nil,
+                expectedSubscriberSetCount: nil,
+                expectedSubscriberSetDigest: nil
+            )]
+        )
+        _ = try AOSOperationResourceTransaction.beginReservation(
+            registry: registry,
+            transactionID: transaction.transactionID
+        )
+        _ = try AOSOperationResourceTransaction.commit(
+            registry: registry,
+            transactionID: transaction.transactionID
+        )
+        _ = try AOSOperationResourceTransaction.completeHandoff(
+            registry: registry,
+            transactionID: transaction.transactionID
+        )
+        _ = try registry.transitionOperation(operation.identity, to: .starting)
+        return operation.identity
     }
 }
 
@@ -1765,20 +1847,44 @@ struct TerminalLifecycleCustodyHarness {
                     "audio count missing")
         }
 
-        let threeTrackWriter = FakeMultitrackWriter()
-        let threeTrack = try multitrackCoordinator(threeTrackWriter, microphone: true)
-        try threeTrack.append(harnessSample(30), track: .microphone)
-        try threeTrack.append(harnessSample(10), track: .video)
-        require(!threeTrack.progress.sessionStarted,
-                "three-track barrier opened before system audio")
-        try threeTrack.append(harnessSample(20), track: .systemAudio)
-        require(threeTrack.progress.sessionStarted,
-                "three-track barrier did not open")
-        require(threeTrackWriter.sessionEpoch == CMTime(value: 10, timescale: 1_000),
-                "three-track epoch did not select earliest sample")
-        require(threeTrack.progress.trackSummary.selectedTracks
-                    == ["video", "system_audio", "microphone"],
-                "three-track selected set drifted")
+        let threeTrackOrders: [[AOSScreenRecordingTrackKind]] = [
+            [.video, .systemAudio, .microphone],
+            [.video, .microphone, .systemAudio],
+            [.systemAudio, .video, .microphone],
+            [.systemAudio, .microphone, .video],
+            [.microphone, .video, .systemAudio],
+            [.microphone, .systemAudio, .video],
+        ]
+        for order in threeTrackOrders {
+            let writer = FakeMultitrackWriter()
+            let coordinator = try multitrackCoordinator(writer, microphone: true)
+            for (index, track) in order.enumerated() {
+                let timestamp: Int64
+                switch track {
+                case .video: timestamp = 10
+                case .systemAudio: timestamp = 20
+                case .microphone: timestamp = 30
+                }
+                try coordinator.append(harnessSample(timestamp), track: track)
+                if index < 2 {
+                    require(!coordinator.progress.sessionStarted,
+                            "three-track barrier opened before every first sample")
+                }
+            }
+            require(coordinator.progress.sessionStarted,
+                    "three-track barrier did not open for a first-sample order")
+            require(writer.startCount == 1,
+                    "three-track writer started more than once")
+            require(writer.sessionEpoch == CMTime(value: 10, timescale: 1_000),
+                    "three-track epoch did not select earliest sample")
+            require(coordinator.progress.trackSummary.selectedTracks
+                        == ["video", "system_audio", "microphone"],
+                    "three-track selected set drifted")
+            require(coordinator.progress.trackSummary.video.sampleCount == 1
+                        && coordinator.progress.trackSummary.systemAudio.sampleCount == 1
+                        && coordinator.progress.trackSummary.microphone.sampleCount == 1,
+                    "three-track first-sample order lost independent progress")
+        }
 
         let monotonicWriter = FakeMultitrackWriter()
         let monotonic = try multitrackCoordinator(monotonicWriter)
@@ -1945,6 +2051,34 @@ struct TerminalLifecycleCustodyHarness {
                 "mandatory-video backpressure failure was not persisted")
         require(blocked.progress.trackSummary.systemAudio.failureCode == nil,
                 "mandatory-video backpressure falsely failed admitted audio")
+
+        let microphoneBlockedWriter = FakeMultitrackWriter()
+        microphoneBlockedWriter.setReady(.microphone, false)
+        let microphoneBlocked = try multitrackCoordinator(
+            microphoneBlockedWriter,
+            microphone: true
+        )
+        try microphoneBlocked.append(harnessSample(1), track: .video)
+        try microphoneBlocked.append(harnessSample(2), track: .systemAudio)
+        try microphoneBlocked.append(harnessSample(3), track: .microphone)
+        require(microphoneBlocked.progress.sessionStarted,
+                "microphone backpressure blocked the common epoch")
+        require(microphoneBlocked.progress.trackSummary.systemAudio.sampleCount == 1
+                    && microphoneBlocked.progress.trackSummary.microphone.sampleCount == 1,
+                "system and microphone admitted progress were not independent")
+        var microphoneBlockedError: Error?
+        microphoneBlocked.finish(identity: { FakeFiles().identity(summary: $0) }) { result in
+            if case .failure(let error) = result { microphoneBlockedError = error }
+        }
+        require(microphoneBlockedError as? AOSOperationCoreError
+                    == .recordingBackpressureExceeded,
+                "permanently backpressured microphone falsely succeeded")
+        require(microphoneBlocked.progress.trackSummary.microphone.failureCode
+                    == AOSOperationCoreError.recordingBackpressureExceeded.code,
+                "microphone backpressure failure was not isolated")
+        require(microphoneBlocked.progress.trackSummary.video.failureCode == nil
+                    && microphoneBlocked.progress.trackSummary.systemAudio.failureCode == nil,
+                "microphone backpressure falsely failed other tracks")
 
         let zeroByteWriter = FakeMultitrackWriter()
         let zeroByte = try multitrackCoordinator(zeroByteWriter)
@@ -2156,7 +2290,50 @@ struct TerminalLifecycleCustodyHarness {
                     "artifact did not bind both finalized tracks")
         }
 
-        let microphone = try RecordingEnvironment()
+        for (permissionState, expectedFailure) in [
+            (AOSMicrophoneAuthorizationState.denied,
+             AOSOperationCoreError.recordingMicrophonePermissionDenied),
+            (.restricted, .recordingMicrophonePermissionRestricted),
+            (.unknown, .recordingMicrophonePermissionUnknown),
+        ] {
+            let denied = try RecordingEnvironment(
+                microphoneAuthorizationState: permissionState
+            )
+            let deniedAdmission = try denied.adapter.start(
+                request: denied.request(microphone: true),
+                connectionID: UUID()
+            )
+            try await wait("microphone permission failure did not terminalize") {
+                operation(deniedAdmission, in: denied).state == .terminal
+            }
+            require(operation(deniedAdmission, in: denied).failureCode
+                        == expectedFailure.code,
+                    "microphone permission state lost its exact failure")
+            require(!denied.native.startWasRequested()
+                        && denied.native.microphone.startCount == 0,
+                    "microphone permission failure acquired native authority")
+            require(denied.microphoneAuthorization.requestCount == 0,
+                    "settled microphone permission state was requested again")
+        }
+
+        let standaloneConflict = try RecordingEnvironment()
+        _ = try standaloneConflict.holdStandaloneMicrophoneClaim()
+        do {
+            _ = try standaloneConflict.adapter.start(
+                request: standaloneConflict.request(microphone: true),
+                connectionID: UUID()
+            )
+            fatalError("standalone microphone claim did not conflict")
+        } catch AOSOperationCoreError.resourceBusy {
+        }
+        require(!standaloneConflict.broker.retainsAuthority
+                    && !standaloneConflict.native.startWasRequested()
+                    && standaloneConflict.native.microphone.startCount == 0,
+                "resource conflict acquired screen or microphone native authority")
+
+        let microphone = try RecordingEnvironment(
+            microphoneAuthorizationState: .notDetermined
+        )
         let microphoneAdmission = try microphone.adapter.start(
             request: microphone.request(microphone: true),
             connectionID: UUID()
@@ -2164,6 +2341,8 @@ struct TerminalLifecycleCustodyHarness {
         try await wait("microphone adapter start missing") {
             microphone.native.startWasRequested()
         }
+        require(microphone.microphoneAuthorization.requestCount == 1,
+                "not-determined microphone permission was not requested once")
         let claimed = microphone.registry.snapshot()
         let microphoneClaims = claimed.resourceClaims.filter {
             $0.operation == microphoneAdmission.operation && $0.state != .terminal
@@ -2882,7 +3061,7 @@ struct TerminalLifecycleCustodyHarness {
         try await lateStartFailureAfterActiveEvidenceRequiresStop()
         await frameAdmissionClosesAtomically()
         try decoderAndTerminalTruthAreClosed()
-        print("terminal-lifecycle-custody-harness: atomic-admission=12 microphone-claim-set=1 multitrack=three-track adapter-microphone=1 production-lifecycle=6 production-terminal=2 production-custody=10 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
+        print("terminal-lifecycle-custody-harness: atomic-admission=12 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 production-lifecycle=6 production-terminal=2 production-custody=10 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
     }
 }
 `
@@ -3027,7 +3206,7 @@ test('production lifecycle and custody owners close terminal fault phases with f
     assert.equal(compile.status, 0, compile.stderr || compile.stdout)
     const run = spawnSync(binary, [], { encoding: 'utf8', timeout: 5_000 })
     assert.equal(run.status, 0, `${run.stderr}\n${run.stdout}`)
-    assert.match(run.stdout, /atomic-admission=12 microphone-claim-set=1 multitrack=three-track adapter-microphone=1/u)
+    assert.match(run.stdout, /atomic-admission=12 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1/u)
     const projectionLine = run.stdout.split('\n').find((line) => (
       line.startsWith('atomic-initial-summary-projections:')
     ))

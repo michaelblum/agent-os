@@ -240,9 +240,14 @@ primitive.
 AOS exposes bounded fixed screen recording, but not a Playwright-style
 trace bundle or caller-followed page video. The recording primitive is
 `aos record screen`: one fixed display, exact current window, or global region;
-mandatory H.264 video with an explicitly selected optional AAC-LC system-audio
-track in one QuickTime writer; hard duration/frame/pixel/queue/byte bounds; and
-an operation-owned transient artifact. Omission remains exact video-only.
+mandatory H.264 video with independently selected optional AAC-LC system-audio
+and daemon-owned microphone tracks in one QuickTime writer; hard
+duration/frame/pixel/queue/byte bounds; and an operation-owned transient
+artifact. Omitting both optional tracks remains exact video-only. Microphone
+selection reuses the existing exclusive `voice_io_native_session` resource in
+the screen operation's single claim-set and the daemon's shared microphone
+session owner; it does not add an adapter, resource identity, or registry
+revision.
 Output registration availability is distinct from positive-byte first-sample
 truth, and one absolute startup budget covers native start plus the remaining
 common-media barrier. Successful results and custody bind the selected/finalized

@@ -21,9 +21,14 @@ const coreSources = [
 ].map((name) => path.join(repoRoot, 'src/daemon', name))
 
 test('daemon operation integration retains secure routing and exact wire boundaries', async () => {
-  const unified = await readFile(path.join(repoRoot, 'src/daemon/unified.swift'), 'utf8')
-  const owner = await readFile(path.join(repoRoot, 'src/daemon/operation-owner-root.swift'), 'utf8')
-  const registry = await readFile(path.join(repoRoot, 'src/daemon/operation-registry.swift'), 'utf8')
+  const [unified, owner, registry, screenRecording, microphoneSession, operationState] = await Promise.all([
+    'unified.swift',
+    'operation-owner-root.swift',
+    'operation-registry.swift',
+    'screen-recording-operation-adapter.swift',
+    'microphone-native-session.swift',
+    'operation-state.swift',
+  ].map((name) => readFile(path.join(repoRoot, 'src/daemon', name), 'utf8')))
   assert.match(owner, /LOCAL_PEERTOKEN/u)
   assert.match(owner, /AOSRuntimeOwnerRootClassifier/u)
   assert.match(owner, /SecCodeCheckValidity\(guest, SecCSFlags\(\), requirement\)/u)
@@ -44,6 +49,14 @@ test('daemon operation integration retains secure routing and exact wire boundar
   assert.match(unified, /registered_operation_plane_at_adapter_registry_revision|stopAllPayload/u)
   assert.match(unified, /AOSOperationStatusItemProjection/u)
   assert.match(unified, /AOSOperationCanvasProjection/u)
+  assert.match(unified, /AOSAdapterRegistrySnapshot\.make\(\s*revision: 2/su)
+  assert.match(unified, /AOSScreenRecordingMicrophoneAuthorizationDependencies\(/u)
+  assert.match(screenRecording, /AOSMicrophoneOperationResourceIdentity\.adapterRegistrationID/u)
+  assert.match(screenRecording, /AOSMicrophoneOperationResourceIdentity\.resourceKey/u)
+  assert.match(screenRecording, /requests: requests/u)
+  assert.match(microphoneSession, /final class AOSMicrophoneNativeSession/u)
+  assert.equal((microphoneSession.match(/AVAudioEngine\(\)/gu) ?? []).length, 1)
+  assert.match(operationState, /static let resourceKey = "voice_io_native_session"/u)
   assert.match(registry, /pendingExternalSpawnIntents/u)
   assert.match(registry, /closedExternalSpawnIntents/u)
   assert.match(registry, /expirePendingExternalSpawnIntents/u)

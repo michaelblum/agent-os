@@ -2213,8 +2213,8 @@ substitutes for daemon authorization.
 
 `aos operation` is the public, policy-free control plane for work registered by
 an AOS operation adapter. The registry currently contains native microphone
-capture and fixed screen recording with mandatory video plus optional system
-audio at adapter-registry revision 2.
+capture and fixed screen recording with mandatory video plus independently
+optional system-audio and microphone tracks at adapter-registry revision 2.
 The surface reports mechanical facts and performs requested controls. It does
 not decide whether a human or agent should stop work, and it accepts neither
 caller intent nor a caller-supplied owner-root claim.
@@ -2316,6 +2316,7 @@ aos record screen --display main --duration-ms 10000 --json
 aos record screen --display 1 --region 0,0,1280,720 \
   --duration-ms 5000 --frame-rate 30 --json
 aos record screen --display main --duration-ms 10000 --system-audio --json
+aos record screen --display main --duration-ms 10000 --microphone --json
 ```
 
 The target is exactly one display, one current window, or one global region
@@ -2325,10 +2326,20 @@ starts; later drift fails the operation instead of silently reacquiring or
 following a target. Duration is 1 through 300000 milliseconds, frame rate 1
 through 60, queue depth 1 through 8, pixel count 4 through 33177600, and output
 size 1024 through 1073741824 bytes. The closed media contract is mandatory
-H.264 video in one QuickTime `.mov`, with explicit optional AAC-LC system audio.
-Omitting `--system-audio` preserves exact video-only output. `video=false`,
-`microphone=true`, malformed track selection, and followed geometry fail before
-effects.
+H.264 video in one QuickTime `.mov`, with independently selectable AAC-LC
+system-audio and microphone tracks. Omitting both flags preserves exact
+video-only output; `--system-audio`, `--microphone`, and both together are the
+other three exact selections. `video=false`, malformed track selection, and
+followed geometry fail before effects.
+
+The daemon remains the only microphone-authorization owner. A selected
+microphone must reach exact authorized state before writer, file, or native
+microphone authority; not-determined, restricted, denied, and unknown states
+stay typed. Screen recording and segmented capture share one daemon
+`AVAudioEngine` session owner, which alone installs and removes the input tap.
+The screen operation consumes the existing exclusive
+`voice_io_native_session` declaration in the same atomic claim-set as
+`screen_capture_native_session`; the registry remains revision 2.
 
 Success is admission, not completed capture. It returns exact operation,
 stream, and artifact generations plus daemon generation, geometry-binding

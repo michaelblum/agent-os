@@ -89,6 +89,7 @@
       "path_patterns": [
         "src/daemon/microphone-operation-adapter.swift",
         "src/daemon/voice-transport.swift",
+        "src/daemon/microphone-native-session.swift",
         "src/daemon/segmented-microphone-capture.swift",
         "src/daemon/audio-playback.swift",
         "tests/voice-operation-claim-contract.test.mjs"
@@ -97,8 +98,8 @@
       "owner": "operation-control",
       "harness_level": "model_unit",
       "proof_kind": "microphone_operation_adapter_contract",
-      "contract": "Microphone capture rejects malformed attribution and a closed or mismatched host barrier before durable mutation, durably prepares one operation with the exact invocation-scoped asserted attribution and one exclusive voice session claim before native authority, preserves omission as empty across sequential and concurrent admissions without bleed, reuses a preprepared external-dispatch admission after child finalization, stops through the common adapter seam, and releases the claim only after authority absence; legacy output never preempts capture.",
-      "worth": "This catches barrier admission under a false registry-conflict code, double operations, microphone authority before persistence/finalization, speech barge-in, early claim release, and cleanup-hidden terminal outcomes without touching a live audio device or TCC.",
+      "contract": "Microphone capture rejects malformed attribution and a closed or mismatched host barrier before durable mutation, durably prepares one operation with the exact invocation-scoped asserted attribution and one exclusive voice session claim before native authority, preserves omission as empty across sequential and concurrent admissions without bleed, reuses a preprepared external-dispatch admission after child finalization, stops through the common adapter seam, and releases the claim only after authority absence. Segmented capture and selected screen recording share the same AVAudioEngine/tap session owner and existing voice_io_native_session declaration; legacy output never preempts capture.",
+      "worth": "This catches barrier admission under a false registry-conflict code, double operations, microphone authority before persistence/finalization, speech barge-in, duplicate AVAudioEngine/tap ownership, a recording-specific microphone resource, early claim release, and cleanup-hidden terminal outcomes without touching a live audio device or TCC.",
       "command": "node --test tests/voice-operation-claim-contract.test.mjs",
       "replaces": [],
       "guard": "offline fake microphone lifecycle and disposable Swift typechecks only; no audio device, daemon, or TCC use",

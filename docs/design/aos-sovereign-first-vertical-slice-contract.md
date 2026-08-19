@@ -940,11 +940,12 @@ non-v2 source; neither may preserve or rewrap stale command objects. No dual
 reader or parallel aggregate exists.
 
 The operation schema owns the closed resource records; no ninth M2 schema is
-implied. M3A/M3B owner paths are the current desktop-pixel source/lifecycle,
-recording schema, optional-system-audio adapter, multitrack encoder,
+implied. M3A/M3B/M3C-V1 owner paths are the current desktop-pixel
+source/lifecycle, recording schema, independently optional system-audio and
+microphone tracks, multitrack encoder, shared daemon microphone-session owner,
 fixed-geometry owner, AOS command source, external route, and generated
-aggregates/help. Remaining microphone-track, followed-geometry, and native-live
-owners stay proposed. Later-milestone
+aggregates/help. Remaining followed-geometry and native-live owners stay
+proposed. Later-milestone
 `proposed` paths are not claimed to exist in current truth.
 
 M2 has 23 exact proof refs: the five-lane schema/static/fake/native-compile/
@@ -954,8 +955,9 @@ and internal Toolkit runtime/model/component proofs, plus frozen-v0 and active-
 v1 manifest schema, generation, broad-dispatch, proof-index, workflow-router,
 and installed-projection proofs. The command-surface proof fragment owns the
 manifest schema/generation/dispatch group; the operation-control fragment owns
-only operation-binding proofs. M3A/M3B use static schema/source/manifest proof,
-fake video-only and optional-system-audio multitrack
+only operation-binding proofs. M3A/M3B/M3C-V1 use static
+schema/source/manifest proof, fake video-only and independently optional
+system-audio/microphone multitrack
 lifecycle/control/custody/failure proof, and native compile proof that acquires
 no live authority. The separately authorized native-live
 lane remains proposed and is not TCC, pixel, file, status, artifact, or crash
@@ -1110,12 +1112,13 @@ M2 starts offline and deterministic:
   atomically and that no target claim outruns current executable truth. M2
   claims no maintained public SDK or skill implementation.
 
-The current M3A/M3B ladder adds static ScreenCaptureKit/AVAssetWriter/schema and
-generated-grammar binding, fake video-only and optional-system-audio multitrack
-encoder/fixed-geometry/custody/failure tests, and native compile proof with no
-capture authority. Later M3 proof adds microphone-track and followed-geometry
-fakes plus separately authorized live screen/audio/microphone/TCC/status/
-artifact/crash acceptance.
+The current M3A/M3B/M3C-V1 ladder adds static
+ScreenCaptureKit/AVAssetWriter/schema and generated-grammar binding; fake
+video-only and independently optional system-audio/microphone multitrack
+encoder, fixed-geometry, custody, permission, claim-set, shared-session, and
+failure tests; and native compile proof with no capture authority. Later M3
+proof adds followed-geometry fakes plus separately authorized live
+screen/audio/microphone/TCC/status/artifact/crash acceptance.
 
 Live microphone, screen capture, browser, native UI, TCC, build, packaging, and
 installation proof remain separately gated by later owner authority.

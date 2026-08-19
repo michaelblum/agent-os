@@ -358,12 +358,14 @@ precondition(adapter.residualDigest(operation: residualOperation) != nil)
 `)
 })
 
-test('voice transport uses an atomic legacy-output sentinel and has no implicit preemption path', async () => {
-  const [transport, segmented, playback, adapter] = await Promise.all([
+test('voice transport uses an atomic legacy-output sentinel and one shared native microphone owner', async () => {
+  const [transport, segmented, session, playback, adapter, state] = await Promise.all([
     source('src/daemon/voice-transport.swift'),
     source('src/daemon/segmented-microphone-capture.swift'),
+    source('src/daemon/microphone-native-session.swift'),
     source('src/daemon/audio-playback.swift'),
     source('src/daemon/microphone-operation-adapter.swift'),
+    source('src/daemon/operation-state.swift'),
   ])
 
   assert.doesNotMatch(transport, /barge_in/)
@@ -374,6 +376,10 @@ test('voice transport uses an atomic legacy-output sentinel and has no implicit 
   assert.match(playback, /AOSAudioPlaybackSession: AOSLegacyVoiceOutputSentinel/)
   assert.match(transport, /AOSStreamingSpeechSession: AOSLegacyVoiceOutputSentinel/)
   assert.doesNotMatch(playback, /AOSOperationControlAdapter/)
+  assert.doesNotMatch(segmented, /AVAudioEngine|installTap|removeTap/u)
+  assert.equal((session.match(/AVAudioEngine\(\)/gu) ?? []).length, 1)
+  assert.match(adapter, /AOSMicrophoneOperationResourceIdentity\.resourceKey/u)
+  assert.match(state, /static let resourceKey = "voice_io_native_session"/u)
 
   const start = transport.slice(
     transport.indexOf('func startCapture('),
