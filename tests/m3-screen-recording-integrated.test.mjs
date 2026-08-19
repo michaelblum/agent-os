@@ -246,8 +246,9 @@ final class HarnessClock: @unchecked Sendable {
 
 final class FaultStore: AOSOperationStateStore, @unchecked Sendable {
     enum Family: String, CaseIterable {
-        case admission, childPreparation, trackProgress, followPending,
-             followCommit, followStopped, terminalCleanup, artifactCustody
+        case admission, childPreparation, activation, trackProgress, followPending,
+             followCommit, followStopped, terminalOutcome, terminalCleanup,
+             artifactCustody
     }
 
     private let lock = NSLock()
@@ -262,6 +263,10 @@ final class FaultStore: AOSOperationStateStore, @unchecked Sendable {
 
     func arm(_ family: Family, count: Int = 1) {
         lock.lock(); remaining[family] = count; lock.unlock()
+    }
+
+    func saw(_ family: Family) -> Bool {
+        lock.lock(); defer { lock.unlock() }; return observed.contains(family)
     }
 
     func save(_ state: AOSOperationDurableState) throws {
@@ -283,29 +288,37 @@ final class FaultStore: AOSOperationStateStore, @unchecked Sendable {
         candidate: AOSOperationDurableState
     ) -> Family? {
         guard let previous else { return nil }
-        if candidate.operations.count > previous.operations.count { return .admission }
+        var matches: [Family] = []
+        if candidate.operations.count > previous.operations.count { matches.append(.admission) }
         if candidate.streams.count > previous.streams.count
             || candidate.artifacts.count > previous.artifacts.count
             || candidate.resourceTransactions.count > previous.resourceTransactions.count
             || candidate.resourceClaims.count > previous.resourceClaims.count {
-            return .childPreparation
+            matches.append(.childPreparation)
         }
         for operation in candidate.operations {
             guard let before = previous.operations.first(where: { $0.identity == operation.identity })
             else { continue }
-            if operation.progress != before.progress { return .trackProgress }
+            if before.state == .prepared && operation.state == .starting {
+                matches.append(.activation)
+            }
+            if operation.progress != before.progress { matches.append(.trackProgress) }
             let priorGeometry = before.screenRecordingGeometry
             let geometry = operation.screenRecordingGeometry
             if priorGeometry?.pendingUpdate == nil && geometry?.pendingUpdate != nil {
-                return .followPending
+                matches.append(.followPending)
             }
             if priorGeometry?.accepted.geometryGeneration
                 != geometry?.accepted.geometryGeneration {
-                return .followCommit
+                matches.append(.followCommit)
             }
             if priorGeometry?.deadlineState != .stopped
                 && geometry?.deadlineState == .stopped {
-                return .followStopped
+                matches.append(.followStopped)
+            }
+            if before.state != operation.state
+                && [.terminal, .cleanupRequired].contains(operation.state) {
+                matches.append(.terminalOutcome)
             }
         }
         if candidate.artifacts.contains(where: { artifact in
@@ -314,15 +327,16 @@ final class FaultStore: AOSOperationStateStore, @unchecked Sendable {
             }) else { return false }
             return artifact.state != before.state
                 && [.removing, .released, .removed, .cleanupRequired].contains(artifact.state)
-        }) { return .artifactCustody }
+        }) { matches.append(.artifactCustody) }
         if candidate.streams.contains(where: { stream in
             previous.streams.first(where: { $0.identity == stream.identity })?.state
                 != stream.state && stream.state == .terminal
         }) || candidate.resourceClaims.contains(where: { claim in
             previous.resourceClaims.first(where: { $0.claimID == claim.claimID })?.state
                 != claim.state && claim.state == .terminal
-        }) { return .terminalCleanup }
-        return nil
+        }) { matches.append(.terminalCleanup) }
+        let unique = Array(Set(matches))
+        return unique.first(where: { (remaining[$0] ?? 0) > 0 }) ?? matches.first
     }
 }
 
@@ -358,11 +372,12 @@ final class FakeBroker: AOSScreenRecordingBrokerControlling, @unchecked Sendable
 }
 
 final class FakeFiles: @unchecked Sendable {
-    enum Fault { case link, removeSource, removeDestination }
+    enum Fault: Hashable { case link, removeSource, removeDestination }
     private let lock = NSLock()
     private var source = false
     private var destination = false
-    var fault: Fault?
+    var faults = Set<Fault>()
+    var linkBarrier: Barrier?
     var destinationPath = "/private/tmp/m3e-release.mov"
 
     func identity(_ summary: AOSScreenRecordingTrackSummary) -> AOSArtifactFileIdentity {
@@ -402,13 +417,17 @@ final class FakeFiles: @unchecked Sendable {
                 return (url.path == destinationPath ? destination : source) ? .exact : .absent
             },
             linkDestination: { [self] _, url, expected, _ in
-                lock.lock(); defer { lock.unlock() }
-                if fault == .link { throw HarnessFault.injected }
+                lock.lock()
+                if faults.contains(.link) { lock.unlock(); throw HarnessFault.injected }
                 guard source, !destination else {
+                    lock.unlock()
                     throw AOSOperationCoreError.artifactDestinationExists
                 }
                 destinationPath = url.path
                 destination = true
+                let barrier = linkBarrier
+                lock.unlock()
+                barrier?.block()
                 return AOSArtifactReleaseDestinationFileIdentity(
                     device: expected.device,
                     inode: expected.inode,
@@ -419,8 +438,8 @@ final class FakeFiles: @unchecked Sendable {
             remove: { [self] url, allowAbsent in
                 lock.lock(); defer { lock.unlock() }
                 let isDestination = url.path == destinationPath
-                if (!isDestination && fault == .removeSource)
-                    || (isDestination && fault == .removeDestination) {
+                if (!isDestination && faults.contains(.removeSource))
+                    || (isDestination && faults.contains(.removeDestination)) {
                     throw HarnessFault.injected
                 }
                 let present = isDestination ? destination : source
@@ -434,6 +453,14 @@ final class FakeFiles: @unchecked Sendable {
                 return url.path == destinationPath ? destination : source
             }
         )
+    }
+
+    var sourcePresent: Bool {
+        lock.lock(); defer { lock.unlock() }; return source
+    }
+
+    var destinationPresent: Bool {
+        lock.lock(); defer { lock.unlock() }; return destination
     }
 }
 
@@ -1070,7 +1097,7 @@ func projection(
 struct IntegratedHarness {
     static var evidence: [String: Any] = [
         "admissions": [], "lists": [], "inspects": [], "events": [], "custody": [],
-        "responses": [], "requests": [], "controls": [],
+        "responses": [], "requests": [], "follow_updates": [], "controls": [], "faults": [],
     ]
 
     static func append(_ key: String, _ value: Any) {
@@ -1394,6 +1421,12 @@ struct IntegratedHarness {
             && geometry.pendingUpdate == nil
             && environment.driver.geometryUpdates == 1,
             "follow commit did not cross the native seam exactly once")
+        let followValue = aosScreenRecordingFollowUpdatePublicValue(
+            operation: admission.operation,
+            geometry: geometry
+        )
+        append("follow_updates", followValue)
+        append("responses", responseEnvelope(followValue))
         let replay = try submit(
             update, environment: environment, connection: activated.1
         )
@@ -1537,6 +1570,273 @@ struct IntegratedHarness {
                 "boot recovery did not settle all prior-generation children")
     }
 
+    static func completedArtifact(
+        _ environment: Environment
+    ) throws -> AOSScreenRecordingAdmission {
+        let admission = try activate(
+            environment, followed: false, duration: 60
+        ).0
+        wait("duration artifact did not complete", timeout: 1) {
+            operation(admission, environment).state == .terminal
+        }
+        let artifact = environment.registry.snapshot().artifacts.first {
+            $0.identity == admission.artifact
+        }
+        require(artifact?.state == .offered
+            && artifact?.trackSummary?.isSuccessful == true,
+            "duration result did not offer finalized artifact")
+        return admission
+    }
+
+    static func runCustody() throws {
+        let revealed = try Environment()
+        let revealAdmission = try completedArtifact(revealed)
+        let reveal = try revealed.screenAdapter.revealArtifact(
+            revealAdmission.artifact, ownerRoot: revealed.owner
+        )
+        require(reveal["action"] as? String == "reveal"
+            && reveal["state"] as? String == "offered",
+            "reveal projected false custody")
+        append("custody", reveal)
+        append("responses", responseEnvelope(reveal))
+        do {
+            _ = try revealed.screenAdapter.retainArtifact(revealAdmission.artifact)
+        } catch AOSOperationCoreError.artifactRetainUnavailable {}
+        require(revealed.registry.snapshot().artifacts.first {
+            $0.identity == revealAdmission.artifact
+        }?.state == .offered, "retain-unavailable mutated custody")
+
+        let removed = try Environment()
+        let removeAdmission = try completedArtifact(removed)
+        let remove = try removed.screenAdapter.removeArtifact(
+            removeAdmission.artifact, ownerRoot: removed.owner
+        )
+        require(remove["action"] as? String == "remove"
+            && remove["state"] as? String == "removed"
+            && !removed.files.sourcePresent,
+            "remove did not settle fake source authority")
+        append("custody", remove)
+        append("responses", responseEnvelope(remove))
+
+        let released = try Environment()
+        let releaseAdmission = try completedArtifact(released)
+        let release = try released.screenAdapter.releaseArtifact(
+            releaseAdmission.artifact,
+            ownerRoot: released.owner,
+            destinationPath: "/private/tmp/m3e-release.mov"
+        )
+        require(release["action"] as? String == "release"
+            && release["state"] as? String == "released"
+            && !released.files.sourcePresent
+            && released.files.destinationPresent,
+            "release did not transfer fake custody")
+        append("custody", release)
+        append("responses", responseEnvelope(release))
+
+        let racing = try Environment()
+        let racingAdmission = try completedArtifact(racing)
+        let linkBarrier = Barrier()
+        racing.files.linkBarrier = linkBarrier
+        let releaseResult = LockedBox<Result<[String: Any], Error>?>(nil)
+        DispatchQueue.global().async {
+            do {
+                let value = try racing.screenAdapter.releaseArtifact(
+                    racingAdmission.artifact,
+                    ownerRoot: racing.owner,
+                    destinationPath: "/private/tmp/m3e-race.mov"
+                )
+                releaseResult.write { $0 = .success(value) }
+            } catch { releaseResult.write { $0 = .failure(error) } }
+        }
+        linkBarrier.waitUntilEntered()
+        do {
+            _ = try racing.screenAdapter.removeArtifact(
+                racingAdmission.artifact, ownerRoot: racing.owner
+            )
+            fatalError("remove admitted during release CAS")
+        } catch AOSOperationCoreError.invalidTransition {}
+        linkBarrier.release()
+        wait("release CAS did not settle") { releaseResult.read() != nil }
+        guard case .success? = releaseResult.read() else {
+            fatalError("release CAS winner failed")
+        }
+        require(racing.registry.snapshot().artifacts.first {
+            $0.identity == racingAdmission.artifact
+        }?.state == .released, "release CAS did not preserve winner")
+
+        let store = FaultStore()
+        let recovery = try Environment(store: store)
+        let recoveryAdmission = try completedArtifact(recovery)
+        recovery.files.faults = [.removeSource, .removeDestination]
+        do {
+            _ = try recovery.screenAdapter.releaseArtifact(
+                recoveryAdmission.artifact,
+                ownerRoot: recovery.owner,
+                destinationPath: "/private/tmp/m3e-recovery.mov"
+            )
+            fatalError("consecutive custody faults reported release success")
+        } catch AOSOperationCoreError.recordingCleanupRequired {}
+        let pending = recovery.registry.snapshot().artifacts.first {
+            $0.identity == recoveryAdmission.artifact
+        }!
+        require(pending.state == .cleanupRequired && pending.release != nil,
+                "custody fault lost pending release recovery truth")
+        let token = String(repeating: "8", count: 64)
+        let boot = try AOSOperationRecovery.beginBootRecovery(
+            registry: recovery.registry,
+            newDaemonGeneration: 8,
+            claimTokenDigest: token
+        )
+        recovery.files.faults = []
+        let resolution = try recovery.screenAdapter.recoverArtifactRelease(pending)
+        require(resolution == .rolledBack,
+                "custody recovery did not roll back exact duplicate")
+        try recovery.screenAdapter.removeRecoveredRolledBackArtifact(pending)
+        let state = recovery.registry.snapshot()
+        let summary = try AOSOperationRecovery.reconcile(
+            registry: recovery.registry,
+            recoveryGeneration: boot.recoveryGeneration,
+            claimTokenDigest: token,
+            mechanicallyAbsentOperationIDs: [],
+            mechanicallyAbsentClaimIDs: [],
+            mechanicallyAbsentBrokerIDs: []
+        )
+        require(summary.residualCount == 0
+            && state.artifacts.first { $0.identity == recoveryAdmission.artifact }?.state
+                == .removed,
+            "custody recovery did not reach zero residuals")
+
+        let custodyFaultStore = FaultStore()
+        let custodyFault = try Environment(store: custodyFaultStore)
+        let custodyFaultAdmission = try completedArtifact(custodyFault)
+        custodyFaultStore.arm(.artifactCustody)
+        do {
+            _ = try custodyFault.screenAdapter.removeArtifact(
+                custodyFaultAdmission.artifact, ownerRoot: custodyFault.owner
+            )
+            fatalError("custody CAS store fault reported removal")
+        } catch AOSOperationCoreError.storeUnavailable {}
+        require(custodyFault.files.sourcePresent
+            && custodyFault.registry.snapshot().artifacts.first {
+                $0.identity == custodyFaultAdmission.artifact
+            }?.state == .offered,
+            "failed custody CAS changed file or durable state")
+    }
+
+    static func runStoreFaults() throws {
+        for family in [FaultStore.Family.admission, .childPreparation, .activation] {
+            let store = FaultStore()
+            let environment = try Environment(store: store)
+            store.arm(family)
+            do {
+                _ = try environment.screenAdapter.start(
+                    request: environment.request(
+                        systemAudio: true,
+                        microphone: true,
+                        followed: true,
+                        duration: 1_000,
+                        followDeadline: 500
+                    ),
+                    connectionID: UUID()
+                )
+                fatalError("\(family.rawValue) store fault reported admission")
+            } catch {}
+            require(store.saw(family)
+                && !environment.broker.retainsAuthority
+                && !environment.driver.startWasRequested(),
+                "\(family.rawValue) fault leaked authority")
+            append("faults", family.rawValue)
+        }
+
+        let progressStore = FaultStore()
+        let progress = try Environment(store: progressStore)
+        let progressAdmission = try progress.screenAdapter.start(
+            request: progress.request(
+                systemAudio: false, microphone: false, followed: false,
+                duration: 1_000, followDeadline: 500
+            ),
+            connectionID: UUID()
+        )
+        wait("progress-fault start missing") { progress.driver.startWasRequested() }
+        progressStore.arm(.trackProgress)
+        do { try progress.driver.publish(.video) }
+        catch {
+            progress.driver.injectFailure(error)
+            progress.driver.settleStart()
+        }
+        wait("progress fault did not settle", timeout: 1) {
+            [.terminal, .cleanupRequired].contains(operation(progressAdmission, progress).state)
+        }
+        require(progressStore.saw(.trackProgress), "track progress fault was not reached")
+        append("faults", FaultStore.Family.trackProgress.rawValue)
+
+        let pendingStore = FaultStore()
+        let pending = try Environment(store: pendingStore)
+        let pendingActive = try activate(pending, followed: true)
+        Thread.sleep(forTimeInterval: 0.02)
+        pendingStore.arm(.followPending)
+        let pendingResult = try submit(
+            pending.update(pendingActive.0),
+            environment: pending,
+            connection: pendingActive.1
+        )
+        wait("follow-pending fault did not return") { pendingResult.read() != nil }
+        guard case .failure(.storeUnavailable)? = pendingResult.read() else {
+            fatalError("follow-pending fault lost exact error")
+        }
+        require(pendingStore.saw(.followPending), "follow pending save was not reached")
+        _ = try pending.cancel(pendingActive.0.operation)
+        append("faults", FaultStore.Family.followPending.rawValue)
+
+        let commitStore = FaultStore()
+        let commit = try Environment(store: commitStore)
+        let commitActive = try activate(commit, followed: true)
+        Thread.sleep(forTimeInterval: 0.02)
+        commitStore.arm(.followCommit)
+        let commitResult = try submit(
+            commit.update(commitActive.0),
+            environment: commit,
+            connection: commitActive.1
+        )
+        wait("follow-commit fault did not return") { commitResult.read() != nil }
+        guard case .failure(.storeUnavailable)? = commitResult.read() else {
+            fatalError("follow-commit fault lost exact error")
+        }
+        wait("follow-commit fault did not terminalize") {
+            operation(commitActive.0, commit).state == .terminal
+        }
+        require(commitStore.saw(.followCommit), "follow commit save was not reached")
+        append("faults", FaultStore.Family.followCommit.rawValue)
+
+        for family in [FaultStore.Family.followStopped,
+                       .terminalOutcome, .terminalCleanup] {
+            let store = FaultStore()
+            let environment = try Environment(store: store)
+            let active = try activate(environment, followed: family == .followStopped)
+            store.arm(family)
+            do { _ = try environment.cancel(active.0.operation) } catch {}
+            wait("\(family.rawValue) fault did not converge", timeout: 1) {
+                [.terminal, .cleanupRequired].contains(operation(active.0, environment).state)
+            }
+            require(store.saw(family), "\(family.rawValue) save was not reached")
+            append("faults", family.rawValue)
+        }
+
+        let consecutiveStore = FaultStore()
+        let consecutive = try Environment(store: consecutiveStore)
+        let consecutiveActive = try activate(
+            consecutive, followed: false, duration: 10_000
+        )
+        consecutiveStore.arm(.terminalCleanup, count: 8)
+        let started = Date()
+        do { _ = try consecutive.cancel(consecutiveActive.0.operation) } catch {}
+        require(Date().timeIntervalSince(started) < 3
+            && consecutiveStore.saw(.terminalCleanup)
+            && operation(consecutiveActive.0, consecutive).outcome != .succeeded,
+            "consecutive cleanup failure mismatch elapsed=\(Date().timeIntervalSince(started)) saw=\(consecutiveStore.saw(.terminalCleanup)) outcome=\(String(describing: operation(consecutiveActive.0, consecutive).outcome))")
+        append("faults", "consecutive_terminal_cleanup")
+    }
+
     static func runSharedMicrophoneConflict() throws {
         let environment = try Environment()
         let held = try environment.microphoneAdapter.prepareExternalCapture(
@@ -1566,10 +1866,12 @@ struct IntegratedHarness {
         try runMatrix()
         try runPublicControl()
         try runFollowGeometryAndRecovery()
+        try runCustody()
+        try runStoreFaults()
         try runSharedMicrophoneConflict()
         let bytes = try JSONSerialization.data(withJSONObject: evidence, options: [.sortedKeys])
         print("m3e-evidence:\(String(data: bytes, encoding: .utf8)!)")
-        print("m3e-integrated: matrix=8 registry=2 actual-writer=1 shared-microphone=1 control-boundaries=3 follow-recovery=1")
+        print("m3e-integrated: matrix=8 registry=2 actual-writer=1 shared-microphone=1 control-boundaries=3 follow-recovery=1 custody=1 store-faults=11")
     }
 }
 `
@@ -1622,7 +1924,42 @@ test('complete landed M3 recording executes as one production-attached offline s
     assert.equal(evidence.lists.length, 8)
     assert.equal(evidence.inspects.length, 8)
     assert.ok(evidence.events.length >= 8)
-    assert.equal(evidence.responses.length, 24)
+    assert.equal(evidence.responses.length, 28)
+    const validate = spawnSync('python3', ['-c', String.raw`
+import json, os, sys
+from jsonschema import Draft202012Validator, FormatChecker, RefResolver
+root=sys.argv[1]
+schemas=[]
+for name in os.listdir(root):
+    if name.endswith('.schema.json'):
+        value=json.load(open(os.path.join(root,name),encoding='utf-8'))
+        if '$id' in value: schemas.append(value)
+store={value['$id']:value for value in schemas}
+def by_name(name): return next(value for key,value in store.items() if key.endswith('/'+name))
+def definition(name, member):
+    schema=by_name(name)
+    target={'$schema':'https://json-schema.org/draft/2020-12/schema','$ref':schema['$id']+'#/$defs/'+member}
+    return Draft202012Validator(target,resolver=RefResolver.from_schema(target,store=store),format_checker=FormatChecker())
+rows=json.load(sys.stdin)
+checks=[
+  (definition('aos-screen-recording-v1.schema.json','admission_result'),rows['admissions']),
+  (definition('aos-screen-recording-v1.schema.json','follow_update_result'),rows['follow_updates']),
+  (definition('aos-operation-v1.schema.json','operation_list_result'),rows['lists']),
+  (definition('aos-operation-v1.schema.json','operation_inspect_result'),rows['inspects']),
+  (definition('aos-artifact-v1.schema.json','artifact_custody_result'),rows['custody']),
+  (Draft202012Validator(by_name('daemon-event.schema.json'),resolver=RefResolver.from_schema(by_name('daemon-event.schema.json'),store=store),format_checker=FormatChecker()),rows['events']),
+  (Draft202012Validator(by_name('daemon-response.schema.json'),resolver=RefResolver.from_schema(by_name('daemon-response.schema.json'),store=store),format_checker=FormatChecker()),rows['responses']),
+]
+for validator, values in checks:
+    for value in values:
+        errors=list(validator.iter_errors(value))
+        assert not errors,[error.message for error in errors]
+print('m3e-schemas: admissions=8 follow=1 list=8 inspect=8 custody=3 responses=28')
+`, path.join(repoRoot, 'shared/schemas')], {
+      encoding: 'utf8', input: JSON.stringify(evidence), timeout: 20_000,
+    })
+    assert.equal(validate.status, 0, `${validate.stdout}\n${validate.stderr}`)
+    assert.match(validate.stdout, /m3e-schemas: admissions=8 follow=1 list=8 inspect=8 custody=3 responses=28/u)
   } finally {
     await rm(buildRoot, { recursive: true, force: true })
   }
