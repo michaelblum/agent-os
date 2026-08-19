@@ -11,14 +11,59 @@ const sources = [
   'operation-state.swift', 'operation-store.swift', 'operation-registry.swift',
   'operation-resource-broker.swift', 'operation-resource-transaction.swift',
   'operation-resource-claim.swift', 'operation-control.swift', 'operation-recovery.swift',
+  'public-capture-transfer.swift',
+  'screen-recording-geometry.swift', 'screen-recording-follow-geometry.swift',
 ].map((name) => path.join(daemonRoot, name))
+
+const geometrySupportSource = String.raw`
+import CoreGraphics
+import Foundation
+
+struct AOSDisplayTopologyBounds: Codable, Equatable {
+    let x: Double; let y: Double; let width: Double; let height: Double
+}
+struct AOSDisplayTopologyPoint: Codable, Equatable { let x: Double; let y: Double }
+enum AOSDisplayTopologyMemberIdentity: Codable, Equatable { case displayIDFallback(UInt32) }
+struct AOSDisplayTopologyDisplay: Codable, Equatable {
+    let runtimeDisplayID: UInt32; let ordinal: Int; let isMain: Bool
+    let memberIdentity: AOSDisplayTopologyMemberIdentity
+    let nativeBounds: AOSDisplayTopologyBounds
+    let nativeVisibleBounds: AOSDisplayTopologyBounds
+    let desktopWorldBounds: AOSDisplayTopologyBounds
+    let visibleDesktopWorldBounds: AOSDisplayTopologyBounds
+    let scaleFactor: Double; let rotation: Double
+}
+struct AOSDisplayTopologySnapshot: Codable, Equatable {
+    let identity: String; let usesDisplayIDFallback: Bool
+    let screensHaveSeparateSpaces: Bool
+    let desktopWorldOriginNative: AOSDisplayTopologyPoint
+    let nativeBounds: AOSDisplayTopologyBounds
+    let nativeVisibleBounds: AOSDisplayTopologyBounds
+    let desktopWorldBounds: AOSDisplayTopologyBounds
+    let visibleDesktopWorldBounds: AOSDisplayTopologyBounds
+    let displays: [AOSDisplayTopologyDisplay]
+}
+func aosDisplayTopologyWireValue(_ value: AOSDisplayTopologySnapshot) throws -> [String: Any] {
+    ["identity": value.identity]
+}
+func validateAOSDisplayTopologyWireValue(_ value: Any) throws -> AOSDisplayTopologySnapshot {
+    guard let value = value as? AOSDisplayTopologySnapshot else {
+        throw AOSOperationCoreError.invalidRecord("topology")
+    }
+    return value
+}
+struct CaptureApplicationFact { let processID: Int32 }
+struct CaptureWindowFact {
+    let frame: CGRect; let owningApplication: CaptureApplicationFact?; let windowID: Int
+}
+`
 
 async function compileAndRunHarness(source) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'aos-operation-control-fake-'))
   const main = path.join(root, 'main.swift')
   const executable = path.join(root, 'operation-control-fake')
   try {
-    await writeFile(main, source)
+    await writeFile(main, `${geometrySupportSource}\n${source}`)
     execFileSync('swiftc', [
       '-warnings-as-errors', '-module-cache-path', path.join(root, 'module-cache'),
       ...sources, main, '-o', executable,
@@ -29,7 +74,7 @@ async function compileAndRunHarness(source) {
   }
 }
 
-test('ordinary controls are owner-root bounded and persist intent before adapter action', async () => {
+test('ordinary controls are owner-root bounded and adapter-owned admission precedes stop action', async () => {
   await compileAndRunHarness(String.raw`
 import Foundation
 
@@ -45,8 +90,18 @@ final class FakeAdapter: AOSOperationControlAdapter {
     var result = AOSAdapterStopResult(disposition: .absent, residualDigest: nil)
 
     init(_ registration: AOSOperationAdapterRegistration) { self.registration = registration }
-    func requestStop(operation: AOSOperationIdentity, force: Bool) -> AOSAdapterStopResult {
-        calls.append((operation, force)); return result
+    func admitStop(
+        operation: AOSOperationIdentity,
+        admission: AOSOperationStopAdmissionTransaction
+    ) throws -> AOSAdapterStopResult {
+        let admitted = try admission.commit().operation
+        if admitted.state != .terminal {
+            let force = admitted.stopIntent.map {
+                [.kill, .ownerKill, .hostStop].contains($0)
+            } ?? false
+            calls.append((operation, force))
+        }
+        return result
     }
     func residualDigest(operation: AOSOperationIdentity) -> String? { nil }
 }
@@ -119,6 +174,15 @@ precondition(cancelReceipt.stopIntent == .cancel)
 precondition(adapter.calls.count == 1 && adapter.calls[0].1 == false)
 let cancelled = try registry.inspect(operationA.identity)
 precondition(cancelled.state == .terminal && cancelled.outcome == .cancelled)
+let replayedCancel = try control.cancel(
+    context: liveContext(ownerA), operation: operationA.identity
+)
+precondition(replayedCancel == cancelReceipt)
+precondition(adapter.calls.count == 1)
+expect(.invalidTransition) {
+    _ = try control.kill(context: liveContext(ownerA), operation: operationA.identity)
+}
+precondition(adapter.calls.count == 1)
 
 let callsBeforeFailedSave = adapter.calls.count
 store.failNextSave = true
@@ -128,6 +192,8 @@ expect(.storeUnavailable) {
 precondition(adapter.calls.count == callsBeforeFailedSave)
 let operationBAfterFailedSave = try registry.inspect(operationB.identity)
 precondition(operationBAfterFailedSave.state == .active)
+precondition(operationBAfterFailedSave.stopIntent == nil)
+precondition(operationBAfterFailedSave.outcome == nil)
 
 let canvasContext = AOSOrdinaryControlContext(
     expectedDaemonGeneration: 7, connectionEpoch: 9,

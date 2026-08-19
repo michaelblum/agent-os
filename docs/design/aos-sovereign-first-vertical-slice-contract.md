@@ -2,9 +2,9 @@
 
 Program: `aos-sovereign-capability-substrate-v1`
 
-Status: Milestone 2 executable control plane plus bounded M3A fixed video and
-M3B optional system-audio recording candidate and implementation-routing
-contract. Current source,
+Status: Milestone 2 executable control plane plus bounded M3A fixed video, M3B
+optional system audio, M3C-V2 optional microphone, and M3D-V1 caller-followed
+region geometry candidate. Current source,
 command-source manifests, generated help, IPC schemas, API docs, Toolkit, tests,
 and runtime readback own executable truth; unimplemented M3 remainder and M4-M10
 sections remain target design merely because they are specified here.
@@ -35,8 +35,15 @@ public SDK root, managed Playwright grammar, or TCC policy change. M3A adds one
 fixed display/window/region H.264 QuickTime video recording producer and
 producer-backed reveal/remove/release custody. M3B adds an explicitly optional
 AAC-LC system-audio track to that same stream, operation, writer, resource, and
-artifact. Microphone tracks, followed geometry, and native-live acceptance
-remain later work.
+artifact. M3C-V2 adds an independently optional microphone track through the
+shared daemon microphone-session owner. M3D-V1 adds explicit caller-followed
+region geometry with caller-owned tracking, generation-CAS updates, immutable
+source binding, bounded pending intent, deadline stop, and exact content-free
+public geometry truth. Durable geometry changes advance an exact event sequence
+and emit through the production operation-event channel; cancel/kill admission
+is linearized with follow activation so terminal geometry cannot miss stopped
+truth or replace the first stop outcome. Native-live acceptance remains later
+work.
 
 ## Contract owners
 
@@ -727,8 +734,9 @@ desktop geometry. Binding it to screen recording requires all of:
 
 If AOS cannot prove that transform, the box remains browser-local and cannot be
 used as a screen-region target. The flagship workflow may instead record a
-validated browser window or a caller-supplied fixed screen region. No silent
-coordinate inference or stale reacquisition is permitted.
+validated browser window, a caller-supplied fixed region, or explicit
+caller-followed updates carrying the full fresh topology, region, and binding.
+No silent coordinate inference or stale reacquisition is permitted.
 
 ## Dedicated internal operation status item
 
@@ -940,12 +948,11 @@ non-v2 source; neither may preserve or rewrap stale command objects. No dual
 reader or parallel aggregate exists.
 
 The operation schema owns the closed resource records; no ninth M2 schema is
-implied. M3A/M3B/M3C-V1 owner paths are the current desktop-pixel
+implied. M3A/M3B/M3C-V2/M3D-V1 owner paths are the current desktop-pixel
 source/lifecycle, recording schema, independently optional system-audio and
 microphone tracks, multitrack encoder, shared daemon microphone-session owner,
-fixed-geometry owner, AOS command source, external route, and generated
-aggregates/help. Remaining followed-geometry and native-live owners stay
-proposed. Later-milestone
+fixed/caller-followed geometry owner, AOS command source, external route, and
+generated aggregates/help. Native-live owners stay proposed. Later-milestone
 `proposed` paths are not claimed to exist in current truth.
 
 M2 has 23 exact proof refs: the five-lane schema/static/fake/native-compile/
@@ -1112,13 +1119,14 @@ M2 starts offline and deterministic:
   atomically and that no target claim outruns current executable truth. M2
   claims no maintained public SDK or skill implementation.
 
-The current M3A/M3B/M3C-V1 ladder adds static
+The current M3A/M3B/M3C-V2/M3D-V1 ladder adds static
 ScreenCaptureKit/AVAssetWriter/schema and generated-grammar binding; fake
 video-only and independently optional system-audio/microphone multitrack
 encoder, fixed-geometry, custody, permission, claim-set, shared-session, and
-failure tests; and native compile proof with no capture authority. Later M3
-proof adds followed-geometry fakes plus separately authorized live
-screen/audio/microphone/TCC/status/artifact/crash acceptance.
+failure tests; caller-followed parser/validator/coordinator/CAS/native-update/
+recovery/projection tests; and native compile proof with no capture authority.
+Separately authorized live screen/audio/microphone/TCC/status/artifact/crash
+acceptance remains later proof.
 
 Live microphone, screen capture, browser, native UI, TCC, build, packaging, and
 installation proof remain separately gated by later owner authority.

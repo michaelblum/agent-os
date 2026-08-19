@@ -2,6 +2,124 @@ import CoreGraphics
 import CryptoKit
 import Foundation
 
+enum AOSScreenRecordingGeometryMode: String, Codable {
+    case fixed
+    case callerFollowed = "caller_followed"
+}
+
+struct AOSScreenRecordingBindingIdentity: Codable, Equatable {
+    let id: String
+    let generation: UInt64
+
+    static func validatingPublicValue(_ value: Any?) throws -> Self {
+        guard let object = value as? [String: Any],
+              Set(object.keys) == ["id", "generation"],
+              let id = aosOperationWireIdentifier(object["id"]),
+              let generationValue = object["generation"],
+              let generation = aosExactJSONInteger(
+                generationValue,
+                minimum: 1,
+                maximum: Int(aosMaximumExactJSONInteger)
+              ) else {
+            throw AOSOperationCoreError.invalidRecord("screen_recording_follow_binding")
+        }
+        return Self(id: id, generation: UInt64(generation))
+    }
+}
+
+struct AOSScreenRecordingFollowBinding: Codable, Equatable {
+    let target: AOSScreenRecordingBindingIdentity
+    let observation: AOSScreenRecordingBindingIdentity
+    let state: AOSScreenRecordingBindingIdentity
+    let session: AOSScreenRecordingBindingIdentity
+    let navigation: AOSScreenRecordingBindingIdentity
+    let frame: AOSScreenRecordingBindingIdentity
+    let sourceWindowID: Int
+    let sourceOwnerPID: Int32
+
+    static func validatingPublicValue(_ value: Any?) throws -> Self {
+        guard let object = value as? [String: Any],
+              Set(object.keys) == [
+                "target", "observation", "state", "session", "navigation", "frame",
+                "source_window",
+              ],
+              let source = object["source_window"] as? [String: Any],
+              Set(source.keys) == ["window_id", "owner_pid"],
+              let windowIDValue = source["window_id"],
+              let ownerPIDValue = source["owner_pid"],
+              let windowID = aosExactJSONInteger(
+                windowIDValue, minimum: 1, maximum: Int(Int32.max)
+              ),
+              let ownerPID = aosExactJSONInteger(
+                ownerPIDValue, minimum: 1, maximum: Int(Int32.max)
+              ) else {
+            throw AOSOperationCoreError.invalidRecord("screen_recording_follow_binding")
+        }
+        return Self(
+            target: try .validatingPublicValue(object["target"]),
+            observation: try .validatingPublicValue(object["observation"]),
+            state: try .validatingPublicValue(object["state"]),
+            session: try .validatingPublicValue(object["session"]),
+            navigation: try .validatingPublicValue(object["navigation"]),
+            frame: try .validatingPublicValue(object["frame"]),
+            sourceWindowID: windowID,
+            sourceOwnerPID: Int32(ownerPID)
+        )
+    }
+}
+
+struct AOSScreenRecordingGeometryConfiguration: Codable, Equatable {
+    static let minimumUpdateIntervalMilliseconds: UInt64 = 16
+    static let maximumUpdateIntervalMilliseconds: UInt64 = 10_000
+    static let maximumUpdateDeadlineMilliseconds: UInt64 = 60_000
+
+    let mode: AOSScreenRecordingGeometryMode
+    let followBinding: AOSScreenRecordingFollowBinding?
+    let updateIntervalMilliseconds: UInt64?
+    let updateDeadlineMilliseconds: UInt64?
+
+    static func validatingPublicValue(
+        _ value: [String: Any],
+        target: AOSScreenRecordingTarget
+    ) throws -> Self {
+        guard let modeRaw = value["mode"] as? String,
+              let mode = AOSScreenRecordingGeometryMode(rawValue: modeRaw) else {
+            throw AOSOperationCoreError.invalidRecord("screen_recording_geometry_mode")
+        }
+        switch mode {
+        case .fixed:
+            guard Set(value.keys) == ["mode"] else {
+                throw AOSOperationCoreError.invalidRecord("screen_recording_geometry")
+            }
+            return Self(
+                mode: .fixed,
+                followBinding: nil,
+                updateIntervalMilliseconds: nil,
+                updateDeadlineMilliseconds: nil
+            )
+        case .callerFollowed:
+            guard target.kind == .region,
+                  Set(value.keys) == [
+                    "mode", "binding", "update_interval_ms", "update_deadline_ms",
+                  ],
+                  let interval = AOSScreenRecordingRequest.uint64(value["update_interval_ms"]),
+                  let deadline = AOSScreenRecordingRequest.uint64(value["update_deadline_ms"]),
+                  (minimumUpdateIntervalMilliseconds...maximumUpdateIntervalMilliseconds)
+                    .contains(interval),
+                  interval <= deadline,
+                  deadline <= maximumUpdateDeadlineMilliseconds else {
+                throw AOSOperationCoreError.invalidRecord("screen_recording_follow_geometry")
+            }
+            return Self(
+                mode: .callerFollowed,
+                followBinding: try .validatingPublicValue(value["binding"]),
+                updateIntervalMilliseconds: interval,
+                updateDeadlineMilliseconds: deadline
+            )
+        }
+    }
+}
+
 enum AOSScreenRecordingLimits {
     static let minimumDurationMilliseconds: UInt64 = 1
     static let maximumDurationMilliseconds: UInt64 = 300_000
@@ -236,6 +354,8 @@ struct AOSScreenRecordingTarget: Codable, Equatable {
 }
 
 struct AOSScreenRecordingGeometry: Codable, Equatable {
+    let mode: AOSScreenRecordingGeometryMode
+    let geometryGeneration: UInt64
     let admittedTopology: AOSDisplayTopologySnapshot
     let target: AOSScreenRecordingTarget
     let sourceRect: AOSDisplayTopologyBounds
@@ -243,6 +363,9 @@ struct AOSScreenRecordingGeometry: Codable, Equatable {
     let pixelHeight: Int
     let pixelCount: UInt64
     let bindingDigest: String
+    let followBinding: AOSScreenRecordingFollowBinding?
+    let updateIntervalMilliseconds: UInt64?
+    let updateDeadlineMilliseconds: UInt64?
 }
 
 struct AOSScreenRecordingRequest: Codable, Equatable {
@@ -254,6 +377,7 @@ struct AOSScreenRecordingRequest: Codable, Equatable {
     let canonicalParameterDigest: String
     let topology: AOSDisplayTopologySnapshot
     let target: AOSScreenRecordingTarget
+    let geometry: AOSScreenRecordingGeometryConfiguration
     let durationMilliseconds: UInt64
     let frameRate: UInt64
     let maximumPixelCount: UInt64
@@ -278,7 +402,7 @@ struct AOSScreenRecordingRequest: Codable, Equatable {
             "schema_version", "request_id", "canonical_parameter_digest",
             "topology", "target", "duration_ms", "frame_rate",
             "max_pixel_count", "max_queue_frames", "max_output_bytes",
-            "tracks", "codec", "container",
+            "tracks", "codec", "container", "geometry",
         ]
         guard Set(value.keys) == expected,
               value["schema_version"] as? String == schemaVersion,
@@ -287,6 +411,7 @@ struct AOSScreenRecordingRequest: Codable, Equatable {
               digest.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil,
               let topologyValue = value["topology"],
               let targetValue = value["target"] as? [String: Any],
+              let geometryValue = value["geometry"] as? [String: Any],
               let duration = uint64(value["duration_ms"]),
               let frameRate = uint64(value["frame_rate"]),
               let maximumPixels = uint64(value["max_pixel_count"]),
@@ -313,11 +438,16 @@ struct AOSScreenRecordingRequest: Codable, Equatable {
         }
         let topology = try validateAOSDisplayTopologyWireValue(topologyValue)
         let target = try parseTarget(targetValue, topology: topology)
+        let geometry = try AOSScreenRecordingGeometryConfiguration.validatingPublicValue(
+            geometryValue,
+            target: target
+        )
         return Self(
             requestID: requestID,
             canonicalParameterDigest: digest,
             topology: topology,
             target: target,
+            geometry: geometry,
             durationMilliseconds: duration,
             frameRate: frameRate,
             maximumPixelCount: maximumPixels,
@@ -332,7 +462,7 @@ struct AOSScreenRecordingRequest: Codable, Equatable {
         )
     }
 
-    private static func parseTarget(
+    static func parseTarget(
         _ value: [String: Any],
         topology: AOSDisplayTopologySnapshot
     ) throws -> AOSScreenRecordingTarget {
@@ -404,7 +534,7 @@ struct AOSScreenRecordingRequest: Codable, Equatable {
         )
     }
 
-    private static func uint64(_ value: Any?) -> UInt64? {
+    static func uint64(_ value: Any?) -> UInt64? {
         guard let value,
               let integer = aosExactJSONInteger(
                 value,
@@ -416,7 +546,7 @@ struct AOSScreenRecordingRequest: Codable, Equatable {
         return UInt64(integer)
     }
 
-    private static func exactBoolean(_ value: Any?) -> Bool? {
+    static func exactBoolean(_ value: Any?) -> Bool? {
         guard let number = value as? NSNumber,
               CFGetTypeID(number) == CFBooleanGetTypeID() else {
             return nil
@@ -424,7 +554,7 @@ struct AOSScreenRecordingRequest: Codable, Equatable {
         return number.boolValue
     }
 
-    private static func bounds(_ value: Any?) throws -> AOSDisplayTopologyBounds {
+    static func bounds(_ value: Any?) throws -> AOSDisplayTopologyBounds {
         guard let object = value as? [String: Any],
               Set(object.keys) == ["x", "y", "width", "height"],
               let x = finiteNumber(object["x"]),
@@ -438,7 +568,7 @@ struct AOSScreenRecordingRequest: Codable, Equatable {
         return AOSDisplayTopologyBounds(x: x, y: y, width: width, height: height)
     }
 
-    private static func finiteNumber(_ value: Any?) -> Double? {
+    static func finiteNumber(_ value: Any?) -> Double? {
         guard let number = value as? NSNumber,
               CFGetTypeID(number) != CFBooleanGetTypeID(),
               number.doubleValue.isFinite else {
@@ -447,7 +577,7 @@ struct AOSScreenRecordingRequest: Codable, Equatable {
         return number.doubleValue
     }
 
-    private static func contains(
+    static func contains(
         _ container: AOSDisplayTopologyBounds,
         _ candidate: AOSDisplayTopologyBounds
     ) -> Bool {
@@ -491,31 +621,46 @@ enum AOSScreenRecordingGeometryValidator {
               UInt64(multiplied.partialValue) <= request.maximumPixelCount else {
             throw AOSOperationCoreError.recordingBoundsExceeded
         }
-        struct Binding: Codable {
+        struct DigestBinding: Codable {
+            let mode: AOSScreenRecordingGeometryMode
+            let geometryGeneration: UInt64
             let topology: AOSDisplayTopologySnapshot
             let target: AOSScreenRecordingTarget
             let sourceRect: AOSDisplayTopologyBounds
             let width: Int
             let height: Int
+            let followBinding: AOSScreenRecordingFollowBinding?
+            let updateIntervalMilliseconds: UInt64?
+            let updateDeadlineMilliseconds: UInt64?
         }
-        let input = Binding(
+        let input = DigestBinding(
+            mode: request.geometry.mode,
+            geometryGeneration: 1,
             topology: request.topology,
             target: request.target,
             sourceRect: source,
             width: width,
-            height: height
+            height: height,
+            followBinding: request.geometry.followBinding,
+            updateIntervalMilliseconds: request.geometry.updateIntervalMilliseconds,
+            updateDeadlineMilliseconds: request.geometry.updateDeadlineMilliseconds
         )
         var material = Data("aos:screen-recording-binding:v1\n".utf8)
         material.append(try AOSOperationDigest.canonicalData(input))
         let digest = SHA256.hash(data: material).map { String(format: "%02x", $0) }.joined()
         return AOSScreenRecordingGeometry(
+            mode: request.geometry.mode,
+            geometryGeneration: 1,
             admittedTopology: request.topology,
             target: request.target,
             sourceRect: source,
             pixelWidth: width,
             pixelHeight: height,
             pixelCount: UInt64(multiplied.partialValue),
-            bindingDigest: digest
+            bindingDigest: digest,
+            followBinding: request.geometry.followBinding,
+            updateIntervalMilliseconds: request.geometry.updateIntervalMilliseconds,
+            updateDeadlineMilliseconds: request.geometry.updateDeadlineMilliseconds
         )
     }
 
@@ -548,13 +693,33 @@ enum AOSScreenRecordingGeometryValidator {
                 throw AOSOperationCoreError.recordingTargetDrift
             }
         }
+        if geometry.mode == .callerFollowed {
+            guard geometry.target.kind == .region,
+                  let binding = geometry.followBinding,
+                  windowFacts.filter({ $0.windowID == binding.sourceWindowID }).count == 1,
+                  let window = windowFacts.first(where: {
+                      $0.windowID == binding.sourceWindowID
+                  }),
+                  window.owningApplication?.processID == binding.sourceOwnerPID else {
+                throw AOSOperationCoreError.recordingTargetDrift
+            }
+            let windowBounds = AOSDisplayTopologyBounds(
+                x: window.frame.origin.x,
+                y: window.frame.origin.y,
+                width: window.frame.width,
+                height: window.frame.height
+            )
+            guard AOSScreenRecordingRequest.contains(windowBounds, geometry.sourceRect) else {
+                throw AOSOperationCoreError.recordingTargetDrift
+            }
+        }
         let bounds = geometry.target.globalBounds ?? display.nativeBounds
         guard bounds == geometry.sourceRect else {
             throw AOSOperationCoreError.recordingTargetDrift
         }
     }
 
-    private static func canonicalTopologyData(
+    static func canonicalTopologyData(
         _ topology: AOSDisplayTopologySnapshot
     ) throws -> Data {
         let value = try aosDisplayTopologyWireValue(topology)

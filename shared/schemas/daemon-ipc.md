@@ -106,7 +106,8 @@ Error response:
 | `operation.cancel` | Request cooperative cancellation of one exact owned operation. | `request_id`, `canonical_parameter_digest`, `selector`. |
 | `operation.kill` | Force-stop one exact owned operation and retain cleanup visibility. | `request_id`, `canonical_parameter_digest`, `selector`. |
 | `operation.kill_owner` | Stop the authenticated owner-set intersection selected by optional attribution/capability filters. | `request_id`, `canonical_parameter_digest`, `filters`. |
-| `operation.record_screen` | Admit one bounded fixed display/window/region H.264 producer with independently optional AAC-LC system-audio and microphone tracks. | Closed `aos.screen-recording.request.v1` data, including canonical topology, target, hard bounds, `tracks={video:true,system_audio:<bool>,microphone:<bool>}`, codec, and container. |
+| `operation.record_screen` | Admit one bounded fixed display/window/region or caller-followed region H.264 producer with independently optional AAC-LC system-audio and microphone tracks. | Closed `aos.screen-recording.request.v1` data, including canonical topology, target, required `geometry`, hard bounds, `tracks={video:true,system_audio:<bool>,microphone:<bool>}`, codec, and container. |
+| `operation.record_screen_follow_update` | Apply one generation-CAS caller-followed region update after live source validation and native crop success. | `request_id`, `canonical_parameter_digest`, exact operation `selector`, `expected_geometry_generation`, full canonical `topology`, region `target`, and closed identity `binding`. |
 | `operation.tap` | Return current typed tap unavailability without opening or sampling a tap. | `request_id`, `canonical_parameter_digest`. |
 | `operation.artifact_reveal\|artifact_remove\|artifact_retain` | Act on one exact producer-backed artifact generation; retain is typed unavailable. | `request_id`, `canonical_parameter_digest`, `selector`. |
 | `operation.artifact_release` | Transfer one exact producer-backed artifact generation without overwrite. | `request_id`, `canonical_parameter_digest`, `selector`, `destination`. |
@@ -199,8 +200,18 @@ one of four video/system-audio/microphone selections before any stream,
 artifact, claim, broker, writer, file, or native authority. Cleanup and boot
 recovery preserve that
 summary; no later initial-summary backfill exists. Admission returns exact
-identities and a geometry-binding digest;
-progress and terminal operation events remain content-free. Video is mandatory;
+identities and schema-bound geometry truth. `geometry.mode=fixed` remains
+generation 1 with no update authority. `geometry.mode=caller_followed` is
+region-only and binds immutable target/session/navigation/frame/source-window/
+display/topology/scale identity plus explicit cadence and deadline. The follow
+update action validates fresh region and identity facts, source containment,
+pixel bounds, and expected generation before one native crop. Success alone
+commits the next generation; invalid updates do not mutate accepted truth or
+reset the deadline. Immutable discontinuity, timeout, native failure, and
+unresolved recovery stop through existing cleanup. AOS never discovers,
+reacquires, smooths, or transforms the caller target.
+
+Progress and terminal operation events remain content-free. Video is mandatory;
 system audio and microphone are independently optional and omission of both
 remains exact video-only. Selected audio must be available and produce samples
 before success, and its
@@ -220,7 +231,7 @@ restricted, denied, or unknown permission failures. One shared daemon-owned
 it alone installs and removes the input tap. Screen-recording progress and terminal receipts require the exact
 track summary; success requires selected/finalized truth and an artifact, and a
 failed terminal receipt requires its typed failure code.
-Followed geometry, dry-run, and raw-media fields are absent.
+Dry-run and raw-media fields are absent.
 
 The private `operation.external_spawn_intent`,
 `operation.external_spawn_child_admit`, `operation.external_spawn_abandon`, and
@@ -282,7 +293,9 @@ idempotent; abandon after finalize fails closed and never stops active authority
 | `OPERATION_ARTIFACT_IDENTITY_MISMATCH` | The transient artifact no longer matches its recorded file identity. |
 | `OPERATION_ARTIFACT_DESTINATION_EXISTS` | Release refused to overwrite an existing destination. |
 | `SCREEN_RECORDING_BOUNDS_EXCEEDED` | A duration, frame-rate, pixel, queue, or byte bound is outside the closed contract. |
-| `SCREEN_RECORDING_TARGET_DRIFT` | Topology, display, window, or fixed geometry changed after admission. |
+| `SCREEN_RECORDING_TARGET_DRIFT` | An immutable target, topology, scale, display, session, navigation, frame, window, owner, or source identity changed after admission. |
+| `SCREEN_RECORDING_FOLLOW_TIMEOUT` | A caller-followed operation missed its absolute declared geometry deadline. |
+| `SCREEN_RECORDING_FOLLOW_UPDATE_FAILED` | Native crop update or recovery of a pending update could not prove one accepted geometry generation. |
 | `SCREEN_RECORDING_NO_VIDEO_FRAMES` | Mandatory video produced no positive-byte sample before settlement. |
 | `SCREEN_RECORDING_SYSTEM_AUDIO_NO_SAMPLES` | Selected and available system audio produced no positive-byte sample before settlement. |
 | `SCREEN_RECORDING_ENCODER_FAILED` | The bounded H.264 QuickTime encoder failed. |

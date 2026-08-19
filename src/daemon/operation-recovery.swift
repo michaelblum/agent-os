@@ -32,6 +32,23 @@ enum AOSOperationRecovery {
             for index in state.operations.indices where state.operations[index].state != .terminal {
                 state.operations[index].state = .cleanupRequired
                 state.operations[index].outcome = state.operations[index].outcome ?? .orphaned
+                if var geometry = state.operations[index].screenRecordingGeometry,
+                   geometry.accepted.mode == .callerFollowed {
+                    let prior = geometry
+                    if geometry.pendingUpdate != nil {
+                        state.operations[index].failureCode =
+                            AOSOperationCoreError.recordingFollowUpdateFailed.code
+                    }
+                    geometry.deadlineState = .stopped
+                    geometry.nextUpdateNotBeforeNanoseconds = nil
+                    geometry.nextDeadlineNanoseconds = nil
+                    if geometry != prior {
+                        geometry.eventSequence = try aosNextScreenRecordingGeometryEventSequence(
+                            geometry.eventSequence
+                        )
+                    }
+                    state.operations[index].screenRecordingGeometry = geometry
+                }
             }
             for index in state.streams.indices where state.streams[index].state != .terminal {
                 state.streams[index].state = .cleanupRequired

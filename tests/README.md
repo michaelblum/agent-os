@@ -113,8 +113,8 @@ uncertain absence retains `cleanup_required` operation and claim truth, while
 retry-to-absence releases the claim and terminalizes the operation.
 No audio device, daemon, TCC, or repo binary executes.
 
-For the bounded fixed recording producer with independently optional system
-audio and microphone, use:
+For the bounded fixed or caller-followed recording producer with independently
+optional system audio and microphone, use:
 
 ```bash
 bash tests/native-screen-recording-contract.sh
@@ -122,23 +122,61 @@ bash tests/native-screen-recording-contract.sh
 
 This route validates the closed four-selection schema, mandatory H.264 video,
 independently optional AAC-LC system-audio and daemon-owned microphone tracks
-in one QuickTime writer, fixed geometry and drift behavior, shared microphone
-session ownership, authored/generated help, and a whole-source Swift typecheck. Its
+in one QuickTime writer, fixed and caller-followed geometry, generation-CAS
+updates, immutable source drift, deadline/native-failure/pending-recovery truth,
+shared microphone session ownership, authored/generated help, and a
+whole-source Swift typecheck. Its
 executable compiled harness runs the
 production recording adapter, registry, in-memory durable store, lifecycle,
 sample admission, multitrack coordination, terminal truth, custody coordinator,
 and boot recovery with injected fake clock, video/system-audio/microphone
 callbacks, writer inputs/file, a real `AOSMicrophoneNativeSession` executing
 through injected non-native dependencies, and broker dependencies. It covers
+the production follow parser, validator/coordinator, registry/store/recovery
+projector, and injected native crop seam; all four selections in fixed and
+followed admission; one concurrent geometry winner; zero-effect invalid/stale/duplicate/
+off-source/out-of-bounds updates; every immutable source discontinuity; exact
+deadline re-arm/expiry; and the actual public `AOSOperationControlPlane`
+cancel/kill path immediately after the first durable `.prepared` publication
+but before provisional owner insertion, after durable `starting` but before
+concrete runtime installation, before follow activation, while activation owns
+the runtime lock, immediately after the timer arms, and in both cancel-first/
+kill-first races. Those twelve stop cases assert that prepared-publication
+control blocks until the owner exists, plus exact receipts, same-action replay,
+different-action rejection, immutable first intent/outcome, no adapter-failure
+overwrite, stopped geometry/timer, and terminal child/claim cleanup. The two
+prepared-publication and two pre-install cases prove zero runtime start
+handoffs, broker acquisitions, native starts, and native stops; the eight
+post-install cases prove exactly one native stop. Failed durable stop admission
+has no native effect. One blocked durable stop-save case proves the startup wait
+is bounded, the keyed pending owner survives until settlement, and no later
+runtime, broker, or native effect escapes. A consecutive preparation-save and
+first cleanup-save failure proves bounded retry reaches exact failed-terminal
+cleanup without releasing ownership. A waiting public stop crossed with a
+preparation-save failure proves the public first writer wins exact terminal
+truth while the start caller receives the preparation error. A post-admission
+stopped-geometry save failure proves the pending owner retries the atomic
+geometry-and-terminal mutation instead of suppressing the failure. All three
+assert exact stopped geometry, child/claim closure, replay/rejection, and zero
+later runtime, broker, or native effects. It also covers native
+failure; and unresolved pending cleanup. Accepted-source containment loss is
+also exercised through the production frame validator. Durable geometry changes
+advance one exact event sequence, and the harness captures the production
+adapter event sink and daemon envelope and validates both public schemas. It also
+covers
 all six three-track first-sample orders at one
 common epoch, pre-epoch system-audio/microphone callback failures in both
 orders, final-summary normalization with deterministic video/system-audio/
 microphone precedence, per-track monotonicity and truth, independent bounded
-backpressure, and an injected durable save fault after atomic operation
-admission but before stream/artifact/claim handoff. For all four exact track selections,
+backpressure, and injected durable save faults after atomic operation admission
+across every later stream, artifact, claim-set, claim, and starting transition.
+Immediately after durable prepared publication and its injected barrier, the
+adapter installs the exact operation-keyed pending owner before the first child;
+preparation failure terminal-closes exact mechanically absent children and
+claims before that owner is released. For all four exact track selections,
 the harness executes the exact production snapshot/list/inspect projector used
-by `UnifiedDaemon` and validates the prepared, cleanup-required, and recovered
-terminal responses against `aos.operation.v1` without synthesizing wire
+by `UnifiedDaemon` and validates the prepared and exact failed-terminal
+responses against `aos.operation.v1` without synthesizing wire
 metadata or backfilling track truth. Four callback-failure terminal projections
 assert exact snapshot progress and terminal per-track values and precedence;
 one pre-native encoder-setup projection proves its exact typed failure is not

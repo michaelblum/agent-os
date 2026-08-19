@@ -1,17 +1,39 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 
 const repoRoot = path.resolve(import.meta.dirname, '..')
-const daemonRoot = path.join(repoRoot, 'src/daemon')
-const sources = [
-  'operation-owner-root.swift', 'operation-spawn-record.swift',
-  'operation-state.swift', 'operation-store.swift', 'operation-registry.swift',
-  'operation-resource-broker.swift', 'operation-resource-transaction.swift',
-  'operation-resource-claim.swift', 'operation-control.swift', 'operation-recovery.swift',
-].map((name) => path.join(daemonRoot, name))
+async function swiftSources(root) {
+  const result = []
+  for (const entry of await readdir(root, { withFileTypes: true })) {
+    const candidate = path.join(root, entry.name)
+    if (entry.isDirectory()) result.push(...await swiftSources(candidate))
+    else if (entry.isFile() && entry.name.endsWith('.swift')) result.push(candidate)
+  }
+  return result.sort()
+}
+
+async function productionSources() {
+  const excludedDaemonSources = new Set([
+    'coordination.swift', 'surface-inspector-bundle.swift', 'unified.swift',
+    'wiki-change-bus.swift', 'wiki-seed.swift', 'wiki-watch.swift',
+  ])
+  return [
+    ...await swiftSources(path.join(repoRoot, 'src/browser')),
+    ...await swiftSources(path.join(repoRoot, 'src/perceive')),
+    ...await swiftSources(path.join(repoRoot, 'src/shared')),
+    ...await swiftSources(path.join(repoRoot, 'src/display')),
+    ...(await swiftSources(path.join(repoRoot, 'src/daemon')))
+      .filter((candidate) => !excludedDaemonSources.has(path.basename(candidate))),
+    ...await swiftSources(path.join(repoRoot, 'shared/swift/ipc')),
+    ...[
+      'act-helpers.swift', 'act-models.swift', 'event-posting.swift',
+      'input-delivery-state.swift', 'input-receipt-tap.swift',
+    ].map((name) => path.join(repoRoot, 'src/act', name)),
+  ]
+}
 
 async function compileAndRunHarness(source) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'aos-operation-resource-'))
@@ -21,7 +43,7 @@ async function compileAndRunHarness(source) {
     await writeFile(main, source)
     execFileSync('swiftc', [
       '-warnings-as-errors', '-module-cache-path', path.join(root, 'module-cache'),
-      ...sources, main, '-o', executable,
+      '-lsqlite3', ...await productionSources(), main, '-o', executable,
     ], { cwd: repoRoot, stdio: 'pipe' })
     execFileSync(executable, [], { cwd: repoRoot, stdio: 'pipe' })
   } finally {

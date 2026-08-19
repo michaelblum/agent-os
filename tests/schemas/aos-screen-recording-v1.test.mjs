@@ -22,12 +22,15 @@ const SHA = 'a'.repeat(64)
 const validate = (definition, instance) => {
   const script = String.raw`
 import json, sys
-from jsonschema import Draft202012Validator, RefResolver
+from jsonschema import Draft202012Validator
+from referencing import Registry, Resource
 p=json.load(sys.stdin)
 root={"$schema":"https://json-schema.org/draft/2020-12/schema","$ref":p["schema"]["$id"]+"#/$defs/"+p["definition"]}
-store={p["schema"]["$id"]:p["schema"],p["topology_schema"]["$id"]:p["topology_schema"]}
+registry=Registry()
+for schema in [p["schema"],p["topology_schema"]]:
+    registry=registry.with_resource(schema["$id"],Resource.from_contents(schema))
 Draft202012Validator.check_schema(p["schema"])
-errors=list(Draft202012Validator(root,resolver=RefResolver.from_schema(root,store=store)).iter_errors(p["instance"]))
+errors=list(Draft202012Validator(root,registry=registry).iter_errors(p["instance"]))
 json.dump([e.message for e in errors],sys.stdout)
 `
   const result = spawnSync('python3', ['-c', script], {
@@ -45,6 +48,7 @@ const base = {
   canonical_parameter_digest: SHA,
   topology,
   target: { kind: 'display', display_ordinal: 1 },
+  geometry: { mode: 'fixed' },
   duration_ms: 300_000,
   frame_rate: 60,
   max_pixel_count: 33_177_600,
@@ -53,6 +57,50 @@ const base = {
   tracks: { video: true, system_audio: false, microphone: false },
   codec: 'h264',
   container: 'quicktime',
+}
+
+const fixedGeometryTruth = {
+  mode: 'fixed',
+  geometry_generation: 1,
+  binding_digest: SHA,
+  source_rect: { x: 0, y: 0, width: 100, height: 80 },
+  pixel_width: 200,
+  pixel_height: 160,
+  update_interval_ms: null,
+  update_deadline_ms: null,
+  last_accepted_observation_generation: null,
+  last_accepted_state_generation: null,
+  pending_update: false,
+  next_deadline: {
+    state: 'not_applicable',
+    not_before_monotonic_ns: null,
+    deadline_monotonic_ns: null,
+  },
+}
+
+const bindingIdentity = (id, generation) => ({ id, generation })
+const followBinding = (observation = 1, state = 1) => ({
+  target: bindingIdentity('target', 1),
+  observation: bindingIdentity('observation', observation),
+  state: bindingIdentity('state', state),
+  session: bindingIdentity('session', 1),
+  navigation: bindingIdentity('navigation', 1),
+  frame: bindingIdentity('frame', 1),
+  source_window: { window_id: 77, owner_pid: 700 },
+})
+
+const followedGeometryTruth = {
+  ...fixedGeometryTruth,
+  mode: 'caller_followed',
+  update_interval_ms: 100,
+  update_deadline_ms: 500,
+  last_accepted_observation_generation: 2,
+  last_accepted_state_generation: 2,
+  next_deadline: {
+    state: 'armed',
+    not_before_monotonic_ns: 1_100_000_000,
+    deadline_monotonic_ns: 1_500_000_000,
+  },
 }
 
 const trackTruth = (selected, overrides = {}) => ({
@@ -115,7 +163,7 @@ test('screen-recording schema accepts all four exact video, system-audio, and mi
     stream: { stream_id: 'stream-1', stream_generation: 2 },
     artifact: { artifact_id: 'artifact-1', artifact_generation: 3 },
     daemon_generation: 4,
-    geometry_binding_digest: SHA,
+    geometry: fixedGeometryTruth,
     tracks: base.tracks,
     track_summary: trackSummary(false, false),
     codec: 'h264',
@@ -131,6 +179,7 @@ test('screen-recording schema accepts all four exact video, system-audio, and mi
 test('screen-recording schema rejects implicit or malformed tracks, follow extras, and bounds breaches', () => {
   const invalid = [
     { ...base, tracks: { video: true, microphone: false } },
+    { ...base, geometry: undefined },
     { ...base, tracks: { ...base.tracks, system_audio: 'yes' } },
     { ...base, tracks: { ...base.tracks, microphone: 'yes' } },
     { ...base, tracks: { ...base.tracks, video: false } },
@@ -147,6 +196,82 @@ test('screen-recording schema rejects implicit or malformed tracks, follow extra
     { ...base, target: { kind: 'window', display_ordinal: 1, window_id: 1.5, owner_pid: 9, global_bounds: { x: 1, y: 2, width: 4, height: 6 } } },
   ]
   for (const value of invalid) assert.ok(validate('request', value).length > 0)
+})
+
+test('caller-followed request, update, and accepted truth are closed and region-only', () => {
+  const followed = {
+    ...base,
+    target: { kind: 'region', display_ordinal: 1, global_bounds: { x: 1, y: 2, width: 40, height: 30 } },
+    geometry: {
+      mode: 'caller_followed',
+      binding: followBinding(),
+      update_interval_ms: 100,
+      update_deadline_ms: 500,
+    },
+  }
+  assert.deepEqual(validate('request', followed), [])
+  const update = {
+    request_id: 'update-1',
+    canonical_parameter_digest: SHA,
+    selector: { operation_id: 'operation-1', operation_generation: 1 },
+    expected_geometry_generation: 1,
+    topology,
+    target: { kind: 'region', display_ordinal: 1, global_bounds: { x: 2, y: 2, width: 40, height: 30 } },
+    binding: followBinding(2, 2),
+  }
+  assert.deepEqual(validate('follow_update_request', update), [])
+  assert.deepEqual(validate('follow_update_result', {
+    schema_version: 'aos.screen-recording.follow-update-result.v1',
+    operation: update.selector,
+    geometry: followedGeometryTruth,
+  }), [])
+  const impossibleTruth = [
+    { ...fixedGeometryTruth, update_interval_ms: 100 },
+    { ...fixedGeometryTruth, update_deadline_ms: 500 },
+    { ...fixedGeometryTruth, last_accepted_observation_generation: 1 },
+    { ...fixedGeometryTruth, last_accepted_state_generation: 1 },
+    { ...fixedGeometryTruth, next_deadline: {
+      ...fixedGeometryTruth.next_deadline,
+      not_before_monotonic_ns: 1,
+    } },
+    { ...fixedGeometryTruth, next_deadline: {
+      ...fixedGeometryTruth.next_deadline,
+      deadline_monotonic_ns: 1,
+    } },
+    { ...followedGeometryTruth, update_interval_ms: null },
+    { ...followedGeometryTruth, update_deadline_ms: null },
+    { ...followedGeometryTruth, last_accepted_observation_generation: null },
+    { ...followedGeometryTruth, last_accepted_state_generation: null },
+    { ...followedGeometryTruth, next_deadline: {
+      state: 'not_applicable',
+      not_before_monotonic_ns: null,
+      deadline_monotonic_ns: null,
+    } },
+    { ...followedGeometryTruth, next_deadline: {
+      state: 'armed',
+      not_before_monotonic_ns: null,
+      deadline_monotonic_ns: null,
+    } },
+    { ...followedGeometryTruth, next_deadline: {
+      state: 'stopped',
+      not_before_monotonic_ns: 1,
+      deadline_monotonic_ns: 2,
+    } },
+  ]
+  for (const truth of impossibleTruth) {
+    assert.ok(validate('geometry_truth', truth).length > 0)
+  }
+  for (const invalid of [
+    { ...followed, target: base.target },
+    { ...followed, geometry: { ...followed.geometry, update_interval_ms: true } },
+    { ...followed, geometry: { ...followed.geometry, extra: true } },
+    { ...update, target: base.target },
+    { ...update, expected_geometry_generation: 1.5 },
+    { ...update, file: '/tmp/private' },
+  ]) {
+    const definition = 'schema_version' in invalid ? 'request' : 'follow_update_request'
+    assert.ok(validate(definition, invalid).length > 0)
+  }
 })
 
 test('track summaries are closed and independently bind selection, samples, failures, drain, and finalization', () => {
@@ -229,6 +354,7 @@ test('successful results bind request tracks, nonempty finalized truth, and arti
     duration_ms: 1_000,
     tracks: base.tracks,
     track_summary: successfulTrackSummary(false, false),
+    geometry: fixedGeometryTruth,
     codec: 'h264',
     container: 'quicktime',
     cleanup_result: 'zero_residuals',

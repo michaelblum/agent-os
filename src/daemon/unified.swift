@@ -510,6 +510,9 @@ class UnifiedDaemon {
                     )
                 }
             ),
+            operationEventSink: { [weak self] event, data in
+                self?.broadcastEvent(service: "operation", event: event, data: data)
+            },
             reconcileHostBarrier: { [weak control] in
                 guard let control else { return }
                 let state = registry.snapshot().barrier.state
@@ -526,6 +529,13 @@ class UnifiedDaemon {
         operationScreenRecordingAdapter = screenRecordingAdapter
         operationDaemonGeneration = nextDaemonGeneration
 
+        let priorGeometrySequences = Dictionary(uniqueKeysWithValues:
+            registry.snapshot().operations.compactMap { operation in
+                operation.screenRecordingGeometry.map {
+                    (operation.identity, $0.eventSequence)
+                }
+            }
+        )
         let recoveryToken = AOSSHA256Digest.hashing(
             domain: .externalBindingToken,
             data: Data(UUID().uuidString.utf8)
@@ -535,6 +545,15 @@ class UnifiedDaemon {
             newDaemonGeneration: nextDaemonGeneration,
             claimTokenDigest: recoveryToken
         )
+        for operation in registry.snapshot().operations {
+            guard let geometry = operation.screenRecordingGeometry,
+                  let priorSequence = priorGeometrySequences[operation.identity],
+                  geometry.eventSequence > priorSequence else { continue }
+            screenRecordingAdapter.emitGeometryEvent(
+                operation: operation.identity,
+                geometry: geometry
+            )
+        }
         try reconcileOperationBootRecoveryExternalChildren(
             registry: registry,
             control: control,
@@ -3844,7 +3863,7 @@ class UnifiedDaemon {
             }
             guard [
                 "list", "inspect", "status", "recent", "cancel", "kill", "kill_owner",
-                "record_screen",
+                "record_screen", "record_screen_follow_update",
                 "tap", "artifact_reveal", "artifact_remove", "artifact_release",
                 "artifact_retain", "stop_all", "barrier_status", "reopen",
             ].contains(action) else {
@@ -3897,6 +3916,34 @@ class UnifiedDaemon {
                     envelopeActive: true,
                     envelopeRef: envelopeRef
                 )
+            case "record_screen_follow_update":
+                guard let adapter = operationScreenRecordingAdapter else {
+                    throw AOSOperationCoreError.adapterRegistryConflict
+                }
+                let request = try AOSScreenRecordingFollowUpdateRequest
+                    .validatingPublicValue(data)
+                try adapter.updateFollowGeometry(
+                    request: request,
+                    connectionID: connectionID
+                ) { [weak outbound] result in
+                    guard let outbound else { return }
+                    let response: [String: Any]
+                    switch result {
+                    case .success(let geometry):
+                        response = aosScreenRecordingFollowUpdatePublicValue(
+                            operation: request.selector,
+                            geometry: geometry
+                        )
+                    case .failure(let error):
+                        response = ["error": error.description, "code": error.code]
+                    }
+                    sendResponseJSON(
+                        to: outbound,
+                        response,
+                        envelopeActive: true,
+                        envelopeRef: envelopeRef
+                    )
+                }
             case "list", "recent":
                 let filterPayload = data["filters"] as? [String: Any] ?? [:]
                 let filter = operationFilter(filterPayload)

@@ -33,6 +33,8 @@ enum AOSOperationCoreError: Error, Equatable, CustomStringConvertible {
     case artifactDestinationExists
     case recordingBoundsExceeded
     case recordingTargetDrift
+    case recordingFollowTimeout
+    case recordingFollowUpdateFailed
     case recordingStartupDeadlineExceeded
     case recordingNoFrames
     case recordingSystemAudioUnavailable
@@ -83,6 +85,8 @@ enum AOSOperationCoreError: Error, Equatable, CustomStringConvertible {
         case .artifactDestinationExists: return "OPERATION_ARTIFACT_DESTINATION_EXISTS"
         case .recordingBoundsExceeded: return "SCREEN_RECORDING_BOUNDS_EXCEEDED"
         case .recordingTargetDrift: return "SCREEN_RECORDING_TARGET_DRIFT"
+        case .recordingFollowTimeout: return "SCREEN_RECORDING_FOLLOW_TIMEOUT"
+        case .recordingFollowUpdateFailed: return "SCREEN_RECORDING_FOLLOW_UPDATE_FAILED"
         case .recordingStartupDeadlineExceeded: return "SCREEN_RECORDING_STARTUP_DEADLINE_EXCEEDED"
         case .recordingNoFrames: return "SCREEN_RECORDING_NO_VIDEO_FRAMES"
         case .recordingSystemAudioUnavailable: return "SCREEN_RECORDING_SYSTEM_AUDIO_UNAVAILABLE"
@@ -496,6 +500,7 @@ struct AOSOperationRecord: Codable, Equatable {
     var residualDigest: String?
     var requestedBounds: AOSOperationRequestedBounds?
     var progress: AOSOperationProgress?
+    var screenRecordingGeometry: AOSScreenRecordingGeometryState?
     let createdAtNanoseconds: UInt64
     var updatedAtNanoseconds: UInt64
 }
@@ -838,7 +843,7 @@ enum AOSOperationPublicProjection {
             ) : NSNull()
         let startedAt: Any = operation.state == .prepared
             ? NSNull() : timestamp(operation.updatedAtNanoseconds)
-        return [
+        var value: [String: Any] = [
             "schema_version": "aos.operation.v1",
             "operation_id": operation.identity.id,
             "operation_generation": operation.identity.generation,
@@ -890,6 +895,10 @@ enum AOSOperationPublicProjection {
             "started_at": startedAt,
             "updated_at": timestamp(operation.updatedAtNanoseconds),
         ]
+        if let geometry = operation.screenRecordingGeometry {
+            value["geometry"] = aosScreenRecordingGeometryPublicValue(geometry)
+        }
+        return value
     }
 
     private static func progress(_ operation: AOSOperationRecord) -> [String: Any] {
@@ -897,10 +906,14 @@ enum AOSOperationPublicProjection {
             "items": operation.progress?.frameCount ?? 0,
             "bytes": operation.progress?.byteCount ?? 0,
             "duration_ms": operation.progress?.elapsedMilliseconds ?? 0,
-            "last_event_sequence": operation.progress?.frameCount ?? 0,
+            "last_event_sequence": operation.screenRecordingGeometry?.eventSequence
+                ?? operation.progress?.frameCount ?? 0,
         ]
         if let summary = operation.progress?.trackSummary {
             value["track_summary"] = aosScreenRecordingTrackSummaryValue(summary)
+        }
+        if let geometry = operation.screenRecordingGeometry {
+            value["geometry"] = aosScreenRecordingGeometryPublicValue(geometry)
         }
         return value
     }
@@ -924,7 +937,7 @@ enum AOSOperationPublicProjection {
         case .adapterFailed: trigger = "adapter_failure"; blame = "adapter"
         case nil: trigger = "start_rejected"; blame = "unknown"
         }
-        return [
+        var value: [String: Any] = [
             "outcome": (operation.outcome ?? .failed).rawValue,
             "trigger": trigger,
             "blame": blame,
@@ -935,6 +948,10 @@ enum AOSOperationPublicProjection {
             "track_summary": operation.progress?.trackSummary
                 .map(aosScreenRecordingTrackSummaryValue) ?? NSNull(),
         ]
+        if let geometry = operation.screenRecordingGeometry {
+            value["geometry"] = aosScreenRecordingGeometryPublicValue(geometry)
+        }
+        return value
     }
 
     private static func timestamp(_ nanoseconds: UInt64) -> String {

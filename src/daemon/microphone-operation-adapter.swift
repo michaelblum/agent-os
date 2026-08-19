@@ -235,24 +235,36 @@ final class AOSMicrophoneOperationAdapter: AOSOperationControlAdapter, AOSMicrop
         }
     }
 
-    func requestStop(operation: AOSOperationIdentity, force: Bool) -> AOSAdapterStopResult {
-        let record: AOSOperationRecord
+    func admitStop(
+        operation: AOSOperationIdentity,
+        admission stopAdmission: AOSOperationStopAdmissionTransaction
+    ) throws -> AOSAdapterStopResult {
+        lock.lock()
+        let admissionResult: AOSOperationStopAdmissionResult
         do {
-            record = try registry.inspect(operation)
+            admissionResult = try stopAdmission.commit()
         } catch {
-            return AOSAdapterStopResult(disposition: .absent, residualDigest: nil)
+            lock.unlock()
+            throw error
         }
+        let record = admissionResult.operation
+        let binding = runtimeBindings[operation]
+        lock.unlock()
         guard record.adapterRegistrationID == registration.id,
               record.adapterRegistrationRevision == registration.revision else {
             return AOSAdapterStopResult(disposition: .absent, residualDigest: nil)
         }
+        guard let intent = record.stopIntent else {
+            return AOSAdapterStopResult(
+                disposition: .residual,
+                residualDigest: residualDigest(operation: operation)
+            )
+        }
+        let force = [.kill, .ownerKill, .hostStop].contains(intent)
         switch record.state {
         case .terminal:
             return AOSAdapterStopResult(disposition: .absent, residualDigest: nil)
         case .stopping:
-            lock.lock()
-            let binding = runtimeBindings[operation]
-            lock.unlock()
             if let binding {
                 binding.stop(force)
             } else if let admission = admissionForOperation(operation) {
@@ -265,7 +277,7 @@ final class AOSMicrophoneOperationAdapter: AOSOperationControlAdapter, AOSMicrop
                 )
             }
             return AOSAdapterStopResult(
-                disposition: .alreadyStopping,
+                disposition: admissionResult.wasAlreadyAdmitted ? .alreadyStopping : .accepted,
                 residualDigest: residualDigest(operation: operation)
             )
         case .cleanupRequired, .recovering:
@@ -304,25 +316,9 @@ final class AOSMicrophoneOperationAdapter: AOSOperationControlAdapter, AOSMicrop
                 return AOSAdapterStopResult(disposition: .residual, residualDigest: nil)
             }
         case .starting, .active:
-            do {
-                _ = try registry.transitionOperation(
-                    operation,
-                    to: .stopping,
-                    stopIntent: force ? .kill : .cancel
-                )
-            } catch {
-                return AOSAdapterStopResult(
-                    disposition: .residual,
-                    residualDigest: residualDigest(operation: operation)
-                )
-            }
-            lock.lock()
-            let binding = runtimeBindings[operation]
-            lock.unlock()
-            binding?.stop(force)
             return AOSAdapterStopResult(
-                disposition: .accepted,
-                residualDigest: binding == nil ? residualDigest(operation: operation) : nil
+                disposition: .residual,
+                residualDigest: residualDigest(operation: operation)
             )
         }
     }

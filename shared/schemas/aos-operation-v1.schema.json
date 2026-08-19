@@ -87,7 +87,8 @@
         "bytes": {"$ref": "#/$defs/nonnegative_integer"},
         "duration_ms": {"$ref": "#/$defs/nonnegative_integer"},
         "last_event_sequence": {"$ref": "#/$defs/nonnegative_integer"},
-        "track_summary": {"$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/track_summary"}
+        "track_summary": {"$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/track_summary"},
+        "geometry": {"$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/geometry_truth"}
       },
       "additionalProperties": false
     },
@@ -184,7 +185,8 @@
             {"type": "null"},
             {"$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/track_summary"}
           ]
-        }
+        },
+        "geometry": {"$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/geometry_truth"}
       },
       "additionalProperties": false
     },
@@ -566,6 +568,7 @@
         },
         "requested_bounds": {"$ref": "#/$defs/requested_bounds"},
         "progress": {"$ref": "#/$defs/progress_facts"},
+        "geometry": {"$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/geometry_truth"},
         "claim_set_transactions": {
           "type": "array",
           "maxItems": 64,
@@ -645,8 +648,9 @@
             "properties": {"capability_id": {"const": "screen-recording.video"}}
           },
           "then": {
+            "required": ["geometry"],
             "properties": {
-              "progress": {"required": ["track_summary"]},
+              "progress": {"required": ["track_summary", "geometry"]},
               "terminal": {
                 "oneOf": [
                   {"type": "null"},
@@ -654,7 +658,7 @@
                     "allOf": [
                       {"$ref": "#/$defs/terminal_facts"},
                       {
-                        "required": ["failure_code", "track_summary"],
+                        "required": ["failure_code", "track_summary", "geometry"],
                         "properties": {
                           "track_summary": {
                             "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/track_summary"

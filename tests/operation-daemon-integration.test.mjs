@@ -11,14 +11,16 @@ const coreSources = [
   'operation-owner-root.swift',
   'operation-spawn-record.swift',
   'operation-state.swift',
-  'operation-store.swift',
-  'operation-registry.swift',
-  'operation-resource-broker.swift',
-  'operation-resource-transaction.swift',
-  'operation-resource-claim.swift',
-  'operation-control.swift',
-  'operation-recovery.swift',
 ].map((name) => path.join(repoRoot, 'src/daemon', name))
+const geometryStateSupport = String.raw`
+import Foundation
+struct AOSScreenRecordingGeometryState: Codable, Equatable {
+  var eventSequence: UInt64 = 0
+}
+func aosScreenRecordingGeometryPublicValue(
+  _ state: AOSScreenRecordingGeometryState
+) -> [String: Any] { [:] }
+`
 
 test('daemon operation integration retains secure routing and exact wire boundaries', async () => {
   const [unified, owner, registry, screenRecording, microphoneSession, operationState] = await Promise.all([
@@ -43,6 +45,8 @@ test('daemon operation integration retains secure routing and exact wire boundar
   assert.match(unified, /external_spawn_child_admit/u)
   assert.match(unified, /external_spawn_abandon/u)
   assert.match(unified, /external_spawn_finalize/u)
+  assert.match(unified, /record_screen_follow_update/u)
+  assert.match(unified, /aosScreenRecordingFollowUpdatePublicValue/u)
   assert.match(unified, /requireExternalSpawnDispatcher/u)
   assert.match(unified, /pendingExternalSpawnIntent\(\s*admittedChild:/u)
   assert.match(unified, /bindPrepreparedCapture/u)
@@ -108,9 +112,10 @@ test('Darwin child admission binds trusted live Node code and mapped vnode', asy
   })))
   const root = await mkdtemp(path.join(os.tmpdir(), 'aos-operation-node-admit-'))
   const main = path.join(root, 'main.swift')
+  const support = path.join(root, 'GeometryStateSupport.swift')
   const executable = path.join(root, 'node-admit-proof')
   try {
-    await writeFile(main, String.raw`
+    await Promise.all([writeFile(support, geometryStateSupport), writeFile(main, String.raw`
 import Foundation
 
 let provider = AOSDarwinProcessImageProvider()
@@ -137,13 +142,12 @@ do {
     preconditionFailure("wrong signing identity admitted")
 } catch AOSOwnerRootError.runningExecutableUnverifiable {
 }
-`)
+`)])
     execFileSync('swiftc', [
       '-warnings-as-errors',
       '-module-cache-path', path.join(root, 'module-cache'),
-      path.join(repoRoot, 'src/daemon/operation-state.swift'),
-      path.join(repoRoot, 'src/daemon/operation-owner-root.swift'),
-      path.join(repoRoot, 'src/daemon/operation-spawn-record.swift'),
+      ...coreSources,
+      support,
       main,
       '-o', executable,
     ], { cwd: repoRoot, stdio: 'pipe' })
@@ -161,6 +165,7 @@ test('external child script attestation rejects relative, noncanonical, symlinke
   const repo = path.join(root, 'agent-os')
   const sibling = path.join(root, 'caller-repo')
   const main = path.join(root, 'main.swift')
+  const support = path.join(root, 'GeometryStateSupport.swift')
   const executable = path.join(root, 'script-attestation-proof')
   await mkdir(path.join(repo, 'scripts'), { recursive: true })
   await mkdir(path.join(sibling, 'scripts'), { recursive: true })
@@ -168,7 +173,7 @@ test('external child script attestation rejects relative, noncanonical, symlinke
   await writeFile(path.join(sibling, 'scripts', 'listen.mjs'), 'caller')
   await symlink(path.join(repo, 'scripts', 'listen.mjs'), path.join(repo, 'scripts', 'listen-link.mjs'))
   try {
-    await writeFile(main, String.raw`
+    await Promise.all([writeFile(support, geometryStateSupport), writeFile(main, String.raw`
 import Foundation
 
 func expect(_ expected: AOSOwnerRootError, _ body: () throws -> Void) {
@@ -214,11 +219,12 @@ expect(.externalScriptOutsideRepository) {
         repositoryRoot: repo
     )
 }
-`)
+`)])
     execFileSync('swiftc', [
       '-warnings-as-errors',
       '-module-cache-path', path.join(root, 'module-cache'),
       ...coreSources,
+      support,
       main,
       '-o', executable,
     ], { cwd: sibling, stdio: 'pipe' })
@@ -252,6 +258,7 @@ test('reviewed dependency closure is exact, content-free, and rejects helper dri
   const changedRoot = path.join(root, 'changed')
   const symlinkRoot = path.join(root, 'symlink')
   const main = path.join(root, 'main.swift')
+  const support = path.join(root, 'GeometryStateSupport.swift')
   const executable = path.join(root, 'dependency-set-proof')
   try {
     for (const target of [changedRoot, symlinkRoot]) {
@@ -261,7 +268,7 @@ test('reviewed dependency closure is exact, content-free, and rejects helper dri
     await writeFile(path.join(changedRoot, identities[1]), await readFile(path.join(repoRoot, identities[1])))
     await symlink(path.join(repoRoot, identities[0]), path.join(symlinkRoot, identities[0]))
     await writeFile(path.join(symlinkRoot, identities[1]), await readFile(path.join(repoRoot, identities[1])))
-    await writeFile(main, String.raw`
+    await Promise.all([writeFile(support, geometryStateSupport), writeFile(main, String.raw`
 import Foundation
 
 let current = try AOSDarwinProcessImageProvider.reviewedExternalDependencySetDigest(
@@ -279,11 +286,12 @@ do {
     preconditionFailure("symlinked dependency admitted")
 } catch AOSOwnerRootError.externalScriptPathNotCanonical {
 }
-`)
+`)])
     execFileSync('swiftc', [
       '-warnings-as-errors',
       '-module-cache-path', path.join(root, 'module-cache'),
       ...coreSources,
+      support,
       main,
       '-o', executable,
     ], { cwd: changedRoot, stdio: 'pipe' })

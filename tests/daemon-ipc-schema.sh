@@ -92,6 +92,7 @@ screen_recording_request = {
     "canonical_parameter_digest": "8" * 64,
     "topology": display_topology,
     "target": {"kind": "display", "display_ordinal": 1},
+    "geometry": {"mode": "fixed"},
     "duration_ms": 10000,
     "frame_rate": 30,
     "max_pixel_count": 33177600,
@@ -100,6 +101,30 @@ screen_recording_request = {
     "tracks": {"video": True, "system_audio": False, "microphone": False},
     "codec": "h264",
     "container": "quicktime",
+}
+
+follow_binding = {
+    "target": {"id": "target", "generation": 1},
+    "observation": {"id": "observation", "generation": 2},
+    "state": {"id": "state", "generation": 2},
+    "session": {"id": "session", "generation": 1},
+    "navigation": {"id": "navigation", "generation": 1},
+    "frame": {"id": "frame", "generation": 1},
+    "source_window": {"window_id": 902, "owner_pid": 7001},
+}
+
+follow_update_request = {
+    "request_id": "99999999-9999-4999-8999-999999999999",
+    "canonical_parameter_digest": "9" * 64,
+    "selector": operation_selector,
+    "expected_geometry_generation": 1,
+    "topology": display_topology,
+    "target": {
+        "kind": "region",
+        "display_ordinal": 1,
+        "global_bounds": {"x": 10, "y": 10, "width": 40, "height": 30},
+    },
+    "binding": follow_binding,
 }
 
 external_spawn_intent = {
@@ -171,6 +196,7 @@ good_requests = [
     {"v":1,"service":"operation","action":"cancel","data":{**operation_request,"selector":operation_selector}},
     {"v":1,"service":"operation","action":"kill_owner","data":{**operation_request,"filters":{"agent_id":"agent-1","project_id":"project-1"}}},
     {"v":1,"service":"operation","action":"record_screen","data":screen_recording_request},
+    {"v":1,"service":"operation","action":"record_screen_follow_update","data":follow_update_request},
     {"v":1,"service":"operation","action":"record_screen","data":{**screen_recording_request,"tracks":{"video":True,"system_audio":True,"microphone":False}}},
     {"v":1,"service":"operation","action":"record_screen","data":{**screen_recording_request,"tracks":{"video":True,"system_audio":False,"microphone":True}}},
     {"v":1,"service":"operation","action":"tap","data":operation_request},
@@ -247,6 +273,10 @@ bad_requests = [
     {"v":1,"service":"operation","action":"artifact_release","data":{**operation_request,"selector":artifact_selector,"destination":7}},  # release destination type is exact
     {"v":1,"service":"operation","action":"record_screen","data":{**screen_recording_request,"tracks":{"video":True,"system_audio":False,"microphone":"yes"}}},  # microphone selection is exact Boolean
     {"v":1,"service":"operation","action":"record_screen","data":{**screen_recording_request,"tracks":{"video":True,"system_audio":"yes","microphone":False}}},  # system audio selection is exact Boolean
+    {"v":1,"service":"operation","action":"record_screen","data":{k:v for k,v in screen_recording_request.items() if k != "geometry"}},  # geometry mode is explicit
+    {"v":1,"service":"operation","action":"record_screen_follow_update","data":{**follow_update_request,"target":{"kind":"display","display_ordinal":1}}},  # followed updates are region-only
+    {"v":1,"service":"operation","action":"record_screen_follow_update","data":{**follow_update_request,"expected_geometry_generation":True}},  # generation CAS is an exact integer
+    {"v":1,"service":"operation","action":"record_screen_follow_update","data":{**follow_update_request,"extra":True}},  # update request is closed
     {"v":1,"service":"operation","action":"stop_all","data":{**operation_request,"schema_version":"aos.host-stop-barrier.stop-all-request.v1","action":"stop_all"}},  # stop-all requires exact barrier CAS
     {"v":1,"service":"operation","action":"barrier_status","data":{**operation_request,"schema_version":"aos.host-stop-barrier.status-request.v1","action":"barrier_status","caller_origin":"status_item_host"}},  # origin evidence is server-attached
     {"v":1,"service":"operation","action":"recent","data":{**operation_request,"task_id":"task-1"}},  # filters are a closed nested object

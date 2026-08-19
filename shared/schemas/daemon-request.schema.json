@@ -25,9 +25,11 @@
         }
       } },
     { "if": { "properties": { "service": { "const": "operation" } } },
-      "then": { "properties": { "action": { "enum": ["list", "inspect", "status", "recent", "cancel", "kill", "kill_owner", "record_screen", "tap", "artifact_reveal", "artifact_remove", "artifact_release", "artifact_retain", "stop_all", "barrier_status", "reopen", "external_spawn_intent", "external_spawn_child_admit", "external_spawn_abandon", "external_spawn_finalize"] } } } },
+      "then": { "properties": { "action": { "enum": ["list", "inspect", "status", "recent", "cancel", "kill", "kill_owner", "record_screen", "record_screen_follow_update", "tap", "artifact_reveal", "artifact_remove", "artifact_release", "artifact_retain", "stop_all", "barrier_status", "reopen", "external_spawn_intent", "external_spawn_child_admit", "external_spawn_abandon", "external_spawn_finalize"] } } } },
     { "if": { "properties": { "service": { "const": "operation" }, "action": { "const": "record_screen" } } },
       "then": { "properties": { "data": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/request" } } } },
+    { "if": { "properties": { "service": { "const": "operation" }, "action": { "const": "record_screen_follow_update" } } },
+      "then": { "properties": { "data": { "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/follow_update_request" } } } },
     { "if": { "properties": { "service": { "const": "operation" }, "action": { "const": "external_spawn_intent" } } },
       "then": { "properties": { "data": { "$ref": "#/$defs/OperationExternalSpawnIntentRequestData" } } } },
     { "if": { "properties": { "service": { "const": "operation" }, "action": { "const": "external_spawn_finalize" } } },

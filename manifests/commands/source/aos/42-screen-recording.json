@@ -5,46 +5,65 @@
   "commands": [
     {
       "path": ["record"],
-      "summary": "Create bounded file-producing recordings.",
+      "summary": "Create bounded fixed or caller-followed recordings.",
       "forms": [
         {
           "id": "record-screen",
-          "usage": "aos record screen [--display <main|external|ordinal>] [--window-id <id> | --region <x,y,width,height>] --duration-ms <1...300000> [--system-audio] [--microphone] [--frame-rate <1...60>] [--max-pixel-count <4...33177600>] [--max-queue-frames <1...8>] [--max-output-bytes <1024...1073741824>] --json",
+          "usage": "aos record screen [target] --duration-ms <1...300000> [closed geometry flags] [track/media bounds] --json",
           "args": [
-            {"id": "screen", "kind": "positional", "required": true, "value_type": "literal", "literal": "screen", "summary": "Record one fixed screen-video target"},
+            {"id": "screen", "kind": "positional", "required": true, "value_type": "literal", "literal": "screen", "summary": "Record one fixed or caller-followed target"},
             {"id": "display", "kind": "flag", "token": "--display", "required": false, "value_type": "string", "summary": "Exact main, external, or display ordinal; defaults to main"},
             {"id": "window-id", "kind": "flag", "token": "--window-id", "required": false, "value_type": "integer", "summary": "Exact current native window id"},
             {"id": "region", "kind": "flag", "token": "--region", "required": false, "value_type": "string", "summary": "Global x,y,width,height wholly within the selected display"},
             {"id": "duration-ms", "kind": "flag", "token": "--duration-ms", "required": true, "value_type": "integer", "summary": "Hard duration bound: 1 through 300000 milliseconds"},
-            {"id": "system-audio", "kind": "flag", "token": "--system-audio", "required": false, "value_type": "bool", "summary": "Select the optional same-stream AAC-LC system-audio track"},
-            {"id": "microphone", "kind": "flag", "token": "--microphone", "required": false, "value_type": "bool", "summary": "Select the optional daemon-owned AAC-LC microphone track"},
-            {"id": "frame-rate", "kind": "flag", "token": "--frame-rate", "required": false, "value_type": "integer", "summary": "Hard frame-rate bound: 1 through 60; default 30"},
-            {"id": "max-pixel-count", "kind": "flag", "token": "--max-pixel-count", "required": false, "value_type": "integer", "summary": "Hard output pixel bound: 4 through 33177600; default 33177600"},
-            {"id": "max-queue-frames", "kind": "flag", "token": "--max-queue-frames", "required": false, "value_type": "integer", "summary": "Hard native queue bound: 1 through 8; default 3"},
-            {"id": "max-output-bytes", "kind": "flag", "token": "--max-output-bytes", "required": false, "value_type": "integer", "summary": "Hard file-size bound: 1024 through 1073741824 bytes; default 268435456"},
+            {"id": "geometry-mode", "kind": "flag", "token": "--geometry-mode", "required": false, "value_type": "string", "summary": "Closed fixed or caller_followed mode; defaults to fixed"},
+            {"id": "binding-target", "kind": "flag", "token": "--binding-target", "required": false, "value_type": "string", "summary": "Target identity as id:generation"},
+            {"id": "binding-observation", "kind": "flag", "token": "--binding-observation", "required": false, "value_type": "string", "summary": "Observation identity as id:generation"},
+            {"id": "binding-state", "kind": "flag", "token": "--binding-state", "required": false, "value_type": "string", "summary": "State identity as id:generation"},
+            {"id": "binding-session", "kind": "flag", "token": "--binding-session", "required": false, "value_type": "string", "summary": "Session identity as id:generation"},
+            {"id": "binding-navigation", "kind": "flag", "token": "--binding-navigation", "required": false, "value_type": "string", "summary": "Navigation identity as id:generation"},
+            {"id": "binding-frame", "kind": "flag", "token": "--binding-frame", "required": false, "value_type": "string", "summary": "Frame identity as id:generation"},
+            {"id": "source-window-id", "kind": "flag", "token": "--source-window-id", "required": false, "value_type": "integer", "summary": "Immutable live native source window id"},
+            {"id": "source-owner-pid", "kind": "flag", "token": "--source-owner-pid", "required": false, "value_type": "integer", "summary": "Immutable source owner pid"},
+            {"id": "update-interval-ms", "kind": "flag", "token": "--update-interval-ms", "required": false, "value_type": "integer", "summary": "Caller cadence: 16 through 10000 milliseconds"},
+            {"id": "update-deadline-ms", "kind": "flag", "token": "--update-deadline-ms", "required": false, "value_type": "integer", "summary": "Caller deadline: interval through 60000 milliseconds"},
+            {"id": "system-audio", "kind": "flag", "token": "--system-audio", "required": false, "value_type": "bool", "summary": "Select system audio"},
+            {"id": "microphone", "kind": "flag", "token": "--microphone", "required": false, "value_type": "bool", "summary": "Select daemon-owned microphone"},
+            {"id": "frame-rate", "kind": "flag", "token": "--frame-rate", "required": false, "value_type": "integer", "summary": "Frame-rate bound: 1 through 60; default 30"},
+            {"id": "max-pixel-count", "kind": "flag", "token": "--max-pixel-count", "required": false, "value_type": "integer", "summary": "Pixel bound: 4 through 33177600"},
+            {"id": "max-queue-frames", "kind": "flag", "token": "--max-queue-frames", "required": false, "value_type": "integer", "summary": "Native queue bound: 1 through 8"},
+            {"id": "max-output-bytes", "kind": "flag", "token": "--max-output-bytes", "required": false, "value_type": "integer", "summary": "File-size bound: 1024 through 1073741824"},
             {"id": "json", "kind": "flag", "token": "--json", "required": true, "value_type": "bool", "summary": "Emit machine-readable admission"}
           ],
           "examples": [
             "aos record screen --display main --duration-ms 10000 --json",
-            "aos record screen --display 1 --region 0,0,1280,720 --duration-ms 5000 --frame-rate 30 --json",
-            "aos record screen --display main --duration-ms 10000 --system-audio --json",
-            "aos record screen --display main --duration-ms 10000 --microphone --json"
+            "aos record screen --display main --duration-ms 10000 --system-audio --microphone --json"
           ],
-          "execution": {
-            "auto_starts_daemon": true,
-            "interactive": false,
-            "mutates_state": true,
-            "read_only": false,
-            "requires_permissions": true,
-            "streaming": false,
-            "supports_dry_run": false
-          },
-          "output": {
-            "default_mode": "json",
-            "error_mode": "json_stderr",
-            "streaming": false,
-            "supports_json_flag": true
-          }
+          "execution": {"auto_starts_daemon": true, "interactive": false, "mutates_state": true, "read_only": false, "requires_permissions": true, "streaming": false, "supports_dry_run": false},
+          "output": {"default_mode": "json", "error_mode": "json_stderr", "streaming": false, "supports_json_flag": true}
+        },
+        {
+          "id": "record-screen-follow-update",
+          "usage": "aos record screen-follow-update --operation <id:generation> --expected-geometry-generation <generation> --region <x,y,width,height> --binding-* <id:generation> --source-window-id <id> --source-owner-pid <pid> --json",
+          "args": [
+            {"id": "screen-follow-update", "kind": "positional", "required": true, "value_type": "literal", "literal": "screen-follow-update", "summary": "Apply one generation-CAS caller-followed region update"},
+            {"id": "operation", "kind": "flag", "token": "--operation", "required": true, "value_type": "string", "summary": "Exact operation identity as id:generation"},
+            {"id": "expected-geometry-generation", "kind": "flag", "token": "--expected-geometry-generation", "required": true, "value_type": "integer", "summary": "Exact accepted geometry generation"},
+            {"id": "display", "kind": "flag", "token": "--display", "required": false, "value_type": "string", "summary": "Exact current display; defaults to main"},
+            {"id": "region", "kind": "flag", "token": "--region", "required": true, "value_type": "string", "summary": "New global region within the immutable source"},
+            {"id": "binding-target", "kind": "flag", "token": "--binding-target", "required": true, "value_type": "string", "summary": "Exact target identity"},
+            {"id": "binding-observation", "kind": "flag", "token": "--binding-observation", "required": true, "value_type": "string", "summary": "Fresh observation identity"},
+            {"id": "binding-state", "kind": "flag", "token": "--binding-state", "required": true, "value_type": "string", "summary": "Fresh state identity"},
+            {"id": "binding-session", "kind": "flag", "token": "--binding-session", "required": true, "value_type": "string", "summary": "Immutable session identity"},
+            {"id": "binding-navigation", "kind": "flag", "token": "--binding-navigation", "required": true, "value_type": "string", "summary": "Immutable navigation identity"},
+            {"id": "binding-frame", "kind": "flag", "token": "--binding-frame", "required": true, "value_type": "string", "summary": "Immutable frame identity"},
+            {"id": "source-window-id", "kind": "flag", "token": "--source-window-id", "required": true, "value_type": "integer", "summary": "Immutable source window id"},
+            {"id": "source-owner-pid", "kind": "flag", "token": "--source-owner-pid", "required": true, "value_type": "integer", "summary": "Immutable source owner pid"},
+            {"id": "json", "kind": "flag", "token": "--json", "required": true, "value_type": "bool", "summary": "Emit accepted geometry receipt"}
+          ],
+          "examples": ["aos record screen-follow-update --operation recording:7 --expected-geometry-generation 1 --region 120,100,800,600 --binding-target target:1 --binding-observation observation:2 --binding-state state:2 --binding-session session:1 --binding-navigation navigation:1 --binding-frame frame:1 --source-window-id 77 --source-owner-pid 700 --json"],
+          "execution": {"auto_starts_daemon": true, "interactive": false, "mutates_state": true, "read_only": false, "requires_permissions": true, "streaming": false, "supports_dry_run": false},
+          "output": {"default_mode": "json", "error_mode": "json_stderr", "streaming": false, "supports_json_flag": true}
         }
       ]
     }

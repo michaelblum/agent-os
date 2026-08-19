@@ -9,9 +9,40 @@ struct AOSAdapterStopResult: Codable, Equatable {
     let residualDigest: String?
 }
 
+struct AOSOperationStopAdmissionResult {
+    let operation: AOSOperationRecord
+    let wasAlreadyAdmitted: Bool
+}
+
+final class AOSOperationStopAdmissionTransaction {
+    typealias DurableAdmission = () throws -> AOSOperationStopAdmissionResult
+
+    private let lock = NSLock()
+    private let durableAdmission: DurableAdmission
+    private var invoked = false
+
+    init(_ durableAdmission: @escaping DurableAdmission) {
+        self.durableAdmission = durableAdmission
+    }
+
+    func commit() throws -> AOSOperationStopAdmissionResult {
+        lock.lock()
+        guard !invoked else {
+            lock.unlock()
+            throw AOSOperationCoreError.invalidTransition
+        }
+        invoked = true
+        lock.unlock()
+        return try durableAdmission()
+    }
+}
+
 protocol AOSOperationControlAdapter: AnyObject {
     var registration: AOSOperationAdapterRegistration { get }
-    func requestStop(operation: AOSOperationIdentity, force: Bool) -> AOSAdapterStopResult
+    func admitStop(
+        operation: AOSOperationIdentity,
+        admission: AOSOperationStopAdmissionTransaction
+    ) throws -> AOSAdapterStopResult
     func residualDigest(operation: AOSOperationIdentity) -> String?
 }
 
@@ -150,7 +181,8 @@ final class AOSOperationRegistry {
         adapterRegistrationID: String,
         adapterRegistrationRevision: UInt64,
         requestedBounds: AOSOperationRequestedBounds? = nil,
-        initialProgress: AOSOperationProgress? = nil
+        initialProgress: AOSOperationProgress? = nil,
+        screenRecordingGeometry: AOSScreenRecordingGeometryState? = nil
     ) throws -> AOSOperationRecord {
         let now = clock()
         return try mutateDurably { state in
@@ -190,12 +222,177 @@ final class AOSOperationRegistry {
                     elapsedMilliseconds: 0,
                     droppedFrameCount: 0
                 ) },
+                screenRecordingGeometry: screenRecordingGeometry,
                 createdAtNanoseconds: now,
                 updatedAtNanoseconds: now
             )
             state.operations.append(record)
             return record
         }
+    }
+
+    func activateScreenRecordingFollowGeometry(
+        _ identity: AOSOperationIdentity,
+        nowNanoseconds: UInt64
+    ) throws -> AOSScreenRecordingGeometryState {
+        try mutateDurably { state in
+            guard let index = state.operations.firstIndex(where: { $0.identity == identity }),
+                  state.operations[index].state == .active,
+                  var geometry = state.operations[index].screenRecordingGeometry,
+                  geometry.accepted.mode == .callerFollowed,
+                  geometry.deadlineState == .inactive,
+                  let interval = geometry.accepted.updateIntervalMilliseconds,
+                  let deadline = geometry.accepted.updateDeadlineMilliseconds else {
+                throw AOSOperationCoreError.invalidTransition
+            }
+            geometry.deadlineState = .armed
+            geometry.nextUpdateNotBeforeNanoseconds = try Self.addMilliseconds(
+                interval, to: nowNanoseconds
+            )
+            geometry.nextDeadlineNanoseconds = try Self.addMilliseconds(
+                deadline, to: nowNanoseconds
+            )
+            geometry.eventSequence = try aosNextScreenRecordingGeometryEventSequence(
+                geometry.eventSequence
+            )
+            state.operations[index].screenRecordingGeometry = geometry
+            state.operations[index].updatedAtNanoseconds = clock()
+            return geometry
+        }
+    }
+
+    func reserveScreenRecordingFollowUpdate(
+        _ identity: AOSOperationIdentity,
+        request: AOSScreenRecordingFollowUpdateRequest,
+        candidate: AOSScreenRecordingGeometry,
+        nowNanoseconds: UInt64
+    ) throws -> AOSScreenRecordingGeometryState {
+        try mutateDurably { state in
+            guard let index = state.operations.firstIndex(where: { $0.identity == identity }),
+                  state.operations[index].state == .active,
+                  var geometry = state.operations[index].screenRecordingGeometry,
+                  geometry.accepted.mode == .callerFollowed,
+                  geometry.deadlineState == .armed,
+                  geometry.pendingUpdate == nil,
+                  geometry.accepted.geometryGeneration == request.expectedGeometryGeneration,
+                  candidate.geometryGeneration == request.expectedGeometryGeneration + 1,
+                  let notBefore = geometry.nextUpdateNotBeforeNanoseconds,
+                  let deadline = geometry.nextDeadlineNanoseconds,
+                  nowNanoseconds >= notBefore,
+                  nowNanoseconds < deadline else {
+                throw AOSOperationCoreError.generationConflict
+            }
+            geometry.pendingUpdate = AOSScreenRecordingPendingGeometryUpdate(
+                requestID: request.requestID,
+                canonicalParameterDigest: request.canonicalParameterDigest,
+                expectedGeometryGeneration: request.expectedGeometryGeneration,
+                candidate: candidate
+            )
+            geometry.eventSequence = try aosNextScreenRecordingGeometryEventSequence(
+                geometry.eventSequence
+            )
+            state.operations[index].screenRecordingGeometry = geometry
+            state.operations[index].updatedAtNanoseconds = clock()
+            return geometry
+        }
+    }
+
+    func commitScreenRecordingFollowUpdate(
+        _ identity: AOSOperationIdentity,
+        requestID: String,
+        canonicalParameterDigest: String,
+        nowNanoseconds: UInt64
+    ) throws -> AOSScreenRecordingGeometryState {
+        try mutateDurably { state in
+            guard let index = state.operations.firstIndex(where: { $0.identity == identity }),
+                  state.operations[index].state == .active,
+                  var geometry = state.operations[index].screenRecordingGeometry,
+                  geometry.deadlineState == .armed,
+                  let pending = geometry.pendingUpdate,
+                  pending.requestID == requestID,
+                  pending.canonicalParameterDigest == canonicalParameterDigest,
+                  let interval = pending.candidate.updateIntervalMilliseconds,
+                  let deadlineDuration = pending.candidate.updateDeadlineMilliseconds,
+                  let currentDeadline = geometry.nextDeadlineNanoseconds,
+                  nowNanoseconds < currentDeadline else {
+                throw AOSOperationCoreError.generationConflict
+            }
+            geometry.accepted = pending.candidate
+            geometry.pendingUpdate = nil
+            geometry.nextUpdateNotBeforeNanoseconds = try Self.addMilliseconds(
+                interval, to: nowNanoseconds
+            )
+            geometry.nextDeadlineNanoseconds = try Self.addMilliseconds(
+                deadlineDuration, to: nowNanoseconds
+            )
+            geometry.eventSequence = try aosNextScreenRecordingGeometryEventSequence(
+                geometry.eventSequence
+            )
+            state.operations[index].screenRecordingGeometry = geometry
+            state.operations[index].updatedAtNanoseconds = clock()
+            return geometry
+        }
+    }
+
+    func expireScreenRecordingFollowGeometry(
+        _ identity: AOSOperationIdentity,
+        expectedDeadlineNanoseconds: UInt64,
+        nowNanoseconds: UInt64
+    ) throws -> Bool {
+        try mutateDurably { state in
+            guard let index = state.operations.firstIndex(where: { $0.identity == identity }),
+                  state.operations[index].state == .active,
+                  var geometry = state.operations[index].screenRecordingGeometry,
+                  geometry.deadlineState == .armed,
+                  geometry.nextDeadlineNanoseconds == expectedDeadlineNanoseconds,
+                  nowNanoseconds >= expectedDeadlineNanoseconds else {
+                return false
+            }
+            geometry.deadlineState = .expired
+            geometry.eventSequence = try aosNextScreenRecordingGeometryEventSequence(
+                geometry.eventSequence
+            )
+            state.operations[index].screenRecordingGeometry = geometry
+            state.operations[index].updatedAtNanoseconds = clock()
+            return true
+        }
+    }
+
+    func stopScreenRecordingFollowGeometry(
+        _ identity: AOSOperationIdentity
+    ) throws -> AOSScreenRecordingGeometryState? {
+        try mutateDurably { state in
+            guard let index = state.operations.firstIndex(where: { $0.identity == identity }),
+                  var geometry = state.operations[index].screenRecordingGeometry else {
+                return nil
+            }
+            let prior = geometry
+            if geometry.accepted.mode == .callerFollowed {
+                guard geometry.deadlineState != .expired else { return nil }
+                geometry.deadlineState = .stopped
+                geometry.nextUpdateNotBeforeNanoseconds = nil
+                geometry.nextDeadlineNanoseconds = nil
+            }
+            guard geometry != prior else { return nil }
+            geometry.eventSequence = try aosNextScreenRecordingGeometryEventSequence(
+                geometry.eventSequence
+            )
+            state.operations[index].screenRecordingGeometry = geometry
+            state.operations[index].updatedAtNanoseconds = clock()
+            return geometry
+        }
+    }
+
+    private static func addMilliseconds(
+        _ milliseconds: UInt64,
+        to nanoseconds: UInt64
+    ) throws -> UInt64 {
+        let multiplied = milliseconds.multipliedReportingOverflow(by: 1_000_000)
+        let added = nanoseconds.addingReportingOverflow(multiplied.partialValue)
+        guard !multiplied.overflow, !added.overflow else {
+            throw AOSOperationCoreError.invalidRecord("screen_recording_follow_deadline")
+        }
+        return added.partialValue
     }
 
     func updateOperationProgress(
@@ -458,8 +655,24 @@ final class AOSOperationRegistry {
                 throw AOSOperationCoreError.residualsPresent
             }
             state.operations[index].state = newState
-            if let stopIntent { state.operations[index].stopIntent = stopIntent }
-            if let outcome { state.operations[index].outcome = outcome }
+            if let stopIntent {
+                if let existing = state.operations[index].stopIntent {
+                    guard existing == stopIntent else {
+                        throw AOSOperationCoreError.invalidTransition
+                    }
+                } else {
+                    state.operations[index].stopIntent = stopIntent
+                }
+            }
+            if let outcome {
+                if let existing = state.operations[index].outcome {
+                    guard existing == outcome else {
+                        throw AOSOperationCoreError.invalidTransition
+                    }
+                } else {
+                    state.operations[index].outcome = outcome
+                }
+            }
             if newState == .terminal {
                 guard state.operations[index].outcome != nil else {
                     throw AOSOperationCoreError.invalidRecord("terminal_operation_outcome")
@@ -494,12 +707,153 @@ final class AOSOperationRegistry {
                 throw AOSOperationCoreError.residualsPresent
             }
             state.operations[index].state = .terminal
-            if let stopIntent { state.operations[index].stopIntent = stopIntent }
-            state.operations[index].outcome = outcome
+            if let stopIntent {
+                if let existing = state.operations[index].stopIntent {
+                    guard existing == stopIntent else {
+                        throw AOSOperationCoreError.invalidTransition
+                    }
+                } else {
+                    state.operations[index].stopIntent = stopIntent
+                }
+            }
+            if let existing = state.operations[index].outcome {
+                guard existing == outcome else {
+                    throw AOSOperationCoreError.invalidTransition
+                }
+            } else {
+                state.operations[index].outcome = outcome
+            }
             state.operations[index].failureCode = failureCode
             state.operations[index].residualDigest = nil
             state.operations[index].updatedAtNanoseconds = now
             return state.operations[index]
+        }
+    }
+
+    /// Preparation and pending-runtime stop run before any screen, microphone,
+    /// broker, writer, or file authority exists. Close their exact durable
+    /// children and stopped geometry in one mutation.
+    func terminalizeScreenRecordingBeforeAuthority(
+        _ identity: AOSOperationIdentity,
+        adapterRegistrationID: String,
+        adapterRegistrationRevision: UInt64,
+        stopIntent: AOSStopIntent,
+        outcome: AOSOperationOutcome,
+        failureCode: String?
+    ) throws -> AOSOperationRecord {
+        let now = clock()
+        return try mutateDurably { state in
+            guard let operationIndex = state.operations.firstIndex(where: {
+                $0.identity == identity
+            }), [.prepared, .starting, .stopping, .cleanupRequired, .recovering].contains(
+                state.operations[operationIndex].state
+            ),
+            state.operations[operationIndex].adapterRegistrationID
+                == adapterRegistrationID,
+            state.operations[operationIndex].adapterRegistrationRevision
+                == adapterRegistrationRevision,
+            state.operations[operationIndex].stopIntent.map({ $0 == stopIntent }) ?? true,
+            state.operations[operationIndex].outcome.map({ $0 == outcome }) ?? true,
+            failureCode.map({ !$0.isEmpty }) ?? true else {
+                throw AOSOperationCoreError.invalidTransition
+            }
+
+            let streamIndexes = state.streams.indices.filter {
+                state.streams[$0].parentOperation == identity
+            }
+            let artifactIndexes = state.artifacts.indices.filter {
+                state.artifacts[$0].parentOperation == identity
+            }
+            let transactionIndexes = state.resourceTransactions.indices.filter {
+                state.resourceTransactions[$0].operation == identity
+            }
+            let claimIndexes = state.resourceClaims.indices.filter {
+                state.resourceClaims[$0].operation == identity
+            }
+
+            guard streamIndexes.allSatisfy({
+                      [.prepared, .starting].contains(state.streams[$0].state)
+                  }),
+                  artifactIndexes.allSatisfy({ index in
+                      let artifact = state.artifacts[index]
+                      return artifact.state == .transient
+                          && artifact.fileIdentity == nil
+                          && artifact.pendingAction == nil
+                          && artifact.release == nil
+                          && artifact.custodyReceipt == nil
+                  }),
+                  transactionIndexes.allSatisfy({ index in
+                      [.prepared, .reserving, .committed, .rollingBack, .terminal]
+                          .contains(state.resourceTransactions[index].state)
+                  }),
+                  claimIndexes.allSatisfy({ index in
+                      let claim = state.resourceClaims[index]
+                      return claim.admissionMode == .exclusive
+                          && claim.brokerID == nil
+                          && claim.subscriberID == nil
+                  }),
+                  !state.resourceBrokers.contains(where: { broker in
+                      broker.subscribers.contains { $0.operation == identity }
+                  }),
+                  !state.taps.contains(where: { $0.parentOperation == identity }),
+                  !state.pendingExternalSpawnIntents.contains(where: {
+                      $0.operationID == identity.id
+                          && $0.operationGeneration == identity.generation
+                  }),
+                  !state.finalizedExternalSpawnRecords.contains(where: {
+                      $0.skipRecord.operationID == identity.id
+                          && $0.skipRecord.operationGeneration == identity.generation
+                  }) else {
+                throw AOSOperationCoreError.residualsPresent
+            }
+
+            for index in streamIndexes {
+                state.streams[index].state = .terminal
+                state.streams[index].residualDigest = nil
+                state.streams[index].frameCount = 0
+                state.streams[index].byteCount = 0
+                state.streams[index].updatedAtNanoseconds = now
+            }
+            for index in artifactIndexes {
+                state.artifacts[index].state = .removed
+                state.artifacts[index].recoveryOriginState = nil
+                state.artifacts[index].recoveryDisposition = nil
+                state.artifacts[index].custodyDigest = nil
+                state.artifacts[index].pendingAction = nil
+                state.artifacts[index].updatedAtNanoseconds = now
+            }
+            for index in claimIndexes {
+                state.resourceClaims[index].state = .terminal
+            }
+            for index in transactionIndexes {
+                let committed = state.resourceTransactions[index].state == .committed
+                    || state.resourceTransactions[index].outcome == .succeeded
+                state.resourceTransactions[index].state = .terminal
+                state.resourceTransactions[index].recoveryOriginState = nil
+                state.resourceTransactions[index].recoveryDisposition = nil
+                state.resourceTransactions[index].outcome = committed ? .succeeded : .rejected
+            }
+            if var geometry = state.operations[operationIndex].screenRecordingGeometry,
+               geometry.accepted.mode == .callerFollowed,
+               geometry.deadlineState != .expired {
+                geometry.deadlineState = .stopped
+                geometry.nextUpdateNotBeforeNanoseconds = nil
+                geometry.nextDeadlineNanoseconds = nil
+                geometry.eventSequence = try aosNextScreenRecordingGeometryEventSequence(
+                    geometry.eventSequence
+                )
+                state.operations[operationIndex].screenRecordingGeometry = geometry
+            }
+            state.operations[operationIndex].state = .terminal
+            state.operations[operationIndex].stopIntent = stopIntent
+            state.operations[operationIndex].outcome = outcome
+            state.operations[operationIndex].failureCode = failureCode
+            state.operations[operationIndex].residualDigest = nil
+            state.operations[operationIndex].updatedAtNanoseconds = now
+            guard !Self.hasNonterminalChildren(in: state, operation: identity) else {
+                throw AOSOperationCoreError.residualsPresent
+            }
+            return state.operations[operationIndex]
         }
     }
 

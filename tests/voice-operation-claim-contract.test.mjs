@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -11,30 +11,49 @@ async function source(relativePath) {
   return readFile(path.join(repoRoot, relativePath), 'utf8')
 }
 
+async function swiftSources(root) {
+  const result = []
+  for (const entry of await readdir(root, { withFileTypes: true })) {
+    const candidate = path.join(root, entry.name)
+    if (entry.isDirectory()) result.push(...await swiftSources(candidate))
+    else if (entry.isFile() && entry.name.endsWith('.swift')) result.push(candidate)
+  }
+  return result.sort()
+}
+
 async function compileAndRunHarness(mainSource) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'aos-voice-operation-claim-'))
   const main = path.join(root, 'main.swift')
   const executable = path.join(root, 'voice-operation-claim-proof')
   try {
     await writeFile(main, mainSource)
+    const excludedDaemonSources = new Set([
+      'coordination.swift',
+      'surface-inspector-bundle.swift',
+      'unified.swift',
+      'wiki-change-bus.swift',
+      'wiki-seed.swift',
+      'wiki-watch.swift',
+    ])
+    const productionSources = [
+      ...await swiftSources(path.join(repoRoot, 'src/browser')),
+      ...await swiftSources(path.join(repoRoot, 'src/perceive')),
+      ...await swiftSources(path.join(repoRoot, 'src/shared')),
+      ...await swiftSources(path.join(repoRoot, 'src/display')),
+      ...(await swiftSources(path.join(repoRoot, 'src/daemon')))
+        .filter((candidate) => !excludedDaemonSources.has(path.basename(candidate))),
+      ...await swiftSources(path.join(repoRoot, 'shared/swift/ipc')),
+      path.join(repoRoot, 'src/act/act-helpers.swift'),
+      path.join(repoRoot, 'src/act/act-models.swift'),
+      path.join(repoRoot, 'src/act/event-posting.swift'),
+      path.join(repoRoot, 'src/act/input-delivery-state.swift'),
+      path.join(repoRoot, 'src/act/input-receipt-tap.swift'),
+    ]
     execFileSync('swiftc', [
       '-warnings-as-errors',
       '-module-cache-path', path.join(root, 'module-cache'),
-      path.join(repoRoot, 'src/daemon/operation-owner-root.swift'),
-      path.join(repoRoot, 'src/daemon/operation-spawn-record.swift'),
-      path.join(repoRoot, 'src/daemon/operation-state.swift'),
-      path.join(repoRoot, 'src/daemon/operation-store.swift'),
-      path.join(repoRoot, 'src/daemon/operation-registry.swift'),
-      path.join(repoRoot, 'src/daemon/operation-resource-transaction.swift'),
-      path.join(repoRoot, 'src/daemon/operation-resource-claim.swift'),
-      path.join(repoRoot, 'src/daemon/operation-resource-broker.swift'),
-      path.join(repoRoot, 'src/daemon/microphone-operation-adapter.swift'),
-      path.join(repoRoot, 'src/daemon/microphone-authorization.swift'),
-      path.join(repoRoot, 'src/daemon/microphone-native-session.swift'),
-      path.join(repoRoot, 'src/daemon/capture-ready-cue.swift'),
-      path.join(repoRoot, 'src/daemon/segmented-microphone-capture.swift'),
-      path.join(repoRoot, 'src/daemon/audio-playback.swift'),
-      path.join(repoRoot, 'src/daemon/voice-transport.swift'),
+      '-lsqlite3',
+      ...productionSources,
       main,
       '-o', executable,
     ], { cwd: repoRoot, stdio: 'pipe' })
@@ -429,7 +448,20 @@ try second.bindAuthority(
     residualDigest: { nil }
 )
 try second.markAuthorityStarted()
-let stopReceipt = adapter.requestStop(operation: secondOperation, force: true)
+let stopReceipt = try adapter.admitStop(
+    operation: secondOperation,
+    admission: AOSOperationStopAdmissionTransaction {
+        AOSOperationStopAdmissionResult(
+            operation: try registry.transitionOperation(
+                secondOperation,
+                to: .stopping,
+                stopIntent: .kill,
+                outcome: .killed
+            ),
+            wasAlreadyAdmitted: false
+        )
+    }
+)
 precondition(stopReceipt.disposition == .accepted)
 precondition(stopRequests == [true])
 second.authorityDidTerminate(AOSMicrophoneCaptureTermination(
@@ -450,9 +482,18 @@ try hostStopped.markAuthorityStarted()
 _ = try registry.transitionOperation(
     hostStoppedOperation,
     to: .stopping,
-    stopIntent: .hostStop
+    stopIntent: .hostStop,
+    outcome: .killed
 )
-let hostStopReceipt = adapter.requestStop(operation: hostStoppedOperation, force: true)
+let hostStopReceipt = try adapter.admitStop(
+    operation: hostStoppedOperation,
+    admission: AOSOperationStopAdmissionTransaction {
+        AOSOperationStopAdmissionResult(
+            operation: try registry.inspect(hostStoppedOperation),
+            wasAlreadyAdmitted: true
+        )
+    }
+)
 precondition(hostStopReceipt.disposition == .alreadyStopping)
 precondition(stopRequests == [true, true])
 hostStopped.authorityDidTerminate(AOSMicrophoneCaptureTermination(

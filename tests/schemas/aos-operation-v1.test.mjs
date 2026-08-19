@@ -33,6 +33,7 @@ const byName = Object.fromEntries(schemaNames.map((name) => [
 const daemonResponseSchema = JSON.parse(
   fs.readFileSync(path.join(schemaDirectory, 'daemon-response.schema.json'), 'utf8'),
 );
+const daemonResponseID = daemonResponseSchema.$id;
 
 const SHA_A = 'a'.repeat(64);
 const SHA_B = 'b'.repeat(64);
@@ -302,6 +303,44 @@ const microphoneTrackSummary = {
   },
 };
 
+const fixedGeometryTruth = {
+  mode: 'fixed',
+  geometry_generation: 1,
+  binding_digest: SHA_A,
+  source_rect: { x: 0, y: 0, width: 100, height: 80 },
+  pixel_width: 200,
+  pixel_height: 160,
+  update_interval_ms: null,
+  update_deadline_ms: null,
+  last_accepted_observation_generation: null,
+  last_accepted_state_generation: null,
+  pending_update: false,
+  next_deadline: {
+    state: 'not_applicable',
+    not_before_monotonic_ns: null,
+    deadline_monotonic_ns: null,
+  },
+};
+
+const followedGeometryTruth = {
+  mode: 'caller_followed',
+  geometry_generation: 2,
+  binding_digest: SHA_B,
+  source_rect: { x: 20, y: 10, width: 100, height: 80 },
+  pixel_width: 200,
+  pixel_height: 160,
+  update_interval_ms: 100,
+  update_deadline_ms: 500,
+  last_accepted_observation_generation: 2,
+  last_accepted_state_generation: 2,
+  pending_update: false,
+  next_deadline: {
+    state: 'armed',
+    not_before_monotonic_ns: 1_500_000_000,
+    deadline_monotonic_ns: 1_600_000_000,
+  },
+};
+
 const artifactIdentity = {
   containment_root_digest: SHA_A,
   relative_locator_digest: SHA_B,
@@ -481,6 +520,7 @@ test('screen-recording operations require progress and terminal track truth plus
       adapter_registration_revision: 2,
     },
     capability_id: 'screen-recording.video',
+    geometry: fixedGeometryTruth,
     state: 'terminal',
     progress: {
       items: 1,
@@ -488,6 +528,7 @@ test('screen-recording operations require progress and terminal track truth plus
       duration_ms: 20,
       last_event_sequence: 1,
       track_summary: videoTrackSummary,
+      geometry: fixedGeometryTruth,
     },
     artifacts: [{ id: 'artifact-1', generation: 1 }],
     cleanup: zeroCleanup,
@@ -499,6 +540,7 @@ test('screen-recording operations require progress and terminal track truth plus
       completed_at: TIMESTAMP,
       failure_code: null,
       track_summary: videoTrackSummary,
+      geometry: fixedGeometryTruth,
     },
     started_at: TIMESTAMP,
   };
@@ -532,18 +574,44 @@ test('screen-recording operations require progress and terminal track truth plus
   delete withoutTerminalSummary.terminal.track_summary;
   const withoutTerminalFailure = structuredClone(failed);
   delete withoutTerminalFailure.terminal.failure_code;
+  const withoutGeometry = structuredClone(screenBase);
+  delete withoutGeometry.geometry;
   const microphoneSuccess = {
     ...screenBase,
     progress: { ...screenBase.progress, bytes: 200, track_summary: microphoneTrackSummary },
     terminal: { ...screenBase.terminal, track_summary: microphoneTrackSummary },
   };
+  const followedActive = {
+    ...screenBase,
+    geometry: followedGeometryTruth,
+    state: 'active',
+    progress: { ...screenBase.progress, geometry: followedGeometryTruth },
+    artifacts: [],
+    cleanup: {
+      result: 'not_started',
+      residual: { classification: 'none', count: 0, digest: SHA_A },
+      completed_at: null,
+    },
+    terminal: null,
+  };
+  const followedEvent = {
+    ...event,
+    detail: { kind: 'screen_recording_geometry', geometry: followedGeometryTruth },
+  };
   assertValidation([
     target(OPERATION_ID, 'operation_snapshot', screenBase, true, 'screen success'),
     target(OPERATION_ID, 'operation_snapshot', microphoneSuccess, true, 'screen microphone success'),
     target(OPERATION_ID, 'operation_snapshot', failed, true, 'screen failure'),
+    target(OPERATION_ID, 'operation_snapshot', followedActive, true, 'followed screen active'),
+    target(EVENT_ID, 'operation_event', followedEvent, true, 'followed geometry event'),
+    target(EVENT_ID, 'operation_event', {
+      ...followedEvent,
+      detail: { ...followedEvent.detail, geometry: { ...followedGeometryTruth, pending_update: 'yes' } },
+    }, false, 'followed geometry event remains schema exact'),
     target(OPERATION_ID, 'operation_snapshot', withoutProgressSummary, false, 'screen progress summary required'),
     target(OPERATION_ID, 'operation_snapshot', withoutTerminalSummary, false, 'screen terminal summary required'),
     target(OPERATION_ID, 'operation_snapshot', withoutTerminalFailure, false, 'screen terminal failure required'),
+    target(OPERATION_ID, 'operation_snapshot', withoutGeometry, false, 'screen geometry required'),
     target(OPERATION_ID, 'operation_snapshot', { ...screenBase, artifacts: [] }, false, 'screen success artifact required'),
     target(OPERATION_ID, 'operation_snapshot', {
       ...screenBase,
@@ -630,6 +698,53 @@ test('tap remains unavailable while artifact roots expose producer custody and t
   assert.ok(daemonErrorCodes.includes('OPERATION_TAP_UNAVAILABLE'));
   assert.ok(daemonErrorCodes.includes('OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE'));
   assert.ok(daemonErrorCodes.includes('OPERATION_ARTIFACT_RETAIN_UNAVAILABLE'));
+});
+
+test('daemon response closes over every maintained operation and screen failure code', () => {
+  const operationStateSource = fs.readFileSync(
+    path.join(repoRoot, 'src', 'daemon', 'operation-state.swift'),
+    'utf8',
+  );
+  const maintainedCodes = [...operationStateSource.matchAll(
+    /return "((?:OPERATION|SCREEN_RECORDING|MICROPHONE)_[A-Z0-9_]+)"/gu,
+  )].map((match) => match[1]);
+  assert.equal(new Set(maintainedCodes).size, maintainedCodes.length);
+  const responseSchemas = { ...schemas, [daemonResponseID]: daemonResponseSchema };
+  const result = spawnSync('python3', ['-c', pythonValidator], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    input: JSON.stringify({
+      schemas: [...Object.values(responseSchemas), recordingSchema],
+      cases: [
+        ...maintainedCodes.map((code) => ({
+          schema_id: daemonResponseID,
+          instance: { v: 1, status: 'error', error: code, code, ref: 'operation-request' },
+        })),
+        {
+          schema_id: daemonResponseID,
+          instance: {
+            v: 1,
+            status: 'error',
+            error: 'SCREEN_RECORDING_UNKNOWN',
+            code: 'SCREEN_RECORDING_UNKNOWN',
+          },
+        },
+      ],
+    }),
+    timeout: 20_000,
+  });
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  const validation = JSON.parse(result.stdout);
+  assert.ok(validation.slice(0, -1).every((entry) => entry.valid));
+  assert.equal(validation.at(-1).valid, false);
+  assert.deepEqual(
+    daemonResponseSchema.oneOf[1].properties.code.enum.filter((code) => (
+      code.startsWith('OPERATION_')
+        || code.startsWith('SCREEN_RECORDING_')
+        || code.startsWith('MICROPHONE_')
+    )),
+    maintainedCodes,
+  );
 });
 
 test('mechanical lineage and the four server origin variants are exact and closed', () => {

@@ -16,8 +16,8 @@ same-effective-UID host control over one exact adapter-registry revision
 (including status-host break-glass), bounded retained replay plus expected-
 barrier CAS, distinct artifact/claim recovery dispositions, prior-generation
 recovery across nine target machines, and split claim-set/resource/broker semantics. M2
-registers the microphone adapter and M3 registers the fixed screen-recording
-adapter at exact registry revision 2; unadapted legacy daemon subsystems remain
+registers the microphone adapter and M3 registers the fixed or caller-followed
+screen-recording adapter at exact registry revision 2; unadapted legacy daemon subsystems remain
 outside its stop-all receipts, and legacy voice output is a non-preempting
 admission sentinel on the shared native session. An empty registered selection
 and asynchronous microphone termination use bounded durable reconciliation
@@ -165,9 +165,43 @@ redaction, persistence, and GPU delivery belong to downstream adapters.
 `screen-recording-operation-adapter.swift` is the sole current downstream
 recording producer. It acquires the exact exclusive operation resource and
 broker producer lease before ScreenCaptureKit/file authority, then records one
-fixed display, exact window, or single-display global region as H.264 QuickTime
+fixed display, exact window, single-display global region, or explicit
+caller-followed region as H.264 QuickTime
 video with independently optional AAC-LC system-audio and microphone tracks in
-one writer. System audio uses the same SCStream; microphone uses the shared
+one writer. `screen-recording-follow-geometry.swift` solely owns caller-followed
+request parsing, live topology/window/source validation, one generation-CAS
+pending intent, serialized native crop updates, absolute cadence/deadline, and
+content-free geometry projection. The caller owns observation, tracking,
+smoothing, and transformation. Commit accepted geometry only after native
+configuration success; invalid/stale updates do not reset the deadline, and
+immutable drift, timeout, native failure, or unresolved recovery stop through
+normal cleanup without reacquisition. Treat loss of accepted source containment
+during production frame validation as immutable target drift; an off-source
+proposed update remains a nonterminal invalid update. Public cancel/kill supplies
+one durable stop-admission transaction to the adapter. The adapter acquires its
+lifecycle serialization lock before the first durable `.prepared` publication.
+Immediately after the prepared-publication barrier and before the first child
+publication, it installs an exact operation-keyed pending owner and holds the
+serialization lock through `starting` publication. Public control that selects
+the listable prepared record blocks until that pending owner exists, then the
+pending runtime admits the transaction before any later runtime handoff.
+Preparation or transition settlement retries transient durable-save failure
+within a fixed bound; it releases the pending owner only after atomic terminal
+cleanup durably closes every mechanically absent child and claim and publishes
+stopped caller-followed geometry. A stop before runtime installation
+terminal-cleans with authority absent and permanently denies the handoff; after
+handoff, the screen runtime invokes the transaction under the same lock as
+coordinator installation, activation, and startup settlement. An already-entered
+stop whose durable save remains blocked can consume only the bounded startup
+wait: native handoff stays denied and the exact pending owner remains keyed until
+that transaction and atomic stopped-geometry cleanup settle durably. The first exact
+intent/outcome is immutable and same-action replayable, a different later action
+is rejected, failed durable admission has no native effect, and admitted stop
+cancels the timer and persists stopped geometry before terminal-clean
+publication. Every durable
+geometry change advances its durable operation-event sequence and emits exact
+geometry through the adapter-owned operation event sink wired to the daemon
+broadcaster. System audio uses the same SCStream; microphone uses the shared
 daemon session owner described below. It retains and revalidates the exact admitted canonical topology
 before filter creation and every sample. Video is mandatory, omitting both
 optional tracks preserves exact video-only output, and geometry never follows

@@ -1,10 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json",
-  "title": "AOS fixed screen recording with optional system audio and microphone v1",
+  "title": "AOS fixed and caller-followed screen recording v1",
   "oneOf": [
     {"$ref": "#/$defs/request"},
+    {"$ref": "#/$defs/follow_update_request"},
     {"$ref": "#/$defs/admission_result"},
+    {"$ref": "#/$defs/follow_update_result"},
     {"$ref": "#/$defs/progress"},
     {"$ref": "#/$defs/completion_result"}
   ],
@@ -353,11 +355,150 @@
         {"$ref": "#/$defs/region_target"}
       ]
     },
+    "binding_identity": {
+      "type": "object",
+      "required": ["id", "generation"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "generation": {"$ref": "#/$defs/generation"}
+      },
+      "additionalProperties": false
+    },
+    "follow_binding": {
+      "type": "object",
+      "required": [
+        "target", "observation", "state", "session", "navigation", "frame",
+        "source_window"
+      ],
+      "properties": {
+        "target": {"$ref": "#/$defs/binding_identity"},
+        "observation": {"$ref": "#/$defs/binding_identity"},
+        "state": {"$ref": "#/$defs/binding_identity"},
+        "session": {"$ref": "#/$defs/binding_identity"},
+        "navigation": {"$ref": "#/$defs/binding_identity"},
+        "frame": {"$ref": "#/$defs/binding_identity"},
+        "source_window": {
+          "type": "object",
+          "required": ["window_id", "owner_pid"],
+          "properties": {
+            "window_id": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+            "owner_pid": {"type": "integer", "minimum": 1, "maximum": 2147483647}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "geometry_configuration": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["mode"],
+          "properties": {"mode": {"const": "fixed"}},
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["mode", "binding", "update_interval_ms", "update_deadline_ms"],
+          "properties": {
+            "mode": {"const": "caller_followed"},
+            "binding": {"$ref": "#/$defs/follow_binding"},
+            "update_interval_ms": {"type": "integer", "minimum": 16, "maximum": 10000},
+            "update_deadline_ms": {"type": "integer", "minimum": 16, "maximum": 60000}
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "geometry_truth": {
+      "type": "object",
+      "required": [
+        "mode", "geometry_generation", "binding_digest", "source_rect",
+        "pixel_width", "pixel_height", "update_interval_ms", "update_deadline_ms",
+        "last_accepted_observation_generation", "last_accepted_state_generation",
+        "pending_update", "next_deadline"
+      ],
+      "properties": {
+        "mode": {"enum": ["fixed", "caller_followed"]},
+        "geometry_generation": {"$ref": "#/$defs/generation"},
+        "binding_digest": {"$ref": "#/$defs/sha256"},
+        "source_rect": {"$ref": "#/$defs/bounds"},
+        "pixel_width": {"type": "integer", "minimum": 2},
+        "pixel_height": {"type": "integer", "minimum": 2},
+        "update_interval_ms": {"oneOf": [{"type": "null"}, {"type": "integer", "minimum": 16, "maximum": 10000}]},
+        "update_deadline_ms": {"oneOf": [{"type": "null"}, {"type": "integer", "minimum": 16, "maximum": 60000}]},
+        "last_accepted_observation_generation": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/generation"}]},
+        "last_accepted_state_generation": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/generation"}]},
+        "pending_update": {"type": "boolean"},
+        "next_deadline": {
+          "type": "object",
+          "required": ["state", "not_before_monotonic_ns", "deadline_monotonic_ns"],
+          "properties": {
+            "state": {"enum": ["not_applicable", "inactive", "armed", "expired", "stopped"]},
+            "not_before_monotonic_ns": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/count"}]},
+            "deadline_monotonic_ns": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/count"}]}
+          },
+          "additionalProperties": false
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"mode": {"const": "fixed"}}},
+          "then": {
+            "properties": {
+              "geometry_generation": {"const": 1},
+              "update_interval_ms": {"type": "null"},
+              "update_deadline_ms": {"type": "null"},
+              "last_accepted_observation_generation": {"type": "null"},
+              "last_accepted_state_generation": {"type": "null"},
+              "pending_update": {"const": false},
+              "next_deadline": {
+                "properties": {
+                  "state": {"const": "not_applicable"},
+                  "not_before_monotonic_ns": {"type": "null"},
+                  "deadline_monotonic_ns": {"type": "null"}
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"mode": {"const": "caller_followed"}}},
+          "then": {
+            "properties": {
+              "update_interval_ms": {"type": "integer", "minimum": 16, "maximum": 10000},
+              "update_deadline_ms": {"type": "integer", "minimum": 16, "maximum": 60000},
+              "last_accepted_observation_generation": {"$ref": "#/$defs/generation"},
+              "last_accepted_state_generation": {"$ref": "#/$defs/generation"},
+              "next_deadline": {
+                "oneOf": [
+                  {
+                    "properties": {
+                      "state": {"enum": ["inactive", "stopped"]},
+                      "not_before_monotonic_ns": {"type": "null"},
+                      "deadline_monotonic_ns": {"type": "null"}
+                    }
+                  },
+                  {
+                    "properties": {
+                      "state": {"enum": ["armed", "expired"]},
+                      "not_before_monotonic_ns": {"$ref": "#/$defs/count"},
+                      "deadline_monotonic_ns": {"$ref": "#/$defs/count"}
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
     "request": {
       "type": "object",
       "required": [
         "schema_version", "request_id", "canonical_parameter_digest", "topology", "target",
-        "duration_ms", "frame_rate", "max_pixel_count", "max_queue_frames",
+        "geometry", "duration_ms", "frame_rate", "max_pixel_count", "max_queue_frames",
         "max_output_bytes", "tracks", "codec", "container"
       ],
       "properties": {
@@ -366,6 +507,7 @@
         "canonical_parameter_digest": {"$ref": "#/$defs/sha256"},
         "topology": {"$ref": "https://github.com/michaelblum/agent-os/shared/schemas/display-topology-v1.schema.json"},
         "target": {"$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/target"},
+        "geometry": {"$ref": "#/$defs/geometry_configuration"},
         "duration_ms": {"type": "integer", "minimum": 1, "maximum": 300000},
         "frame_rate": {"type": "integer", "minimum": 1, "maximum": 60},
         "max_pixel_count": {"type": "integer", "minimum": 4, "maximum": 33177600},
@@ -375,6 +517,12 @@
         "codec": {"const": "h264"},
         "container": {"const": "quicktime"}
       },
+      "allOf": [
+        {
+          "if": {"properties": {"geometry": {"properties": {"mode": {"const": "caller_followed"}}}}},
+          "then": {"properties": {"target": {"$ref": "#/$defs/region_target"}}}
+        }
+      ],
       "additionalProperties": false
     },
     "selector": {
@@ -404,11 +552,28 @@
       },
       "additionalProperties": false
     },
+    "follow_update_request": {
+      "type": "object",
+      "required": [
+        "request_id", "canonical_parameter_digest", "selector",
+        "expected_geometry_generation", "topology", "target", "binding"
+      ],
+      "properties": {
+        "request_id": {"$ref": "#/$defs/identifier"},
+        "canonical_parameter_digest": {"$ref": "#/$defs/sha256"},
+        "selector": {"$ref": "#/$defs/selector"},
+        "expected_geometry_generation": {"$ref": "#/$defs/generation"},
+        "topology": {"$ref": "https://github.com/michaelblum/agent-os/shared/schemas/display-topology-v1.schema.json"},
+        "target": {"$ref": "#/$defs/region_target"},
+        "binding": {"$ref": "#/$defs/follow_binding"}
+      },
+      "additionalProperties": false
+    },
     "admission_result": {
       "type": "object",
       "required": [
         "schema_version", "operation", "stream", "artifact", "daemon_generation",
-        "geometry_binding_digest", "tracks", "track_summary", "codec", "container"
+        "geometry", "tracks", "track_summary", "codec", "container"
       ],
       "properties": {
         "schema_version": {"const": "aos.screen-recording.admission-result.v1"},
@@ -416,7 +581,7 @@
         "stream": {"$ref": "#/$defs/stream_selector"},
         "artifact": {"$ref": "#/$defs/artifact_selector"},
         "daemon_generation": {"$ref": "#/$defs/generation"},
-        "geometry_binding_digest": {"$ref": "#/$defs/sha256"},
+        "geometry": {"$ref": "#/$defs/geometry_truth"},
         "tracks": {"$ref": "#/$defs/tracks"},
         "track_summary": {"$ref": "#/$defs/track_summary"},
         "codec": {"const": "h264"},
@@ -425,11 +590,21 @@
       "allOf": [{"$ref": "#/$defs/tracks_summary_binding"}],
       "additionalProperties": false
     },
+    "follow_update_result": {
+      "type": "object",
+      "required": ["schema_version", "operation", "geometry"],
+      "properties": {
+        "schema_version": {"const": "aos.screen-recording.follow-update-result.v1"},
+        "operation": {"$ref": "#/$defs/selector"},
+        "geometry": {"$ref": "#/$defs/geometry_truth"}
+      },
+      "additionalProperties": false
+    },
     "progress": {
       "type": "object",
       "required": [
         "schema_version", "operation", "frame_count", "byte_count", "elapsed_ms",
-        "dropped_frame_count", "tracks", "track_summary"
+        "dropped_frame_count", "tracks", "track_summary", "geometry"
       ],
       "properties": {
         "schema_version": {"const": "aos.screen-recording.progress.v1"},
@@ -439,7 +614,8 @@
         "elapsed_ms": {"$ref": "#/$defs/count"},
         "dropped_frame_count": {"const": 0},
         "tracks": {"$ref": "#/$defs/tracks"},
-        "track_summary": {"$ref": "#/$defs/track_summary"}
+        "track_summary": {"$ref": "#/$defs/track_summary"},
+        "geometry": {"$ref": "#/$defs/geometry_truth"}
       },
       "allOf": [{"$ref": "#/$defs/tracks_summary_binding"}],
       "additionalProperties": false
@@ -448,7 +624,7 @@
       "type": "object",
       "required": [
         "schema_version", "operation", "artifact", "outcome", "frame_count", "byte_count",
-        "duration_ms", "tracks", "track_summary", "codec", "container", "cleanup_result"
+        "duration_ms", "tracks", "track_summary", "geometry", "codec", "container", "cleanup_result"
       ],
       "properties": {
         "schema_version": {"const": "aos.screen-recording.result.v1"},
@@ -460,6 +636,7 @@
         "duration_ms": {"$ref": "#/$defs/count"},
         "tracks": {"$ref": "#/$defs/tracks"},
         "track_summary": {"$ref": "#/$defs/track_summary"},
+        "geometry": {"$ref": "#/$defs/geometry_truth"},
         "codec": {"const": "h264"},
         "container": {"const": "quicktime"},
         "cleanup_result": {"enum": ["zero_residuals", "residuals_present"]}

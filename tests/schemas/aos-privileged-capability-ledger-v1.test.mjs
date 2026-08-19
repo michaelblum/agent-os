@@ -4238,7 +4238,6 @@ const expectedCriticalMilestoneOwners = {
   "M3": {
     "screen_video": [
       "src/daemon/desktop-pixel-native.swift",
-      "src/daemon/desktop-pixel-stream-lifecycle.swift",
       "shared/schemas/aos-screen-recording-v1.schema.json",
       "src/daemon/screen-recording-operation-adapter.swift",
       "manifests/commands/source/aos/42-screen-recording.json",
@@ -4271,15 +4270,14 @@ const expectedCriticalMilestoneOwners = {
     ],
     "fixed_geometry": [
       "src/daemon/desktop-pixel-native.swift",
-      "src/daemon/desktop-pixel-stream-lifecycle.swift",
       "shared/schemas/aos-screen-recording-v1.schema.json",
       "src/daemon/screen-recording-geometry.swift"
     ],
     "caller_followed_geometry": [
       "src/daemon/desktop-pixel-native.swift",
-      "src/daemon/desktop-pixel-stream-lifecycle.swift",
       "shared/schemas/aos-screen-recording-v1.schema.json",
-      "src/daemon/screen-recording-geometry.swift"
+      "src/daemon/screen-recording-geometry.swift",
+      "src/daemon/screen-recording-follow-geometry.swift"
     ],
     "recording_artifact_custody": [
       "shared/schemas/aos-screen-recording-v1.schema.json",
@@ -7415,7 +7413,7 @@ export function validateMilestoneClosure(milestones) {
         kind === 'current' && expectedMaintainedApiPaths.includes(ownerPath)
       ));
       const maintainedApi = maintainedApiRefs.map(({ id }) => id);
-      const commandSourceKind = milestone.id === 'M2' ? 'current' : 'proposed';
+      const commandSourceKind = ['M2', 'M3'].includes(milestone.id) ? 'current' : 'proposed';
       const commandSources = milestone.path_refs.filter(({ path: ownerPath, kind }) => (
         kind === commandSourceKind && ownerPath.startsWith('manifests/commands/source/')
       ));
@@ -8962,8 +8960,9 @@ test('all tracked paths classify and named-family production/privilege scans are
   }
 });
 
-test('screen recording proof owns optional system audio and microphone, warm audio-off, custody, and public reachability', async () => {
-  const rows = byId(await json(ledgerRelativePath));
+test('screen recording proof owns followed geometry, optional audio tracks, custody, and public reachability', async () => {
+  const ledger = await json(ledgerRelativePath);
+  const rows = byId(ledger);
   const row = rows.get('screencapturekit-screen-video');
   const [pixelSource, adapter, encoder, microphoneSession] = await Promise.all([
     read('src/daemon/desktop-pixel-native.swift'),
@@ -8983,7 +8982,9 @@ test('screen recording proof owns optional system audio and microphone, warm aud
   assert.match(microphoneSession, /AVAudioEngine\(\)/u);
   assert.doesNotMatch(adapter, /SCRecordingOutput|captureMicrophone/u);
   assert.deepEqual(row.current.observation.roots, ['one canonical display-topology observation']);
-  assert.deepEqual(row.current.observation.targets, ['one fixed display, exact window, or global region wholly within one display']);
+  assert.deepEqual(row.current.observation.targets, [
+    'one fixed display, exact window, fixed region, or caller-followed region wholly within one display and its bound source window',
+  ]);
   assert.deepEqual(row.current.data_transport.transports, [
     'private in-process CMSampleBuffer delivery',
     'transient H.264 plus optional AAC-LC QuickTime artifact',
@@ -8991,6 +8992,24 @@ test('screen recording proof owns optional system audio and microphone, warm aud
   assert.equal(row.current.exposure.cli.state, 'complete');
   assert.equal(row.current.exposure.ipc.state, 'complete');
   assert.equal(row.current.control.artifacts.state, 'partial');
+  const fakeProof = row.current.proof.fake.find(({ path: proofPath }) => proofPath === 'tests/screen-recording-fake.test.mjs');
+  assert.match(fakeProof.claim, /production AOSOperationControlPlane cancel\/kill path/u);
+  assert.match(fakeProof.claim, /twelve exact public stop cases/u);
+  assert.match(fakeProof.claim, /immediately after first durable prepared publication but before provisional owner insertion/u);
+  assert.match(fakeProof.claim, /prepared-call blocking until the owner exists/u);
+  assert.match(fakeProof.claim, /zero runtime start handoffs, broker acquisitions, native starts, and native stops/u);
+  assert.match(fakeProof.claim, /blocked durable stop-save case proves bounded startup return/u);
+  assert.match(fakeProof.claim, /Consecutive preparation-and-cleanup save failure/u);
+  assert.match(fakeProof.claim, /waiting-public-stop\/preparation-failure crossing/u);
+  assert.match(fakeProof.claim, /post-admission stopped-geometry save failure/u);
+  assert.match(fakeProof.claim, /Injected durable save failures across every later stream, artifact, claim-set, claim, and starting transition/u);
+  assert.match(fakeProof.claim, /failed-admission no-effect/u);
+  const publicStopTransitions = ledger.flagship_workflow.transitions.filter(({ event }) => ['cancel', 'kill'].includes(event));
+  assert.equal(publicStopTransitions.length, 4);
+  for (const transition of publicStopTransitions) {
+    assert.match(transition.guard, /adapter lifecycle owner invokes one durable stop-admission transaction/u);
+    assert.match(transition.guard, /failed admission has no stop effect/u);
+  }
   assert.match(row.current.proof.limitations, /compiled production-owner seam harness/u);
   assert.match(row.current.proof.limitations, /AVAssetWriter and ScreenCaptureKit do not execute/u);
   assert.match(row.current.proof.limitations, /no live pixels, MOV acceptance, file custody effects, native permission\/TCC behavior, daemon restart, or crash acceptance/u);
@@ -9020,7 +9039,7 @@ test('design and proof routing state the normalized static boundary', async () =
   ]);
   assert.match(
     design,
-    /Milestone 2 executable control plane plus bounded M3A fixed video and\s+M3B optional system-audio.+unimplemented M3 remainder and M4-M10\s+sections remain target design merely because they are specified here/isu,
+    /Milestone 2 executable control plane plus bounded M3A fixed video, M3B\s+optional system audio, M3C-V2 optional microphone, and M3D-V1 caller-followed\s+region geometry candidate.+unimplemented M3 remainder and M4-M10\s+sections remain target design merely because they are specified here/isu,
   );
   assert.match(design, /TRANSITION_EVENT_DUPLICATE/u);
   assert.match(design, /exact transition tuple/u);
@@ -9140,6 +9159,6 @@ test('paired authority, executable M2 bindings, and the remaining M6 decision ar
   assert.equal(ledger.later_open_decisions[0].milestone, 'M6');
   assert.match(
     ledger.authority.publication_boundary,
-    /Milestone 2 publishes the executable operation plane and microphone adapter.+bounded M3A\/M3B\/M3C-V2 slices add one fixed display\/window\/region mandatory-H\.264-video producer with independently optional AAC-LC system-audio and microphone tracks/isu,
+    /Milestone 2 publishes the executable operation plane and microphone adapter.+bounded M3A\/M3B\/M3C-V2\/M3D-V3 slices add one fixed display\/window\/region or caller-followed-region mandatory-H\.264-video producer with independently optional AAC-LC system-audio and microphone tracks.+adapter-owned atomic public stop admission from the first durable prepared publication/isu,
   );
 });

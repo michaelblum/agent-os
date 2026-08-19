@@ -6,9 +6,11 @@ import test from 'node:test'
 const root = path.resolve(import.meta.dirname, '..')
 const read = (file) => readFile(path.join(root, file), 'utf8')
 
-test('recording producer pins exact caps, fixed targets, and independent optional AAC-LC tracks', async () => {
-  const [geometry, encoder, adapter, microphoneSession, microphoneAdapter] = await Promise.all([
+test('recording producer pins exact caps, bound geometry updates, and independent optional AAC-LC tracks', async () => {
+  const [geometry, follow, registry, encoder, adapter, microphoneSession, microphoneAdapter] = await Promise.all([
     read('src/daemon/screen-recording-geometry.swift'),
+    read('src/daemon/screen-recording-follow-geometry.swift'),
+    read('src/daemon/operation-registry.swift'),
     read('src/daemon/screen-recording-encoder.swift'),
     read('src/daemon/screen-recording-operation-adapter.swift'),
     read('src/daemon/microphone-native-session.swift'),
@@ -44,6 +46,11 @@ test('recording producer pins exact caps, fixed targets, and independent optiona
   assert.match(geometry, /let admittedTopology: AOSDisplayTopologySnapshot/u)
   assert.match(geometry, /canonicalTopologyData\(observedTopology\)[\s\S]*canonicalTopologyData\(geometry\.admittedTopology\)/u)
   assert.match(adapter, /recordingTargetDrift/u)
+  assert.match(follow, /expectedGeometryGeneration/u)
+  assert.match(registry, /reserveScreenRecordingFollowUpdate/u)
+  assert.match(registry, /commitScreenRecordingFollowUpdate/u)
+  assert.match(follow, /recordingFollowTimeout/u)
+  assert.match(adapter, /stream\.updateConfiguration/u)
   assert.match(adapter, /aosStartDesktopPixelStreams/u)
   const startupDeadline = adapter.indexOf('let deadline = startedAt.addingReportingOverflow')
   const nativeStartup = adapter.indexOf('try await aosStartDesktopPixelStreams')
@@ -103,14 +110,43 @@ test('durability and custody ordering is producer-backed and retain is specifica
   const stream = adapter.indexOf('registry.prepareStream(')
   const artifact = adapter.indexOf('registry.prepareArtifact(')
   const native = adapter.indexOf('broker.acquireExclusiveProducer(')
+  const startOffset = adapter.indexOf('func start(\n        request:')
+  const start = adapter.slice(
+    startOffset,
+    adapter.indexOf('func updateFollowGeometry(', startOffset),
+  )
+  const lifecycleLock = start.indexOf('lock.lock()')
+  const lifecyclePrepare = start.indexOf('(claimAdmission, pendingRuntime) = try prepare(')
+  const lifecycleUnlock = start.indexOf('lock.unlock()', lifecyclePrepare)
+  const stopHandoff = start.indexOf('guard waitForStopAdmissions(')
+  const runtimeHandoff = start.indexOf('pendingRuntime.publishStarting')
   assert.ok(initialSummary >= 0 && initialSummary < initialProgress && initialProgress < operation)
   assert.ok(operation >= 0 && stream > operation && artifact > stream)
   assert.ok(native > artifact)
+  assert.ok(lifecycleLock >= 0 && lifecycleLock < lifecyclePrepare)
+  assert.ok(lifecyclePrepare < lifecycleUnlock)
+  assert.ok(lifecycleUnlock < stopHandoff && stopHandoff < runtimeHandoff)
   const preparation = adapter.slice(adapter.indexOf('private func prepare('), adapter.indexOf('private func releaseClaims('))
+  const publicationBarrier = preparation.indexOf('preparedPublicationObserver(operation.identity)')
+  const pendingOwner = preparation.indexOf('runtimes[operation.identity] = pendingRuntime')
+  const firstChild = preparation.indexOf('registry.prepareStream(')
   assert.match(preparation, /requestedBounds: request\.requestedBounds,\s*initialProgress: initialProgress/u)
+  assert.ok(publicationBarrier >= 0
+    && publicationBarrier < pendingOwner
+    && pendingOwner < firstChild)
+  assert.match(preparation, /terminalizeBeforeAuthorityWithBoundedRetry/u)
   assert.doesNotMatch(preparation, /updateOperationProgress/u)
+  const pendingSettlement = adapter.slice(
+    adapter.indexOf('fileprivate func pendingRuntimeDidStop('),
+    adapter.indexOf('fileprivate func runtimeDidFinish('),
+  )
+  assert.doesNotMatch(pendingSettlement, /try\?/u)
+  assert.match(adapter, /private func terminalizeBeforeAuthorityWithBoundedRetry\(/u)
+  assert.match(adapter, /where error == \.storeUnavailable/u)
   assert.match(registry, /initialProgress: AOSOperationProgress\? = nil/u)
   assert.match(registry, /progress: initialProgress \?\? requestedBounds\.map/u)
+  assert.match(registry, /func terminalizeScreenRecordingBeforeAuthority\(/u)
+  assert.match(registry, /geometry\.deadlineState = \.stopped[\s\S]*state\.operations\[operationIndex\]\.state = \.terminal/u)
   assert.match(state, /enum AOSOperationPublicProjection/u)
   assert.match(state, /static func snapshot\(/u)
   assert.match(state, /static func list\(/u)
@@ -142,9 +178,14 @@ test('authored and generated help expose one native record route and exact custo
   ])
   const form = authored.commands[0].forms[0]
   assert.equal(form.id, 'record-screen')
-  for (const cap of ['300000', '60', '33177600', '8', '1073741824']) assert.match(form.usage, new RegExp(cap))
+  for (const cap of ['300000', '60', '33177600', '8', '1073741824']) {
+    assert.match(JSON.stringify(form), new RegExp(cap))
+  }
   assert.deepEqual(external.commands[0].argv_prefix, ['__record'])
   assert.equal(generated.commands.filter((command) => command.path.join(' ') === 'record').length, 1)
+  assert.equal(authored.commands[0].forms.length, 2)
+  assert.equal(authored.commands[0].forms[1].id, 'record-screen-follow-update')
+  assert.match(authored.commands[0].forms[1].usage, /--expected-geometry-generation/u)
   const artifacts = operation.commands[0].forms.filter((candidate) => candidate.id.includes('artifact'))
   assert.equal(artifacts.length, 4)
   for (const candidate of artifacts) assert.match(candidate.usage, /<artifact-id> --generation <n>/u)

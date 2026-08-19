@@ -13,14 +13,55 @@ const sources = [
   'operation-resource-transaction.swift', 'operation-resource-claim.swift',
   'operation-resource-broker.swift', 'operation-control.swift',
   'operation-recovery.swift', 'microphone-operation-adapter.swift',
+  'public-capture-transfer.swift',
+  'screen-recording-geometry.swift', 'screen-recording-follow-geometry.swift',
 ].map((name) => path.join(daemonRoot, name))
+
+const geometrySupportSource = String.raw`
+import CoreGraphics
+import Foundation
+struct AOSDisplayTopologyBounds: Codable, Equatable {
+    let x: Double; let y: Double; let width: Double; let height: Double
+}
+struct AOSDisplayTopologyPoint: Codable, Equatable { let x: Double; let y: Double }
+enum AOSDisplayTopologyMemberIdentity: Codable, Equatable { case displayIDFallback(UInt32) }
+struct AOSDisplayTopologyDisplay: Codable, Equatable {
+    let runtimeDisplayID: UInt32; let ordinal: Int; let isMain: Bool
+    let memberIdentity: AOSDisplayTopologyMemberIdentity
+    let nativeBounds: AOSDisplayTopologyBounds; let nativeVisibleBounds: AOSDisplayTopologyBounds
+    let desktopWorldBounds: AOSDisplayTopologyBounds
+    let visibleDesktopWorldBounds: AOSDisplayTopologyBounds
+    let scaleFactor: Double; let rotation: Double
+}
+struct AOSDisplayTopologySnapshot: Codable, Equatable {
+    let identity: String; let usesDisplayIDFallback: Bool; let screensHaveSeparateSpaces: Bool
+    let desktopWorldOriginNative: AOSDisplayTopologyPoint
+    let nativeBounds: AOSDisplayTopologyBounds; let nativeVisibleBounds: AOSDisplayTopologyBounds
+    let desktopWorldBounds: AOSDisplayTopologyBounds
+    let visibleDesktopWorldBounds: AOSDisplayTopologyBounds
+    let displays: [AOSDisplayTopologyDisplay]
+}
+func aosDisplayTopologyWireValue(_ value: AOSDisplayTopologySnapshot) throws -> [String: Any] {
+    ["identity": value.identity]
+}
+func validateAOSDisplayTopologyWireValue(_ value: Any) throws -> AOSDisplayTopologySnapshot {
+    guard let value = value as? AOSDisplayTopologySnapshot else {
+        throw AOSOperationCoreError.invalidRecord("topology")
+    }
+    return value
+}
+struct CaptureApplicationFact { let processID: Int32 }
+struct CaptureWindowFact {
+    let frame: CGRect; let owningApplication: CaptureApplicationFact?; let windowID: Int
+}
+`
 
 async function compileAndRunHarness(source) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'aos-operation-barrier-reconciliation-'))
   const main = path.join(root, 'main.swift')
   const executable = path.join(root, 'operation-barrier-reconciliation-proof')
   try {
-    await writeFile(main, source)
+    await writeFile(main, `${geometrySupportSource}\n${source}`)
     execFileSync('swiftc', [
       '-warnings-as-errors', '-module-cache-path', path.join(root, 'module-cache'),
       ...sources, main, '-o', executable,
@@ -186,11 +227,13 @@ final class PreparedRaceAdapter: AOSOperationControlAdapter {
         self.registry = registry
     }
 
-    func requestStop(operation: AOSOperationIdentity, force: Bool) -> AOSAdapterStopResult {
-        let before = try! registry.inspect(operation)
+    func admitStop(
+        operation: AOSOperationIdentity,
+        admission: AOSOperationStopAdmissionTransaction
+    ) throws -> AOSAdapterStopResult {
+        let before = try admission.commit().operation
         precondition(before.state == .prepared && before.stopIntent != nil)
         if before.stopIntent == .hostStop {
-            precondition(force)
             do {
                 _ = try registry.transitionOperation(operation, to: .starting)
                 preconditionFailure("prepared start crossed a closed host barrier")
@@ -218,8 +261,12 @@ final class AbsentAdapter: AOSOperationControlAdapter {
         self.registration = registration
     }
 
-    func requestStop(operation: AOSOperationIdentity, force: Bool) -> AOSAdapterStopResult {
-        AOSAdapterStopResult(disposition: .absent, residualDigest: nil)
+    func admitStop(
+        operation: AOSOperationIdentity,
+        admission: AOSOperationStopAdmissionTransaction
+    ) throws -> AOSAdapterStopResult {
+        _ = try admission.commit()
+        return AOSAdapterStopResult(disposition: .absent, residualDigest: nil)
     }
 
     func residualDigest(operation: AOSOperationIdentity) -> String? { nil }

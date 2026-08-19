@@ -14,6 +14,11 @@ import {
 const repoRoot = path.resolve(import.meta.dirname, '..')
 const daemonRoot = path.join(repoRoot, 'src/daemon')
 const sources = [
+  path.join(repoRoot, 'src/perceive/display-topology.swift'),
+  path.join(daemonRoot, 'public-capture-transfer.swift'),
+  path.join(daemonRoot, 'screen-recording-geometry.swift'),
+  path.join(daemonRoot, 'screen-recording-follow-geometry.swift'),
+  ...[
   'operation-owner-root.swift',
   'operation-spawn-record.swift',
   'operation-state.swift',
@@ -26,18 +31,32 @@ const sources = [
   'operation-recovery.swift',
   'operation-status-item-projection.swift',
   'operation-canvas-projection.swift',
-].map((name) => path.join(daemonRoot, name))
+  ].map((name) => path.join(daemonRoot, name)),
+]
 
 async function compileAndRunHarness(source) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'aos-operation-projections-'))
+  const support = path.join(root, 'Support.swift')
   const main = path.join(root, 'main.swift')
   const executable = path.join(root, 'operation-projections')
   try {
-    await writeFile(main, source)
+    await Promise.all([
+      writeFile(support, String.raw`
+import CoreGraphics
+import Foundation
+struct CaptureApplicationFact { let applicationName: String; let processID: pid_t }
+struct CaptureWindowFact {
+  let frame: CGRect; let owningApplication: CaptureApplicationFact?
+  let title: String?; let windowID: Int; let windowLayer: Int
+}
+`),
+      writeFile(main, source),
+    ])
     execFileSync('swiftc', [
       '-warnings-as-errors',
       '-module-cache-path', path.join(root, 'module-cache'),
       ...sources,
+      support,
       main,
       '-o', executable,
     ], { cwd: repoRoot, stdio: 'pipe' })
@@ -54,8 +73,12 @@ import Foundation
 final class FakeAdapter: AOSOperationControlAdapter {
     let registration: AOSOperationAdapterRegistration
     init(_ registration: AOSOperationAdapterRegistration) { self.registration = registration }
-    func requestStop(operation: AOSOperationIdentity, force: Bool) -> AOSAdapterStopResult {
-        AOSAdapterStopResult(disposition: .absent, residualDigest: nil)
+    func admitStop(
+        operation: AOSOperationIdentity,
+        admission: AOSOperationStopAdmissionTransaction
+    ) throws -> AOSAdapterStopResult {
+        _ = try admission.commit()
+        return AOSAdapterStopResult(disposition: .absent, residualDigest: nil)
     }
     func residualDigest(operation: AOSOperationIdentity) -> String? { nil }
 }
@@ -372,12 +395,40 @@ let ownerB = AOSMechanicalOwnerRoot(
     pidGeneration: 4,
     executableIdentityDigest: String(repeating: "d", count: 64)
 )
+let geometryBounds = AOSDisplayTopologyBounds(x: 0, y: 0, width: 100, height: 80)
+let geometryTopology = try buildAOSDisplayTopologySnapshot(
+    observation: [AOSDisplayTopologyObservationMember(
+        runtimeDisplayID: 1, displayUUID: nil, label: "", isMain: true,
+        isMirrored: false, nativeBounds: geometryBounds,
+        nativeVisibleBounds: geometryBounds, scaleFactor: 2, rotation: 0
+    )],
+    screensHaveSeparateSpaces: true
+)
+let fixedGeometry = AOSScreenRecordingGeometry(
+    mode: .fixed,
+    geometryGeneration: 1,
+    admittedTopology: geometryTopology,
+    target: AOSScreenRecordingTarget(
+        kind: .display, displayOrdinal: 1,
+        displayMemberIdentity: geometryTopology.displays[0].memberIdentity,
+        windowID: nil, ownerPID: nil, globalBounds: nil
+    ),
+    sourceRect: geometryBounds,
+    pixelWidth: 200,
+    pixelHeight: 160,
+    pixelCount: 32_000,
+    bindingDigest: String(repeating: "f", count: 64),
+    followBinding: nil,
+    updateIntervalMilliseconds: nil,
+    updateDeadlineMilliseconds: nil
+)
 let recording = try registry.prepareOperation(
     ownerRoot: ownerA,
     attribution: AOSOperationAttribution(taskID: "asserted-task-a"),
     capabilityID: "recording-capability",
     adapterRegistrationID: recordingRegistration.id,
-    adapterRegistrationRevision: recordingRegistration.revision
+    adapterRegistrationRevision: recordingRegistration.revision,
+    screenRecordingGeometry: .initial(fixedGeometry)
 )
 _ = try registry.transitionOperation(recording.identity, to: .starting)
 _ = try registry.transitionOperation(recording.identity, to: .active)
@@ -520,6 +571,11 @@ precondition(ordinaryOperations.count == 1)
 precondition(ordinaryOperations[0]["operation_id"] as? String == recording.identity.id)
 precondition(ordinaryOperations[0]["capability_label"] as? String == "")
 precondition(ordinaryOperations[0]["status_indicator_class"] as? String == "recording")
+let publicRecording = AOSOperationPublicProjection.snapshot(recording, state: canvasState)
+let projectedGeometry = publicRecording["geometry"] as! [String: Any]
+precondition(projectedGeometry["mode"] as? String == "fixed")
+precondition(projectedGeometry["geometry_generation"] as? UInt64 == 1)
+precondition(projectedGeometry["pending_update"] as? Bool == false)
 let resourceClaims = ordinaryOperations[0]["resource_claims"] as! [[String: Any]]
 precondition(resourceClaims.count == 1)
 precondition(resourceClaims[0]["claim_id"] as? String == "claim-microphone")

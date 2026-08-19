@@ -31,6 +31,23 @@
             "properties": {
               "data": {
                 "required": ["schema_version"],
+                "properties": { "schema_version": { "const": "aos.screen-recording.follow-update-result.v1" } }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/follow_update_result"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "data": {
+                "required": ["schema_version"],
                 "properties": { "schema_version": { "const": "aos.artifact.custody-result.v1" } }
               }
             }
@@ -291,7 +308,30 @@
             "OPERATION_RECOVERY_CLAIM_STALE",
             "OPERATION_TAP_UNAVAILABLE",
             "OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE",
-            "OPERATION_ARTIFACT_RETAIN_UNAVAILABLE"
+            "OPERATION_ARTIFACT_RETAIN_UNAVAILABLE",
+            "OPERATION_ARTIFACT_IDENTITY_MISMATCH",
+            "OPERATION_ARTIFACT_DESTINATION_EXISTS",
+            "SCREEN_RECORDING_BOUNDS_EXCEEDED",
+            "SCREEN_RECORDING_TARGET_DRIFT",
+            "SCREEN_RECORDING_FOLLOW_TIMEOUT",
+            "SCREEN_RECORDING_FOLLOW_UPDATE_FAILED",
+            "SCREEN_RECORDING_STARTUP_DEADLINE_EXCEEDED",
+            "SCREEN_RECORDING_NO_VIDEO_FRAMES",
+            "SCREEN_RECORDING_SYSTEM_AUDIO_UNAVAILABLE",
+            "SCREEN_RECORDING_SYSTEM_AUDIO_NO_SAMPLES",
+            "SCREEN_RECORDING_SYSTEM_AUDIO_FAILED",
+            "MICROPHONE_PERMISSION_NOT_DETERMINED",
+            "MICROPHONE_PERMISSION_RESTRICTED",
+            "MICROPHONE_PERMISSION_DENIED",
+            "MICROPHONE_PERMISSION_UNKNOWN",
+            "SCREEN_RECORDING_MICROPHONE_UNAVAILABLE",
+            "SCREEN_RECORDING_MICROPHONE_NO_SAMPLES",
+            "SCREEN_RECORDING_MICROPHONE_FAILED",
+            "SCREEN_RECORDING_TIMESTAMP_NON_MONOTONIC",
+            "SCREEN_RECORDING_BACKPRESSURE_EXCEEDED",
+            "SCREEN_RECORDING_ARTIFACT_MISSING",
+            "SCREEN_RECORDING_ENCODER_FAILED",
+            "SCREEN_RECORDING_CLEANUP_REQUIRED"
           ]
         },
         "ref": { "type": "string" }

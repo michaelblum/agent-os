@@ -281,6 +281,17 @@
       },
       "additionalProperties": false
     },
+    "geometry_detail": {
+      "type": "object",
+      "required": ["kind", "geometry"],
+      "properties": {
+        "kind": {"const": "screen_recording_geometry"},
+        "geometry": {
+          "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/geometry_truth"
+        }
+      },
+      "additionalProperties": false
+    },
     "event_detail": {
       "oneOf": [
         {"$ref": "#/$defs/lifecycle_detail"},
@@ -290,7 +301,8 @@
         {"$ref": "#/$defs/tap_detail"},
         {"$ref": "#/$defs/artifact_detail"},
         {"$ref": "#/$defs/recovery_detail"},
-        {"$ref": "#/$defs/barrier_detail"}
+        {"$ref": "#/$defs/barrier_detail"},
+        {"$ref": "#/$defs/geometry_detail"}
       ]
     },
     "operation_event": {
