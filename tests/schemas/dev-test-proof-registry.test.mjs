@@ -129,6 +129,7 @@ test('screen recording integration claims have one canonical owner', () => {
   assert.match(focused.contract, /distinct M3E entry owns complete landed-system integration claims/u);
   assert.equal(integrated.command, 'bash tests/m3-screen-recording-integrated.sh');
   assert.match(integrated.contract, /actual rev-2 operation registry, store, recovery, control/u);
+  assert.match(integrated.contract, /production snapshot\/list\/inspect and control-result projectors/u);
   assert.match(integrated.contract, /custody CAS\/recovery/u);
   assert.match(integrated.guard, /No repo binary, live service, native capture API authority/u);
 });

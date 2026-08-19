@@ -1007,34 +1007,6 @@ func daemonRequest(_ action: String, data: [String: Any]) -> [String: Any] {
     ["v": 1, "service": "operation", "action": action, "data": data, "ref": "m3e"]
 }
 
-func controlProjection(
-    _ receipt: AOSOperationControlReceipt,
-    environment: Environment
-) -> [String: Any] {
-    let current = receipt.selectedOperations.compactMap {
-        try? environment.registry.inspect($0)
-    }
-    let cleanupRequired = current.contains {
-        [.cleanupRequired, .recovering].contains($0.state)
-    }
-    return [
-        "schema_version": "aos.operation.control-result.v1",
-        "operation": receipt.action.rawValue,
-        "outcome": receipt.selectedOperations.isEmpty
-            ? "empty_selection" : (cleanupRequired ? "cleanup_required" : "accepted"),
-        "selected_operation_count": receipt.selectedOperationCount,
-        "selected_operation_digest": receipt.selectedOperationDigest,
-        "results": current.map {
-            ["operation_id": $0.identity.id,
-             "operation_generation": $0.identity.generation,
-             "resulting_state": $0.state.rawValue,
-             "cleanup_result": [.cleanupRequired, .recovering].contains($0.state)
-                ? "residuals_present" : ($0.state == .terminal ? "zero_residuals" : "pending")]
-        },
-        "completed_at": "2026-08-19T00:00:00.000Z",
-    ]
-}
-
 func codableValue<T: Encodable>(_ value: T) -> [String: Any] {
     let data = try! JSONEncoder().encode(value)
     return try! JSONSerialization.jsonObject(with: data) as! [String: Any]
@@ -1164,7 +1136,14 @@ struct IntegratedHarness {
         environment: Environment
     ) {
         let values = projection(operation(admission, environment), state: environment.registry.snapshot())
-        let control = controlProjection(receipt, environment: environment)
+        let control = AOSOperationPublicProjection.control(
+            action: receipt.action.rawValue,
+            selectedOperations: receipt.selectedOperations,
+            selectedOperationCount: receipt.selectedOperationCount,
+            selectedOperationDigest: receipt.selectedOperationDigest,
+            completedAt: "2026-08-19T00:00:00.000Z",
+            inspect: { try? environment.registry.inspect($0) }
+        )
         append("lists", values.0)
         append("inspects", values.1)
         append("controls", control)
@@ -1402,7 +1381,14 @@ struct IntegratedHarness {
                 )
                 && !active.broker.retainsAuthority,
                 "active stop left geometry, children, or authority")
-            let projectedControl = controlProjection(receipt, environment: active)
+            let projectedControl = AOSOperationPublicProjection.control(
+                action: receipt.action.rawValue,
+                selectedOperations: receipt.selectedOperations,
+                selectedOperationCount: receipt.selectedOperationCount,
+                selectedOperationDigest: receipt.selectedOperationDigest,
+                completedAt: "2026-08-19T00:00:00.000Z",
+                inspect: { try? active.registry.inspect($0) }
+            )
             append("controls", projectedControl)
             append("responses", responseEnvelope(projectedControl))
             append("requests", daemonRequest(action.rawValue, data: [
@@ -2280,7 +2266,6 @@ test('integrated proof source closure remains production-owned and offline', asy
     assert.match(self, new RegExp(path.basename(source).replaceAll('.', '\\.')), source)
   }
   assert.match(unified, /AOSAdapterRegistrySnapshot\.make\(\s*revision: 2/su)
-  assert.match(unified, /private func operationControlResult\([\s\S]*?aos\.operation\.control-result\.v1[\s\S]*?selected_operation_digest[\s\S]*?cleanup_result/u)
   assert.doesNotMatch(self, /^struct AOSDisplayTopology(?:Bounds|Point|Display|Snapshot)/mu)
   assert.doesNotMatch(self, /^func (?:aosDisplayTopologyWireValue|validateAOSDisplayTopologyWireValue)/mu)
   assert.doesNotMatch(self, /execFileSync\([^\n]*\.\/aos|spawnSync\([^\n]*\.\/aos/u)

@@ -282,6 +282,10 @@ tests.
   cancellation and closes delayed prior-generation external-child residuals,
   independent current-generation external-spawn polling/settlement retry, and
   terminal cancel/kill repeat immutability without invoking `./aos` or a daemon.
+- The canonical M3 integrated proof compiles `operation-state.swift` and calls
+  its production `AOSOperationPublicProjection.control` owner directly for
+  cancel, kill, and kill-owner results. A copied test projector or source-text
+  regex is not production execution evidence.
 - DesktopWorld gesture and scene-follow tests must use deterministic clocks,
   fake input-region bridges, disposable sockets, and schema fixtures. Static
   scene contract work must not execute the repo AOS binary or require TCC.

@@ -248,10 +248,11 @@ to the generic `prepareOperation` transaction, so operation identity, requested
 bounds, and selected-track truth become durable in one save before any stream,
 artifact, claim, broker, native, writer, or file authority. Later preparation
 never backfills that initial truth, and cleanup plus boot recovery preserve it.
-`operation-state.swift` owns the exact public snapshot, list, and inspect
-projection, including progress and terminal truth; `UnifiedDaemon` delegates
-those complete responses to it so the production-attached fake harness executes
-the same projection without starting a daemon or synthesizing wire metadata.
+`operation-state.swift` owns the exact public snapshot, list, inspect, and
+cancel/kill/kill-owner control-result projection, including progress, terminal,
+and cleanup truth; `UnifiedDaemon` delegates those complete responses to it so
+the production-attached fake harness executes the same projectors without
+starting a daemon or synthesizing wire metadata.
 The recording admission owns one request-derived public projection for all four
 track selections, and `UnifiedDaemon` delegates the response to that projection.
 Success also requires artifact presence, while failure requires a typed terminal

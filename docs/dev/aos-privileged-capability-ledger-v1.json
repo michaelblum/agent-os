@@ -17107,7 +17107,7 @@
             },
             "execution_class": "fake",
             "requires_owner_authority": false,
-            "claim": "Canonical production-attached offline integration of the rev-2 registry with production file-store readback, production topology wire decoding/projection, recovery/control, recording geometry, adapter, multitrack writer, custody, shared microphone, exact pre-authority track settlement, mandatory-video precedence, fixed/follow drift/deadline behavior, successful and failed public schemas, authored/generated manifests, and terminal-clean or retained-residual compound persistence faults."
+            "claim": "Canonical production-attached offline integration of the rev-2 registry with production file-store readback, production topology wire decoding/projection, recovery/control, the production snapshot/list/inspect and control-result projectors, recording geometry, adapter, multitrack writer, custody, shared microphone, exact pre-authority track settlement, mandatory-video precedence, fixed/follow drift/deadline behavior, successful and failed public schemas, authored/generated manifests, and terminal-clean or retained-residual compound persistence faults."
           },
           {
             "path_ref": {

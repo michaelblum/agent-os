@@ -128,7 +128,8 @@ bash tests/m3-screen-recording-integrated.sh
 The integrated route compiles and executes the production registry, file-store
 readback, topology wire, recovery and control planes, fixed/followed screen adapter,
 multitrack coordinator, artifact custody, shared microphone adapter/session, and
-public projectors against injected non-native dependencies. It proves all eight
+production snapshot/list/inspect and control-result projectors against injected
+non-native dependencies. It proves all eight
 geometry/track selections, exact pre-authority cardinality and settlement,
 mandatory-video precedence, fixed-mode rejection, immutable drift, deadline re-arm,
 control races, recovery, terminal-clean or retained-residual persistence faults,
