@@ -177,9 +177,14 @@ configuration success; invalid/stale updates do not reset the deadline, and
 immutable drift, timeout, native failure, or unresolved recovery stop through
 normal cleanup without reacquisition. Treat loss of accepted source containment
 during production frame validation as immutable target drift; an off-source
-proposed update remains a nonterminal invalid update. Linearize coordinator
-installation/activation with stop admission so cancel or kill cancels the timer,
-persists stopped geometry, and retains the first stop outcome. Every durable
+proposed update remains a nonterminal invalid update. Public cancel/kill supplies
+one durable stop-admission transaction to the adapter; the adapter invokes it
+under its lifecycle owner, and the screen runtime invokes it under the same lock
+as coordinator installation, activation, and startup settlement. The first exact
+intent/outcome is immutable and same-action replayable, a different later action
+is rejected, failed durable admission has no native effect, and admitted stop
+cancels the timer and persists stopped geometry before terminal-clean
+publication. Every durable
 geometry change advances its durable operation-event sequence and emits exact
 geometry through the adapter-owned operation event sink wired to the daemon
 broadcaster. System audio uses the same SCStream; microphone uses the shared

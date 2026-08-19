@@ -8961,7 +8961,8 @@ test('all tracked paths classify and named-family production/privilege scans are
 });
 
 test('screen recording proof owns followed geometry, optional audio tracks, custody, and public reachability', async () => {
-  const rows = byId(await json(ledgerRelativePath));
+  const ledger = await json(ledgerRelativePath);
+  const rows = byId(ledger);
   const row = rows.get('screencapturekit-screen-video');
   const [pixelSource, adapter, encoder, microphoneSession] = await Promise.all([
     read('src/daemon/desktop-pixel-native.swift'),
@@ -8991,6 +8992,16 @@ test('screen recording proof owns followed geometry, optional audio tracks, cust
   assert.equal(row.current.exposure.cli.state, 'complete');
   assert.equal(row.current.exposure.ipc.state, 'complete');
   assert.equal(row.current.control.artifacts.state, 'partial');
+  const fakeProof = row.current.proof.fake.find(({ path: proofPath }) => proofPath === 'tests/screen-recording-fake.test.mjs');
+  assert.match(fakeProof.claim, /production AOSOperationControlPlane cancel\/kill path/u);
+  assert.match(fakeProof.claim, /eight exact public stop cases/u);
+  assert.match(fakeProof.claim, /failed-admission no-effect/u);
+  const publicStopTransitions = ledger.flagship_workflow.transitions.filter(({ event }) => ['cancel', 'kill'].includes(event));
+  assert.equal(publicStopTransitions.length, 4);
+  for (const transition of publicStopTransitions) {
+    assert.match(transition.guard, /adapter lifecycle owner invokes one durable stop-admission transaction/u);
+    assert.match(transition.guard, /failed admission has no stop effect/u);
+  }
   assert.match(row.current.proof.limitations, /compiled production-owner seam harness/u);
   assert.match(row.current.proof.limitations, /AVAssetWriter and ScreenCaptureKit do not execute/u);
   assert.match(row.current.proof.limitations, /no live pixels, MOV acceptance, file custody effects, native permission\/TCC behavior, daemon restart, or crash acceptance/u);
@@ -9140,6 +9151,6 @@ test('paired authority, executable M2 bindings, and the remaining M6 decision ar
   assert.equal(ledger.later_open_decisions[0].milestone, 'M6');
   assert.match(
     ledger.authority.publication_boundary,
-    /Milestone 2 publishes the executable operation plane and microphone adapter.+bounded M3A\/M3B\/M3C-V2\/M3D-V1 slices add one fixed display\/window\/region or caller-followed-region mandatory-H\.264-video producer with independently optional AAC-LC system-audio and microphone tracks/isu,
+    /Milestone 2 publishes the executable operation plane and microphone adapter.+bounded M3A\/M3B\/M3C-V2\/M3D-V2 slices add one fixed display\/window\/region or caller-followed-region mandatory-H\.264-video producer with independently optional AAC-LC system-audio and microphone tracks.+adapter-owned atomic public stop admission/isu,
   );
 });

@@ -22,7 +22,7 @@
       "publication_state": "landed",
       "revision": "227382c1bcbdab56f551a85a69b0609eebbdfa0c"
     },
-    "publication_boundary": "Milestone 2 publishes the executable operation plane and microphone adapter. The bounded M3A/M3B/M3C-V2/M3D-V1 slices add one fixed display/window/region or caller-followed-region mandatory-H.264-video producer with independently optional AAC-LC system-audio and microphone tracks, producer-backed reveal/remove/release custody, generation-CAS native crop updates, pending-intent recovery, and exact public geometry truth at adapter-registry revision 2. Public SDK roots, full M3 completion, and native live/TCC acceptance remain separately unclaimed."
+    "publication_boundary": "Milestone 2 publishes the executable operation plane and microphone adapter. The bounded M3A/M3B/M3C-V2/M3D-V2 slices add one fixed display/window/region or caller-followed-region mandatory-H.264-video producer with independently optional AAC-LC system-audio and microphone tracks, producer-backed reveal/remove/release custody, generation-CAS native crop updates, pending-intent recovery, exact public geometry truth, and adapter-owned atomic public stop admission at adapter-registry revision 2. Public SDK roots, full M3 completion, and native live/TCC acceptance remain separately unclaimed."
   },
   "coverage": {
     "row_count": 32,
@@ -4505,7 +4505,7 @@
           "fake": [
             {
               "path": "tests/screen-recording-fake.test.mjs",
-              "claim": "Compiles and executes the production recording adapter, request-derived admission and exact public snapshot/list/inspect projectors used by UnifiedDaemon, generic registry/in-memory durable store/recovery, lifecycle, sample admission, three-track coordinator, terminal truth, custody coordinator, and caller-followed geometry coordinator with fake topology/window/clock/native-crop/media/file/broker dependencies. It schema-validates all four fixed and caller-followed selection admissions, the captured production operation event and daemon envelope, proves linearized cancel/kill activation interleavings, accepted-source production-frame drift, one generation-CAS native-update winner, and exact invalid/stale/drift/deadline/native-failure/pending-recovery truth, and preserves the existing common-epoch, per-track failure/backpressure, shared microphone claim, aggregate retirement, artifact custody, durable fault, and closed-input matrix without synthesized wire metadata.",
+              "claim": "Compiles and executes the production AOSOperationControlPlane cancel/kill path, recording adapter/runtime, request-derived admission and exact public snapshot/list/inspect projectors used by UnifiedDaemon, generic registry/in-memory durable store/recovery, lifecycle, sample admission, three-track coordinator, terminal truth, custody coordinator, and caller-followed geometry coordinator with fake topology/window/clock/native-crop/media/file/broker dependencies. It schema-validates all four fixed and caller-followed selection admissions and the captured production operation event and daemon envelope; proves eight exact public stop cases before follow installation, while activation owns the runtime lock, immediately after timer arm, and in both first-writer races, including same-action replay, different-action rejection, failed-admission no-effect, immutable outcome/geometry, one native stop, and cleanup; proves accepted-source production-frame drift, one generation-CAS native-update winner, and exact invalid/stale/drift/deadline/native-failure/pending-recovery truth; and preserves the existing common-epoch, per-track failure/backpressure, shared microphone claim, aggregate retirement, artifact custody, durable fault, and closed-input matrix without synthesized wire metadata.",
               "execution_class": "fake",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -16936,7 +16936,7 @@
               "path": "manifests/commands/source/external/50-screen-recording.json",
               "kind": "current"
             },
-            "responsibility": "Own the reviewed external route paired atomically with the M3A/M3B/M3C-V2/M3D-V1 authored recording command source."
+            "responsibility": "Own the reviewed external route paired atomically with the M3A/M3B/M3C-V2/M3D-V2 authored recording command source."
           }
         ]
       }
@@ -17098,7 +17098,7 @@
             },
             "execution_class": "fake",
             "requires_owner_authority": false,
-            "claim": "Execute the production adapter, generic registry/store/recovery, exact public snapshot/list/inspect projector, production frame validator, lifecycle, three-track and custody owners, and caller-followed coordinator/native-update/operation-event seams with injected topology, windows, monotonic clock, native crop, media, file, shared microphone, broker, and custody dependencies. Preserve all four selections in fixed and followed-region admission; prove linearized cancel/kill activation interleavings, captured schema-valid production operation-event and daemon envelopes, one generation-CAS winner, no-effect invalid/stale/duplicate updates, every immutable source discontinuity, exact deadline, native failure, unresolved pending recovery, cleanup convergence, and schema-bound admission/progress/terminal geometry truth alongside the existing multitrack, resource, lifecycle, and artifact matrix."
+            "claim": "Execute the production AOSOperationControlPlane cancel/kill path, adapter/runtime, generic registry/store/recovery, exact public snapshot/list/inspect projector, production frame validator, lifecycle, three-track and custody owners, and caller-followed coordinator/native-update/operation-event seams with injected topology, windows, monotonic clock, native crop, media, file, shared microphone, broker, and custody dependencies. Preserve all four selections in fixed and followed-region admission; prove eight exact public stop cases before follow installation, during activation-owner contention, after timer arm, and in both cancel-first/kill-first races, including replay/rejection, failed-admission no-effect, immutable first outcome, stopped geometry/timer, one native stop, and cleanup; prove captured schema-valid production operation-event and daemon envelopes, one generation-CAS winner, no-effect invalid/stale/duplicate updates, every immutable source discontinuity, exact deadline, native failure, unresolved pending recovery, cleanup convergence, and schema-bound admission/progress/terminal geometry truth alongside the existing multitrack, resource, lifecycle, and artifact matrix."
           }
         ],
         "native": [
@@ -20831,7 +20831,7 @@
         "to": "stopping",
         "transition_kind": "stop_request",
         "guard_id": "post_authority_cleanup_required",
-        "guard": "Persist outcome and stop intent before source, encoder, stream, and artifact cleanup.",
+        "guard": "The adapter lifecycle owner invokes one durable stop-admission transaction, preserving the first exact cancel outcome/intent before source, encoder, stream, and artifact cleanup; failed admission has no stop effect.",
         "trigger": "cancel"
       },
       {
@@ -20840,7 +20840,7 @@
         "to": "stopping",
         "transition_kind": "stop_request",
         "guard_id": "post_authority_cleanup_required",
-        "guard": "Persist outcome and stop intent before source, encoder, stream, and artifact cleanup.",
+        "guard": "The adapter lifecycle owner invokes one durable stop-admission transaction, preserving the first exact kill outcome/intent before source, encoder, stream, and artifact cleanup; failed admission has no stop effect.",
         "trigger": "kill"
       },
       {
@@ -20849,7 +20849,7 @@
         "to": "stopping",
         "transition_kind": "stop_request",
         "guard_id": "post_authority_cleanup_required",
-        "guard": "Persist outcome and stop intent before source, encoder, stream, and artifact cleanup.",
+        "guard": "The adapter lifecycle owner invokes one durable stop-admission transaction, preserving the first exact host-stop outcome/intent before source, encoder, stream, and artifact cleanup; failed admission has no stop effect.",
         "trigger": "host_stop"
       },
       {
@@ -20867,7 +20867,7 @@
         "to": "stopping",
         "transition_kind": "stop_request",
         "guard_id": "post_authority_cleanup_required",
-        "guard": "Persist outcome and stop intent before source, encoder, stream, and artifact cleanup.",
+        "guard": "The adapter lifecycle owner invokes one durable stop-admission transaction, preserving the first exact cancel outcome/intent before source, encoder, stream, and artifact cleanup; failed admission has no stop effect.",
         "trigger": "cancel"
       },
       {
@@ -20876,7 +20876,7 @@
         "to": "stopping",
         "transition_kind": "stop_request",
         "guard_id": "post_authority_cleanup_required",
-        "guard": "Persist outcome and stop intent before source, encoder, stream, and artifact cleanup.",
+        "guard": "The adapter lifecycle owner invokes one durable stop-admission transaction, preserving the first exact kill outcome/intent before source, encoder, stream, and artifact cleanup; failed admission has no stop effect.",
         "trigger": "kill"
       },
       {
@@ -20885,7 +20885,7 @@
         "to": "stopping",
         "transition_kind": "stop_request",
         "guard_id": "post_authority_cleanup_required",
-        "guard": "Persist outcome and stop intent before source, encoder, stream, and artifact cleanup.",
+        "guard": "The adapter lifecycle owner invokes one durable stop-admission transaction, preserving the first exact host-stop outcome/intent before source, encoder, stream, and artifact cleanup; failed admission has no stop effect.",
         "trigger": "host_stop"
       },
       {

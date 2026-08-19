@@ -134,9 +134,15 @@ callbacks, writer inputs/file, a real `AOSMicrophoneNativeSession` executing
 through injected non-native dependencies, and broker dependencies. It covers
 the production follow parser, validator/coordinator, registry/store/recovery
 projector, and injected native crop seam; all four selections in fixed and
-followed admission; one concurrent winner; zero-effect invalid/stale/duplicate/
+followed admission; one concurrent geometry winner; zero-effect invalid/stale/duplicate/
 off-source/out-of-bounds updates; every immutable source discontinuity; exact
-deadline re-arm/expiry; linearized cancel/kill activation interleavings; native
+deadline re-arm/expiry; and the actual public `AOSOperationControlPlane`
+cancel/kill path before follow installation, while activation owns the runtime
+lock, immediately after the timer arms, and in both cancel-first/kill-first
+races. Those eight stop cases assert exact receipts, same-action replay,
+different-action rejection, immutable first intent/outcome, no adapter-failure
+overwrite, stopped geometry/timer, exactly one native stop, and terminal claim
+cleanup; failed durable stop admission has no native effect. It also covers native
 failure; and unresolved pending cleanup. Accepted-source containment loss is
 also exercised through the production frame validator. Durable geometry changes
 advance one exact event sequence, and the harness captures the production
