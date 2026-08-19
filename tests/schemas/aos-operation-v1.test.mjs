@@ -33,6 +33,7 @@ const byName = Object.fromEntries(schemaNames.map((name) => [
 const daemonResponseSchema = JSON.parse(
   fs.readFileSync(path.join(schemaDirectory, 'daemon-response.schema.json'), 'utf8'),
 );
+const daemonResponseID = daemonResponseSchema.$id;
 
 const SHA_A = 'a'.repeat(64);
 const SHA_B = 'b'.repeat(64);
@@ -697,6 +698,53 @@ test('tap remains unavailable while artifact roots expose producer custody and t
   assert.ok(daemonErrorCodes.includes('OPERATION_TAP_UNAVAILABLE'));
   assert.ok(daemonErrorCodes.includes('OPERATION_ARTIFACT_CUSTODY_UNAVAILABLE'));
   assert.ok(daemonErrorCodes.includes('OPERATION_ARTIFACT_RETAIN_UNAVAILABLE'));
+});
+
+test('daemon response closes over every maintained operation and screen failure code', () => {
+  const operationStateSource = fs.readFileSync(
+    path.join(repoRoot, 'src', 'daemon', 'operation-state.swift'),
+    'utf8',
+  );
+  const maintainedCodes = [...operationStateSource.matchAll(
+    /return "((?:OPERATION|SCREEN_RECORDING|MICROPHONE)_[A-Z0-9_]+)"/gu,
+  )].map((match) => match[1]);
+  assert.equal(new Set(maintainedCodes).size, maintainedCodes.length);
+  const responseSchemas = { ...schemas, [daemonResponseID]: daemonResponseSchema };
+  const result = spawnSync('python3', ['-c', pythonValidator], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    input: JSON.stringify({
+      schemas: [...Object.values(responseSchemas), recordingSchema],
+      cases: [
+        ...maintainedCodes.map((code) => ({
+          schema_id: daemonResponseID,
+          instance: { v: 1, status: 'error', error: code, code, ref: 'operation-request' },
+        })),
+        {
+          schema_id: daemonResponseID,
+          instance: {
+            v: 1,
+            status: 'error',
+            error: 'SCREEN_RECORDING_UNKNOWN',
+            code: 'SCREEN_RECORDING_UNKNOWN',
+          },
+        },
+      ],
+    }),
+    timeout: 20_000,
+  });
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  const validation = JSON.parse(result.stdout);
+  assert.ok(validation.slice(0, -1).every((entry) => entry.valid));
+  assert.equal(validation.at(-1).valid, false);
+  assert.deepEqual(
+    daemonResponseSchema.oneOf[1].properties.code.enum.filter((code) => (
+      code.startsWith('OPERATION_')
+        || code.startsWith('SCREEN_RECORDING_')
+        || code.startsWith('MICROPHONE_')
+    )),
+    maintainedCodes,
+  );
 });
 
 test('mechanical lineage and the four server origin variants are exact and closed', () => {

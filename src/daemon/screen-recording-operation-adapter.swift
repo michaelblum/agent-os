@@ -351,6 +351,7 @@ private func aosRemoveScreenRecordingFile(_ url: URL, _ allowAbsent: Bool) throw
 
 final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
     typealias ContextResolver = (UUID) throws -> AOSScreenRecordingOperationContext
+    typealias OperationEventSink = (String, [String: Any]) -> Void
 
     static let registrationID = "screen-recording-adapter"
     static let registrationRevision: UInt64 = 1
@@ -364,12 +365,14 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
     private let broker: AOSScreenRecordingBrokerControlling
     private let contextResolver: ContextResolver
     private let files: AOSScreenRecordingFileDependencies
+    private let followActivationObserver: () -> Void
     private let lock = NSLock()
     private let reconcileHostBarrier: () -> Void
     private let registry: AOSOperationRegistry
     private let sessionFactory: AOSScreenRecordingSessionFactory?
     private let microphoneAuthorization: AOSScreenRecordingMicrophoneAuthorizationDependencies
     private let microphoneSessionFactory: AOSScreenRecordingMicrophoneSessionFactory
+    private let operationEventSink: OperationEventSink
     private let startupTimeout: TimeInterval
     private let topologyObserver: () -> AOSDisplayTopologySnapshot
     private let windowObserver: () -> [CaptureWindowFact]
@@ -407,6 +410,8 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         topologyObserver: @escaping () -> AOSDisplayTopologySnapshot =
             observeDisplayTopologySnapshot,
         windowObserver: @escaping () -> [CaptureWindowFact] = observeCaptureWindowFacts,
+        followActivationObserver: @escaping () -> Void = {},
+        operationEventSink: @escaping OperationEventSink = { _, _ in },
         reconcileHostBarrier: @escaping () -> Void = {}
     ) throws {
         guard registration == (try Self.makeRegistration()),
@@ -421,6 +426,7 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         self.artifactRootURL = artifactRootURL
         self.contextResolver = contextResolver
         self.files = files
+        self.followActivationObserver = followActivationObserver
         self.reconcileHostBarrier = reconcileHostBarrier
         self.sessionFactory = sessionFactory
         self.microphoneAuthorization = microphoneAuthorization
@@ -428,6 +434,7 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         self.startupTimeout = startupTimeout
         self.topologyObserver = topologyObserver
         self.windowObserver = windowObserver
+        self.operationEventSink = operationEventSink
     }
 
     func start(
@@ -462,11 +469,16 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
             microphoneSessionFactory: microphoneSessionFactory,
             startupTimeout: startupTimeout,
             topologyObserver: topologyObserver,
-            windowObserver: windowObserver
+            windowObserver: windowObserver,
+            followActivationObserver: followActivationObserver
         )
         lock.lock()
         runtimes[claimAdmission.publicAdmission.operation] = runtime
         lock.unlock()
+        emitGeometryEvent(
+            operation: claimAdmission.publicAdmission.operation,
+            geometry: claimAdmission.publicAdmission.geometry
+        )
         runtime.start()
         return claimAdmission.publicAdmission
     }
@@ -503,9 +515,6 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         }
         let intent: AOSStopIntent = record.stopIntent
             ?? (force ? .kill : .cancel)
-        if [.starting, .active].contains(record.state) {
-            _ = try? registry.transitionOperation(operation, to: .stopping, stopIntent: intent)
-        }
         lock.lock()
         let runtime = runtimes[operation]
         lock.unlock()
@@ -516,7 +525,22 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
             )
         }
         runtime.stop(intent: intent)
+        if [.starting, .active].contains(record.state) {
+            _ = try? registry.transitionOperation(operation, to: .stopping, stopIntent: intent)
+        }
         return AOSAdapterStopResult(disposition: .accepted, residualDigest: nil)
+    }
+
+    func emitGeometryEvent(
+        operation: AOSOperationIdentity,
+        geometry: AOSScreenRecordingGeometryState
+    ) {
+        guard let record = try? registry.inspect(operation),
+              let event = try? aosScreenRecordingGeometryOperationEvent(
+                operation: record,
+                geometry: geometry
+              ) else { return }
+        operationEventSink("progress", event)
     }
 
     func residualDigest(operation: AOSOperationIdentity) -> String? {
@@ -1154,6 +1178,18 @@ private final class AOSScreenRecordingShareableContentCallback:
     }
 }
 
+func aosValidateScreenRecordingProductionFrameBinding(
+    _ geometry: AOSScreenRecordingGeometry,
+    observedTopology: AOSDisplayTopologySnapshot,
+    windowFacts: [CaptureWindowFact]
+) throws {
+    try AOSScreenRecordingGeometryValidator.validateCurrentBinding(
+        geometry,
+        observedTopology: observedTopology,
+        windowFacts: windowFacts
+    )
+}
+
 private final class AOSScreenRecordingStreamOutput: NSObject,
     AOSDesktopPixelStreamLifecycle,
     SCStreamOutput,
@@ -1421,6 +1457,7 @@ final class AOSNativeScreenRecordingRuntime:
     private let startupTimeout: TimeInterval
     private let topologyObserver: () -> AOSDisplayTopologySnapshot
     private let windowObserver: () -> [CaptureWindowFact]
+    private let followActivationObserver: () -> Void
     private var progressTimeline: AOSScreenRecordingProgressTimeline
     private var finishStarted = false
     private var producerLease: AOSDesktopPixelExclusiveProducerLease?
@@ -1451,7 +1488,8 @@ final class AOSNativeScreenRecordingRuntime:
         startupTimeout: TimeInterval = aosDesktopPixelStreamRetirementTimeout,
         topologyObserver: @escaping () -> AOSDisplayTopologySnapshot =
             observeDisplayTopologySnapshot,
-        windowObserver: @escaping () -> [CaptureWindowFact] = observeCaptureWindowFacts
+        windowObserver: @escaping () -> [CaptureWindowFact] = observeCaptureWindowFacts,
+        followActivationObserver: @escaping () -> Void = {}
     ) {
         self.adapter = adapter
         self.admission = admission
@@ -1467,6 +1505,7 @@ final class AOSNativeScreenRecordingRuntime:
         self.startupTimeout = startupTimeout
         self.topologyObserver = topologyObserver
         self.windowObserver = windowObserver
+        self.followActivationObserver = followActivationObserver
         self.progressTimeline = AOSScreenRecordingProgressTimeline(
             maximumDurationMilliseconds: request.durationMilliseconds
         )
@@ -1519,14 +1558,13 @@ final class AOSNativeScreenRecordingRuntime:
         failure: AOSScreenRecordingFailureContext?
     ) {
         lock.lock()
-        let coordinator = followCoordinator
-        lock.unlock()
-        coordinator?.stop()
-        lock.lock()
         _ = frameAdmission.close()
         _ = progressTimeline.admitStop(atNanoseconds: registry.now())
-        if terminalFailure == nil { terminalFailure = failure }
-        if stopIntent == nil { stopIntent = intent }
+        if stopIntent == nil {
+            stopIntent = intent
+            terminalFailure = failure
+        }
+        stopFollowGeometryWhileLocked()
         let cancelStartup = !startupSettled
         guard startupSettled, !finishStarted else {
             lock.unlock()
@@ -1560,10 +1598,12 @@ final class AOSNativeScreenRecordingRuntime:
     ) -> AOSStopIntent? {
         lock.lock()
         startupSettled = true
-        if terminalFailure == nil { terminalFailure = failure }
-        if failure != nil, stopIntent == nil {
-            stopIntent = failure?.error is AOSOperationCoreError
-                ? .adapterFailed : .permissionRevoked
+        if stopIntent == nil {
+            if terminalFailure == nil { terminalFailure = failure }
+            if failure != nil {
+                stopIntent = failure?.error is AOSOperationCoreError
+                    ? .adapterFailed : .permissionRevoked
+            }
         }
         guard let selectedIntent = stopIntent, !finishStarted else {
             lock.unlock()
@@ -1694,7 +1734,7 @@ final class AOSNativeScreenRecordingRuntime:
                       ).screenRecordingGeometry?.accepted else {
                     throw AOSOperationCoreError.recordingCleanupRequired
                 }
-                try AOSScreenRecordingGeometryValidator.validateCurrentBinding(
+                try aosValidateScreenRecordingProductionFrameBinding(
                     current,
                     observedTopology: self.topologyObserver(),
                     windowFacts: current.mode == .callerFollowed || current.target.kind == .window
@@ -1876,6 +1916,7 @@ final class AOSNativeScreenRecordingRuntime:
 
     private func finish(intent: AOSStopIntent) async {
         admitStopIfNeeded()
+        stopFollowGeometry()
         let resources = runtimeResources()
         let owner = resources.owner
         let encoder = resources.encoder
@@ -1916,6 +1957,12 @@ final class AOSNativeScreenRecordingRuntime:
             encoder: encoder,
             lease: lease
         )
+    }
+
+    private func stopFollowGeometry() {
+        lock.lock()
+        stopFollowGeometryWhileLocked()
+        lock.unlock()
     }
 
     private func finishAfterAuthoritativeRetirement(
@@ -2091,6 +2138,20 @@ final class AOSNativeScreenRecordingRuntime:
         lock.unlock()
     }
 
+    private func stopFollowGeometryWhileLocked() {
+        if let coordinator = followCoordinator {
+            coordinator.stop()
+        } else if geometry.mode == .callerFollowed,
+                  let stopped = try? registry.stopScreenRecordingFollowGeometry(
+                    admission.publicAdmission.operation
+                  ) {
+            adapter?.emitGeometryEvent(
+                operation: admission.publicAdmission.operation,
+                geometry: stopped
+            )
+        }
+    }
+
     private func installEncoder(_ encoder: AOSScreenRecordingEncoding) {
         lock.lock()
         self.encoder = encoder
@@ -2115,9 +2176,13 @@ final class AOSNativeScreenRecordingRuntime:
         guard geometry.mode == .callerFollowed else { return }
         lock.lock()
         let nativeUpdate = nativeGeometryUpdate
-        lock.unlock()
         guard let nativeUpdate else {
+            lock.unlock()
             throw AOSOperationCoreError.recordingFollowUpdateFailed
+        }
+        guard stopIntent == nil else {
+            lock.unlock()
+            return
         }
         let coordinator = AOSScreenRecordingFollowGeometryCoordinator(
             operation: admission.publicAdmission.operation,
@@ -2125,6 +2190,13 @@ final class AOSNativeScreenRecordingRuntime:
             observeTopology: topologyObserver,
             observeWindows: windowObserver,
             nativeUpdate: nativeUpdate,
+            emitGeometryEvent: { [weak self] geometry in
+                guard let self else { return }
+                self.adapter?.emitGeometryEvent(
+                    operation: self.admission.publicAdmission.operation,
+                    geometry: geometry
+                )
+            },
             stopOperation: { [weak self] intent, error in
                 self?.stop(
                     intent: intent,
@@ -2132,10 +2204,16 @@ final class AOSNativeScreenRecordingRuntime:
                 )
             }
         )
-        _ = try coordinator.activate()
-        lock.lock()
         followCoordinator = coordinator
-        lock.unlock()
+        do {
+            followActivationObserver()
+            _ = try coordinator.activate()
+            lock.unlock()
+        } catch {
+            followCoordinator = nil
+            lock.unlock()
+            throw error
+        }
     }
 
     private func installMicrophoneSession(

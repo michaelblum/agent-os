@@ -206,6 +206,23 @@ try AOSScreenRecordingGeometryValidator.validateCurrentBinding(
     observedTopology: topology(),
     windowFacts: windows()
 )
+do {
+    try AOSScreenRecordingGeometryValidator.validateCurrentBinding(
+        initial,
+        observedTopology: topology(),
+        windowFacts: [CaptureWindowFact(
+            frame: CGRect(x: 0, y: 0, width: 100, height: 100),
+            owningApplication: CaptureApplicationFact(
+                applicationName: "fixture",
+                processID: 700
+            ),
+            title: nil,
+            windowID: 77,
+            windowLayer: 0
+        )]
+    )
+    preconditionFailure("accepted source containment loss survived production frame validation")
+} catch AOSOperationCoreError.recordingTargetDrift {}
 precondition(initial.mode == .callerFollowed)
 precondition(initial.pixelWidth == 400 && initial.pixelHeight == 200)
 
@@ -269,6 +286,7 @@ var liveWindows = windows()
 var nativeCalls: [AOSScreenRecordingGeometry] = []
 var pendingNative: ((Result<Void, Error>) -> Void)?
 var stops: [(AOSStopIntent, AOSOperationCoreError)] = []
+var geometryEvents: [AOSScreenRecordingGeometryState] = []
 let coordinator = AOSScreenRecordingFollowGeometryCoordinator(
     operation: operation.identity,
     registry: registry,
@@ -280,9 +298,11 @@ let coordinator = AOSScreenRecordingFollowGeometryCoordinator(
     },
     clock: { now },
     timer: timer,
+    emitGeometryEvent: { geometryEvents.append($0) },
     stopOperation: { stops.append(($0, $1)) }
 )
 let active = try coordinator.activate()
+precondition(active.eventSequence == 2)
 precondition(active.nextUpdateNotBeforeNanoseconds == 1_100_000_000)
 precondition(active.nextDeadlineNanoseconds == 1_500_000_000)
 precondition(timer.schedules == [1_500_000_000])
@@ -299,6 +319,7 @@ var firstResult: Result<AOSScreenRecordingGeometryState, AOSOperationCoreError>?
 coordinator.submit(first) { firstResult = $0 }
 precondition(nativeCalls.count == 1)
 let reserved = try registry.inspect(operation.identity).screenRecordingGeometry!
+precondition(reserved.eventSequence == 3)
 precondition(reserved.accepted.geometryGeneration == 1)
 precondition(reserved.pendingUpdate != nil)
 precondition(firstResult == nil)
@@ -315,10 +336,12 @@ guard case .success(let committed)? = firstResult else {
     preconditionFailure("native success was not committed")
 }
 precondition(committed.accepted.geometryGeneration == 2)
+precondition(committed.eventSequence == 4)
 precondition(committed.accepted.sourceRect.x == 120)
 precondition(committed.pendingUpdate == nil)
 precondition(committed.nextDeadlineNanoseconds == 1_600_000_000)
 precondition(timer.schedules == [1_500_000_000, 1_600_000_000])
+precondition(geometryEvents.map(\.eventSequence) == [2, 3, 4])
 let committedPublic = aosScreenRecordingGeometryPublicValue(committed)
 precondition(committedPublic["mode"] as? String == "caller_followed")
 precondition(committedPublic["geometry_generation"] as? UInt64 == 2)
@@ -498,6 +521,8 @@ precondition(stops.count == 1)
 precondition(stops[0].0 == .deadline)
 precondition(stops[0].1 == .recordingFollowTimeout)
 let expired = try registry.inspect(operation.identity).screenRecordingGeometry!
+precondition(expired.eventSequence == 5)
+precondition(geometryEvents.map(\.eventSequence) == [2, 3, 4, 5])
 precondition(expired.deadlineState == .expired)
 precondition(expired.accepted.geometryGeneration == 2)
 
@@ -565,6 +590,8 @@ precondition(recoveredPending.failureCode == AOSOperationCoreError.recordingFoll
 precondition(recoveredPending.screenRecordingGeometry!.accepted.geometryGeneration == 1)
 precondition(recoveredPending.screenRecordingGeometry!.pendingUpdate != nil)
 precondition(recoveredPending.screenRecordingGeometry!.deadlineState == .stopped)
+precondition(recoveredPending.screenRecordingGeometry!.eventSequence
+    == reservedFailure.screenRecordingGeometry!.eventSequence + 1)
 let recoveredPublic = AOSOperationPublicProjection.snapshot(
     recoveredPending,
     state: registry.snapshot()

@@ -355,7 +355,9 @@ Milestone 2 publishes the operation registry, operation CLI/IPC,
 status/Canvas projections, and microphone adapter described above.
 M3A/M3B/M3C-V2/M3D-V1 add the bounded fixed or caller-followed mandatory-video
 producer with independently optional system-audio and microphone tracks,
-producer-backed recording artifact custody, and content-free geometry truth.
+producer-backed recording artifact custody, and content-free geometry truth in
+snapshots, progress, terminal projections, recovery, and production operation
+events. Follow activation and cancel/kill stop admission are linearized.
 It does not publish full M3, full
 Playwright grammar, a public SDK, or changed TCC policy. Pre-0044 ADR bodies,
 archives, reports, the frozen v0 schema, and frozen fixtures remain unchanged.

@@ -221,6 +221,9 @@ final class AOSOperationRegistry {
             geometry.nextDeadlineNanoseconds = try Self.addMilliseconds(
                 deadline, to: nowNanoseconds
             )
+            geometry.eventSequence = try aosNextScreenRecordingGeometryEventSequence(
+                geometry.eventSequence
+            )
             state.operations[index].screenRecordingGeometry = geometry
             state.operations[index].updatedAtNanoseconds = clock()
             return geometry
@@ -253,6 +256,9 @@ final class AOSOperationRegistry {
                 canonicalParameterDigest: request.canonicalParameterDigest,
                 expectedGeometryGeneration: request.expectedGeometryGeneration,
                 candidate: candidate
+            )
+            geometry.eventSequence = try aosNextScreenRecordingGeometryEventSequence(
+                geometry.eventSequence
             )
             state.operations[index].screenRecordingGeometry = geometry
             state.operations[index].updatedAtNanoseconds = clock()
@@ -288,6 +294,9 @@ final class AOSOperationRegistry {
             geometry.nextDeadlineNanoseconds = try Self.addMilliseconds(
                 deadlineDuration, to: nowNanoseconds
             )
+            geometry.eventSequence = try aosNextScreenRecordingGeometryEventSequence(
+                geometry.eventSequence
+            )
             state.operations[index].screenRecordingGeometry = geometry
             state.operations[index].updatedAtNanoseconds = clock()
             return geometry
@@ -309,6 +318,9 @@ final class AOSOperationRegistry {
                 return false
             }
             geometry.deadlineState = .expired
+            geometry.eventSequence = try aosNextScreenRecordingGeometryEventSequence(
+                geometry.eventSequence
+            )
             state.operations[index].screenRecordingGeometry = geometry
             state.operations[index].updatedAtNanoseconds = clock()
             return true
@@ -323,12 +335,17 @@ final class AOSOperationRegistry {
                   var geometry = state.operations[index].screenRecordingGeometry else {
                 return nil
             }
-            if geometry.accepted.mode == .callerFollowed,
-               geometry.deadlineState != .expired {
+            let prior = geometry
+            if geometry.accepted.mode == .callerFollowed {
+                guard geometry.deadlineState != .expired else { return nil }
                 geometry.deadlineState = .stopped
+                geometry.nextUpdateNotBeforeNanoseconds = nil
+                geometry.nextDeadlineNanoseconds = nil
             }
-            geometry.nextUpdateNotBeforeNanoseconds = nil
-            geometry.nextDeadlineNanoseconds = nil
+            guard geometry != prior else { return nil }
+            geometry.eventSequence = try aosNextScreenRecordingGeometryEventSequence(
+                geometry.eventSequence
+            )
             state.operations[index].screenRecordingGeometry = geometry
             state.operations[index].updatedAtNanoseconds = clock()
             return geometry

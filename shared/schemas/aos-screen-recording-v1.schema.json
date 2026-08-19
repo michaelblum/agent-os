@@ -444,15 +444,52 @@
       "allOf": [
         {
           "if": {"properties": {"mode": {"const": "fixed"}}},
-          "then": {"properties": {
-            "geometry_generation": {"const": 1},
-            "update_interval_ms": {"type": "null"},
-            "update_deadline_ms": {"type": "null"},
-            "last_accepted_observation_generation": {"type": "null"},
-            "last_accepted_state_generation": {"type": "null"},
-            "pending_update": {"const": false},
-            "next_deadline": {"properties": {"state": {"const": "not_applicable"}}}
-          }}
+          "then": {
+            "properties": {
+              "geometry_generation": {"const": 1},
+              "update_interval_ms": {"type": "null"},
+              "update_deadline_ms": {"type": "null"},
+              "last_accepted_observation_generation": {"type": "null"},
+              "last_accepted_state_generation": {"type": "null"},
+              "pending_update": {"const": false},
+              "next_deadline": {
+                "properties": {
+                  "state": {"const": "not_applicable"},
+                  "not_before_monotonic_ns": {"type": "null"},
+                  "deadline_monotonic_ns": {"type": "null"}
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"mode": {"const": "caller_followed"}}},
+          "then": {
+            "properties": {
+              "update_interval_ms": {"type": "integer", "minimum": 16, "maximum": 10000},
+              "update_deadline_ms": {"type": "integer", "minimum": 16, "maximum": 60000},
+              "last_accepted_observation_generation": {"$ref": "#/$defs/generation"},
+              "last_accepted_state_generation": {"$ref": "#/$defs/generation"},
+              "next_deadline": {
+                "oneOf": [
+                  {
+                    "properties": {
+                      "state": {"enum": ["inactive", "stopped"]},
+                      "not_before_monotonic_ns": {"type": "null"},
+                      "deadline_monotonic_ns": {"type": "null"}
+                    }
+                  },
+                  {
+                    "properties": {
+                      "state": {"enum": ["armed", "expired"]},
+                      "not_before_monotonic_ns": {"$ref": "#/$defs/count"},
+                      "deadline_monotonic_ns": {"$ref": "#/$defs/count"}
+                    }
+                  }
+                ]
+              }
+            }
+          }
         }
       ],
       "additionalProperties": false

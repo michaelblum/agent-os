@@ -906,7 +906,8 @@ enum AOSOperationPublicProjection {
             "items": operation.progress?.frameCount ?? 0,
             "bytes": operation.progress?.byteCount ?? 0,
             "duration_ms": operation.progress?.elapsedMilliseconds ?? 0,
-            "last_event_sequence": operation.progress?.frameCount ?? 0,
+            "last_event_sequence": operation.screenRecordingGeometry?.eventSequence
+                ?? operation.progress?.frameCount ?? 0,
         ]
         if let summary = operation.progress?.trackSummary {
             value["track_summary"] = aosScreenRecordingTrackSummaryValue(summary)

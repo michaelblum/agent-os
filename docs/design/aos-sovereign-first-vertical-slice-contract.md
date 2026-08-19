@@ -39,7 +39,11 @@ artifact. M3C-V2 adds an independently optional microphone track through the
 shared daemon microphone-session owner. M3D-V1 adds explicit caller-followed
 region geometry with caller-owned tracking, generation-CAS updates, immutable
 source binding, bounded pending intent, deadline stop, and exact content-free
-public geometry truth. Native-live acceptance remains later work.
+public geometry truth. Durable geometry changes advance an exact event sequence
+and emit through the production operation-event channel; cancel/kill admission
+is linearized with follow activation so terminal geometry cannot miss stopped
+truth or replace the first stop outcome. Native-live acceptance remains later
+work.
 
 ## Contract owners
 

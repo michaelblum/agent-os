@@ -69,6 +69,7 @@ struct AOSScreenRecordingGeometryState: Codable, Equatable {
     var deadlineState: AOSScreenRecordingFollowDeadlineState
     var nextUpdateNotBeforeNanoseconds: UInt64?
     var nextDeadlineNanoseconds: UInt64?
+    var eventSequence: UInt64
 
     static func initial(_ geometry: AOSScreenRecordingGeometry) -> Self {
         Self(
@@ -76,9 +77,17 @@ struct AOSScreenRecordingGeometryState: Codable, Equatable {
             pendingUpdate: nil,
             deadlineState: geometry.mode == .fixed ? .notApplicable : .inactive,
             nextUpdateNotBeforeNanoseconds: nil,
-            nextDeadlineNanoseconds: nil
+            nextDeadlineNanoseconds: nil,
+            eventSequence: 1
         )
     }
+}
+
+func aosNextScreenRecordingGeometryEventSequence(_ current: UInt64) throws -> UInt64 {
+    guard current < aosMaximumExactJSONInteger else {
+        throw AOSOperationCoreError.generationConflict
+    }
+    return current + 1
 }
 
 enum AOSScreenRecordingFollowValidationDisposition: Error, Equatable {
@@ -254,6 +263,37 @@ func aosScreenRecordingFollowUpdatePublicValue(
     ]
 }
 
+func aosScreenRecordingGeometryOperationEvent(
+    operation: AOSOperationRecord,
+    geometry: AOSScreenRecordingGeometryState
+) throws -> [String: Any] {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    let occurredAt = formatter.string(from: Date(
+        timeIntervalSince1970: Double(operation.updatedAtNanoseconds) / 1_000_000_000
+    ))
+    let detail: [String: Any] = [
+        "kind": "screen_recording_geometry",
+        "geometry": aosScreenRecordingGeometryPublicValue(geometry),
+    ]
+    let unsigned: [String: Any] = [
+        "schema_version": "aos.operation-event.v1",
+        "daemon_generation": operation.daemonGeneration,
+        "operation_id": operation.identity.id,
+        "operation_generation": operation.identity.generation,
+        "sequence": geometry.eventSequence,
+        "occurred_at": occurredAt,
+        "detail": detail,
+    ]
+    var material = Data("aos:operation-event:v1\n".utf8)
+    material.append(try JSONSerialization.data(withJSONObject: unsigned, options: [.sortedKeys]))
+    let digest = SHA256.hash(data: material).map { String(format: "%02x", $0) }.joined()
+    return unsigned.merging([
+        "event_id": "geometry-\(digest)",
+        "event_digest": digest,
+    ]) { _, new in new }
+}
+
 protocol AOSScreenRecordingFollowTimerControlling: AnyObject {
     func schedule(deadlineNanoseconds: UInt64, _ handler: @escaping () -> Void)
     func cancel()
@@ -319,6 +359,7 @@ final class AOSScreenRecordingFollowGeometryCoordinator {
         @escaping (Result<Void, Error>) -> Void
     ) -> Void
     typealias Stop = (AOSStopIntent, AOSOperationCoreError) -> Void
+    typealias GeometryEvent = (AOSScreenRecordingGeometryState) -> Void
 
     private let operation: AOSOperationIdentity
     private let registry: AOSOperationRegistry
@@ -328,6 +369,7 @@ final class AOSScreenRecordingFollowGeometryCoordinator {
     private let clock: () -> UInt64
     private let timer: AOSScreenRecordingFollowTimerControlling
     private let stopOperation: Stop
+    private let emitGeometryEvent: GeometryEvent
 
     init(
         operation: AOSOperationIdentity,
@@ -337,6 +379,7 @@ final class AOSScreenRecordingFollowGeometryCoordinator {
         nativeUpdate: @escaping NativeUpdate,
         clock: @escaping () -> UInt64 = { DispatchTime.now().uptimeNanoseconds },
         timer: AOSScreenRecordingFollowTimerControlling? = nil,
+        emitGeometryEvent: @escaping GeometryEvent = { _ in },
         stopOperation: @escaping Stop
     ) {
         self.operation = operation
@@ -346,6 +389,7 @@ final class AOSScreenRecordingFollowGeometryCoordinator {
         self.nativeUpdate = nativeUpdate
         self.clock = clock
         self.timer = timer ?? AOSScreenRecordingFollowDispatchTimer(clock: clock)
+        self.emitGeometryEvent = emitGeometryEvent
         self.stopOperation = stopOperation
     }
 
@@ -356,6 +400,7 @@ final class AOSScreenRecordingFollowGeometryCoordinator {
             nowNanoseconds: clock()
         )
         schedule(state)
+        emitGeometryEvent(state)
         return state
     }
 
@@ -382,12 +427,13 @@ final class AOSScreenRecordingFollowGeometryCoordinator {
                 observedTopology: observeTopology(),
                 windowFacts: observeWindows()
             )
-            _ = try registry.reserveScreenRecordingFollowUpdate(
+            let reserved = try registry.reserveScreenRecordingFollowUpdate(
                 operation,
                 request: request,
                 candidate: candidate,
                 nowNanoseconds: clock()
             )
+            emitGeometryEvent(reserved)
             nativeUpdate(candidate) { [weak self] result in
                 guard let self else {
                     completion(.failure(.recordingCleanupRequired))
@@ -403,6 +449,7 @@ final class AOSScreenRecordingFollowGeometryCoordinator {
                             nowNanoseconds: self.clock()
                         )
                         self.schedule(committed)
+                        self.emitGeometryEvent(committed)
                         completion(.success(committed))
                     } catch let error as AOSOperationCoreError {
                         self.stopOperation(.adapterFailed, .recordingFollowUpdateFailed)
@@ -439,7 +486,9 @@ final class AOSScreenRecordingFollowGeometryCoordinator {
 
     func stop() {
         timer.cancel()
-        _ = try? registry.stopScreenRecordingFollowGeometry(operation)
+        if let state = try? registry.stopScreenRecordingFollowGeometry(operation) {
+            emitGeometryEvent(state)
+        }
     }
 
     private func schedule(_ state: AOSScreenRecordingGeometryState) {
@@ -456,6 +505,11 @@ final class AOSScreenRecordingFollowGeometryCoordinator {
                     expectedDeadlineNanoseconds: deadline,
                     nowNanoseconds: self.clock()
                 ) {
+                    if let state = try? self.registry.inspect(
+                        self.operation
+                    ).screenRecordingGeometry {
+                        self.emitGeometryEvent(state)
+                    }
                     self.stopOperation(.deadline, .recordingFollowTimeout)
                 }
             } catch {

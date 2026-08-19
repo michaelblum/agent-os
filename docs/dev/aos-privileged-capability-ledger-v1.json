@@ -4412,7 +4412,7 @@
           ],
           "depth": "Pixel plane only.",
           "breadth": "One fixed display, exact window, fixed region, or caller-followed region within one display and its bound source window; mandatory video plus independently optional system audio and microphone.",
-          "completeness": "Public fixed or caller-followed recording requests with four exact track selections, closed follow updates/results, generation-CAS native crop and pending recovery, exact public geometry, operation/stream/artifact identity, one H.264 plus optional AAC-LC QuickTime writer, common-epoch multitrack coordination, shared microphone-session ownership, atomic dual-resource claim admission when selected, action-specific artifact decoding, finite generation-bound startup/retirement ownership, atomic sample admission, typed per-track terminal truth, durable recoverable release custody, executable production-owner harnesses with fake dependencies, and native compile proof are current.",
+          "completeness": "Public fixed or caller-followed recording requests with four exact track selections, closed follow updates/results, generation-CAS native crop and pending recovery, exact public geometry plus production operation events, operation/stream/artifact identity, one H.264 plus optional AAC-LC QuickTime writer, common-epoch multitrack coordination, shared microphone-session ownership, atomic dual-resource claim admission when selected, action-specific artifact decoding, finite generation-bound startup/retirement ownership, atomic sample admission, typed per-track terminal truth, durable recoverable release custody, executable production-owner harnesses with fake dependencies, and native compile proof are current.",
           "frontier": "One SCStream supplies mandatory `.screen` samples and request-selected `.audio` samples; an independent shared-owner microphone input supplies the third writer track without macOS-15-only ScreenCaptureKit APIs.",
           "state_identity": "Canonical topology identity, display member identity, fixed or caller-followed geometry generation/digest and immutable binding identities, operation generation, stream generation, and artifact generation."
         },
@@ -4487,7 +4487,7 @@
             },
             {
               "path": "tests/schemas/aos-screen-recording-v1.test.mjs",
-              "claim": "Validates all four mandatory-video, optional-system-audio, and optional-microphone request/admission/progress/result selections, required fixed or caller-followed geometry, closed follow update/result truth, independent closed track truth, and hard bounds.",
+              "claim": "Validates all four mandatory-video, optional-system-audio, and optional-microphone request/admission/progress/result selections, required exact fixed or caller-followed geometry truth, closed follow update/result truth, impossible fixed/followed deadline contradictions, independent closed track truth, and hard bounds.",
               "execution_class": "static",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -4505,7 +4505,7 @@
           "fake": [
             {
               "path": "tests/screen-recording-fake.test.mjs",
-              "claim": "Compiles and executes the production recording adapter, request-derived admission and exact public snapshot/list/inspect projectors used by UnifiedDaemon, generic registry/in-memory durable store/recovery, lifecycle, sample admission, three-track coordinator, terminal truth, custody coordinator, and caller-followed geometry coordinator with fake topology/window/clock/native-crop/media/file/broker dependencies. It schema-validates all four fixed and caller-followed selection admissions, proves one generation-CAS native-update winner plus exact invalid/stale/drift/deadline/native-failure/pending-recovery truth, and preserves the existing common-epoch, per-track failure/backpressure, shared microphone claim, aggregate retirement, artifact custody, durable fault, and closed-input matrix without synthesized wire metadata.",
+              "claim": "Compiles and executes the production recording adapter, request-derived admission and exact public snapshot/list/inspect projectors used by UnifiedDaemon, generic registry/in-memory durable store/recovery, lifecycle, sample admission, three-track coordinator, terminal truth, custody coordinator, and caller-followed geometry coordinator with fake topology/window/clock/native-crop/media/file/broker dependencies. It schema-validates all four fixed and caller-followed selection admissions, the captured production operation event and daemon envelope, proves linearized cancel/kill activation interleavings, accepted-source production-frame drift, one generation-CAS native-update winner, and exact invalid/stale/drift/deadline/native-failure/pending-recovery truth, and preserves the existing common-epoch, per-track failure/backpressure, shared microphone claim, aggregate retirement, artifact custody, durable fault, and closed-input matrix without synthesized wire metadata.",
               "execution_class": "fake",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -17078,7 +17078,7 @@
             },
             "execution_class": "static",
             "requires_owner_authority": false,
-            "claim": "Validate mandatory video, independently optional system audio and microphone across four exact selections, required fixed or caller-followed geometry, closed update requests/results, request-to-selected/finalized-track coupling, exact content-free geometry and track truth, progress/terminal conditionals, bounds, outcomes, and custody linkage."
+            "claim": "Validate mandatory video, independently optional system audio and microphone across four exact selections, required exact fixed or caller-followed geometry, closed update requests/results, impossible fixed/followed deadline contradictions, request-to-selected/finalized-track coupling, exact content-free geometry and track truth, progress/terminal conditionals, bounds, outcomes, and custody linkage."
           },
           {
             "path_ref": {
@@ -17098,7 +17098,7 @@
             },
             "execution_class": "fake",
             "requires_owner_authority": false,
-            "claim": "Execute the production adapter, generic registry/store/recovery, exact public snapshot/list/inspect projector, lifecycle, three-track and custody owners, and caller-followed coordinator/native-update seam with injected topology, windows, monotonic clock, native crop, media, file, shared microphone, broker, and custody dependencies. Preserve all four selections in fixed and followed-region admission; prove one generation-CAS winner, no-effect invalid/stale/duplicate updates, every immutable source discontinuity, exact deadline, native failure, unresolved pending recovery, cleanup convergence, and schema-bound admission/progress/terminal geometry truth alongside the existing multitrack, resource, lifecycle, and artifact matrix."
+            "claim": "Execute the production adapter, generic registry/store/recovery, exact public snapshot/list/inspect projector, production frame validator, lifecycle, three-track and custody owners, and caller-followed coordinator/native-update/operation-event seams with injected topology, windows, monotonic clock, native crop, media, file, shared microphone, broker, and custody dependencies. Preserve all four selections in fixed and followed-region admission; prove linearized cancel/kill activation interleavings, captured schema-valid production operation-event and daemon envelopes, one generation-CAS winner, no-effect invalid/stale/duplicate updates, every immutable source discontinuity, exact deadline, native failure, unresolved pending recovery, cleanup convergence, and schema-bound admission/progress/terminal geometry truth alongside the existing multitrack, resource, lifecycle, and artifact matrix."
           }
         ],
         "native": [

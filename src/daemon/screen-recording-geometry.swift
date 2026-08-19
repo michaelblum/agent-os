@@ -710,7 +710,7 @@ enum AOSScreenRecordingGeometryValidator {
                 height: window.frame.height
             )
             guard AOSScreenRecordingRequest.contains(windowBounds, geometry.sourceRect) else {
-                throw AOSOperationCoreError.invalidRecord("screen_recording_follow_source")
+                throw AOSOperationCoreError.recordingTargetDrift
             }
         }
         let bounds = geometry.target.globalBounds ?? display.nativeBounds

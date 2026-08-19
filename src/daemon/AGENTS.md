@@ -175,7 +175,14 @@ content-free geometry projection. The caller owns observation, tracking,
 smoothing, and transformation. Commit accepted geometry only after native
 configuration success; invalid/stale updates do not reset the deadline, and
 immutable drift, timeout, native failure, or unresolved recovery stop through
-normal cleanup without reacquisition. System audio uses the same SCStream; microphone uses the shared
+normal cleanup without reacquisition. Treat loss of accepted source containment
+during production frame validation as immutable target drift; an off-source
+proposed update remains a nonterminal invalid update. Linearize coordinator
+installation/activation with stop admission so cancel or kill cancels the timer,
+persists stopped geometry, and retains the first stop outcome. Every durable
+geometry change advances its durable operation-event sequence and emits exact
+geometry through the adapter-owned operation event sink wired to the daemon
+broadcaster. System audio uses the same SCStream; microphone uses the shared
 daemon session owner described below. It retains and revalidates the exact admitted canonical topology
 before filter creation and every sample. Video is mandatory, omitting both
 optional tracks preserves exact video-only output, and geometry never follows

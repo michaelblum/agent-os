@@ -21,7 +21,9 @@ async function compileAndRunHarness(source) {
     await Promise.all([
       writeFile(support, String.raw`
 import Foundation
-struct AOSScreenRecordingGeometryState: Codable, Equatable {}
+struct AOSScreenRecordingGeometryState: Codable, Equatable {
+  var eventSequence: UInt64 = 0
+}
 func aosScreenRecordingGeometryPublicValue(
   _ state: AOSScreenRecordingGeometryState
 ) -> [String: Any] { [:] }

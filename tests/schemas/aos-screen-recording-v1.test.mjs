@@ -225,6 +225,42 @@ test('caller-followed request, update, and accepted truth are closed and region-
     operation: update.selector,
     geometry: followedGeometryTruth,
   }), [])
+  const impossibleTruth = [
+    { ...fixedGeometryTruth, update_interval_ms: 100 },
+    { ...fixedGeometryTruth, update_deadline_ms: 500 },
+    { ...fixedGeometryTruth, last_accepted_observation_generation: 1 },
+    { ...fixedGeometryTruth, last_accepted_state_generation: 1 },
+    { ...fixedGeometryTruth, next_deadline: {
+      ...fixedGeometryTruth.next_deadline,
+      not_before_monotonic_ns: 1,
+    } },
+    { ...fixedGeometryTruth, next_deadline: {
+      ...fixedGeometryTruth.next_deadline,
+      deadline_monotonic_ns: 1,
+    } },
+    { ...followedGeometryTruth, update_interval_ms: null },
+    { ...followedGeometryTruth, update_deadline_ms: null },
+    { ...followedGeometryTruth, last_accepted_observation_generation: null },
+    { ...followedGeometryTruth, last_accepted_state_generation: null },
+    { ...followedGeometryTruth, next_deadline: {
+      state: 'not_applicable',
+      not_before_monotonic_ns: null,
+      deadline_monotonic_ns: null,
+    } },
+    { ...followedGeometryTruth, next_deadline: {
+      state: 'armed',
+      not_before_monotonic_ns: null,
+      deadline_monotonic_ns: null,
+    } },
+    { ...followedGeometryTruth, next_deadline: {
+      state: 'stopped',
+      not_before_monotonic_ns: 1,
+      deadline_monotonic_ns: 2,
+    } },
+  ]
+  for (const truth of impossibleTruth) {
+    assert.ok(validate('geometry_truth', truth).length > 0)
+  }
   for (const invalid of [
     { ...followed, target: base.target },
     { ...followed, geometry: { ...followed.geometry, update_interval_ms: true } },

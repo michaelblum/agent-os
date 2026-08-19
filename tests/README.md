@@ -136,7 +136,11 @@ the production follow parser, validator/coordinator, registry/store/recovery
 projector, and injected native crop seam; all four selections in fixed and
 followed admission; one concurrent winner; zero-effect invalid/stale/duplicate/
 off-source/out-of-bounds updates; every immutable source discontinuity; exact
-deadline re-arm/expiry; native failure; and unresolved pending cleanup. It also
+deadline re-arm/expiry; linearized cancel/kill activation interleavings; native
+failure; and unresolved pending cleanup. Accepted-source containment loss is
+also exercised through the production frame validator. Durable geometry changes
+advance one exact event sequence, and the harness captures the production
+adapter event sink and daemon envelope and validates both public schemas. It also
 covers
 all six three-track first-sample orders at one
 common epoch, pre-epoch system-audio/microphone callback failures in both

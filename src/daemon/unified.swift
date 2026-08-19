@@ -510,6 +510,9 @@ class UnifiedDaemon {
                     )
                 }
             ),
+            operationEventSink: { [weak self] event, data in
+                self?.broadcastEvent(service: "operation", event: event, data: data)
+            },
             reconcileHostBarrier: { [weak control] in
                 guard let control else { return }
                 let state = registry.snapshot().barrier.state
@@ -526,6 +529,13 @@ class UnifiedDaemon {
         operationScreenRecordingAdapter = screenRecordingAdapter
         operationDaemonGeneration = nextDaemonGeneration
 
+        let priorGeometrySequences = Dictionary(uniqueKeysWithValues:
+            registry.snapshot().operations.compactMap { operation in
+                operation.screenRecordingGeometry.map {
+                    (operation.identity, $0.eventSequence)
+                }
+            }
+        )
         let recoveryToken = AOSSHA256Digest.hashing(
             domain: .externalBindingToken,
             data: Data(UUID().uuidString.utf8)
@@ -535,6 +545,15 @@ class UnifiedDaemon {
             newDaemonGeneration: nextDaemonGeneration,
             claimTokenDigest: recoveryToken
         )
+        for operation in registry.snapshot().operations {
+            guard let geometry = operation.screenRecordingGeometry,
+                  let priorSequence = priorGeometrySequences[operation.identity],
+                  geometry.eventSequence > priorSequence else { continue }
+            screenRecordingAdapter.emitGeometryEvent(
+                operation: operation.identity,
+                geometry: geometry
+            )
+        }
         try reconcileOperationBootRecoveryExternalChildren(
             registry: registry,
             control: control,
