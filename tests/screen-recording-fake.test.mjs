@@ -2113,10 +2113,12 @@ struct TerminalLifecycleCustodyHarness {
 
     static func productionAtomicInitialSummaryAdmission() throws {
         var projections: [[String: Any]] = []
-        for (systemAudioSelected, microphoneSelected) in [
-            (false, false), (true, false), (false, true), (true, true),
-        ] {
-            let store = AdmissionFaultStore(failingSaveCall: 4)
+        let scenarios: [(Bool, Bool, Int)] = [
+            (false, false, 4), (true, false, 4),
+            (false, true, 4), (true, true, 4),
+        ] + (5...11).map { (false, false, $0) }
+        for (systemAudioSelected, microphoneSelected, failingSaveCall) in scenarios {
+            let store = AdmissionFaultStore(failingSaveCall: failingSaveCall)
             let environment = try RecordingEnvironment(store: store)
             do {
                 _ = try environment.adapter.start(
@@ -2170,11 +2172,28 @@ struct TerminalLifecycleCustodyHarness {
                     "post-publication durable fault did not terminal-clean")
             require(terminal.progress?.trackSummary == expectedSummary,
                     "terminal failure erased exact selected-track truth")
-            require(terminalState.streams.isEmpty
-                        && terminalState.artifacts.isEmpty
-                        && terminalState.resourceTransactions.isEmpty
-                        && terminalState.resourceClaims.isEmpty,
-                    "post-publication fault created later preparation authority")
+            let expectedStreamCount = failingSaveCall >= 5 ? 1 : 0
+            let expectedArtifactCount = failingSaveCall >= 6 ? 1 : 0
+            let expectedTransactionCount = failingSaveCall >= 7 ? 1 : 0
+            let expectedClaimCount = failingSaveCall >= 9 ? 1 : 0
+            require(terminalState.streams.count == expectedStreamCount
+                        && terminalState.streams.allSatisfy { $0.state == .terminal }
+                        && terminalState.artifacts.count == expectedArtifactCount
+                        && terminalState.artifacts.allSatisfy { $0.state == .removed }
+                        && terminalState.resourceTransactions.count
+                            == expectedTransactionCount
+                        && terminalState.resourceTransactions.allSatisfy {
+                            $0.state == .terminal
+                        }
+                        && terminalState.resourceClaims.count == expectedClaimCount
+                        && terminalState.resourceClaims.allSatisfy {
+                            $0.state == .terminal
+                        }
+                        && !AOSOperationRegistry.hasNonterminalChildren(
+                            in: terminalState,
+                            operation: terminal.identity
+                        ),
+                    "post-publication fault did not close exact prepared children")
             require(!environment.broker.retainsAuthority,
                     "post-admission fault acquired broker authority")
             projections.append(projectionRow(
@@ -4416,7 +4435,7 @@ struct TerminalLifecycleCustodyHarness {
         try await lateStartFailureAfterActiveEvidenceRequiresStop()
         await frameAdmissionClosesAtomically()
         try decoderAndTerminalTruthAreClosed()
-        print("terminal-lifecycle-custody-harness: atomic-admission=8 pre-epoch-callbacks=4 pre-native-encoder=1 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 prepared-publication-public-stop=2 pre-install-public-stop=2 production-lifecycle=6 production-terminal=2 production-custody=10 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
+        print("terminal-lifecycle-custody-harness: atomic-admission=22 pre-epoch-callbacks=4 pre-native-encoder=1 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 prepared-publication-public-stop=2 pre-install-public-stop=2 production-lifecycle=6 production-terminal=2 production-custody=10 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
     }
 }
 `
@@ -4567,7 +4586,7 @@ test('production lifecycle and custody owners close terminal fault phases with f
     assert.equal(compile.status, 0, compile.stderr || compile.stdout)
     const run = spawnSync(binary, [], { encoding: 'utf8', timeout: 5_000 })
     assert.equal(run.status, 0, `${run.stderr}\n${run.stdout}`)
-    assert.match(run.stdout, /atomic-admission=8 pre-epoch-callbacks=4 pre-native-encoder=1 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 prepared-publication-public-stop=2 pre-install-public-stop=2/u)
+    assert.match(run.stdout, /atomic-admission=22 pre-epoch-callbacks=4 pre-native-encoder=1 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 prepared-publication-public-stop=2 pre-install-public-stop=2/u)
     const projectionLine = run.stdout.split('\n').find((line) => (
       line.startsWith('atomic-initial-summary-projections:')
     ))
@@ -4575,11 +4594,10 @@ test('production lifecycle and custody owners close terminal fault phases with f
     const projections = JSON.parse(projectionLine.slice(
       'atomic-initial-summary-projections:'.length,
     ))
-    assert.equal(projections.length, 8)
-    assert.deepEqual(projections.map((value) => value.phase), [
-      'prepared', 'terminal', 'prepared', 'terminal',
-      'prepared', 'terminal', 'prepared', 'terminal',
-    ])
+    assert.equal(projections.length, 22)
+    assert.deepEqual(projections.map((value) => value.phase), Array.from(
+      { length: 11 }, () => ['prepared', 'terminal'],
+    ).flat())
     const callbackProjectionLine = run.stdout.split('\n').find((line) => (
       line.startsWith('pre-epoch-callback-projections:')
     ))
