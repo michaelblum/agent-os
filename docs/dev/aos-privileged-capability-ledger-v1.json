@@ -17099,6 +17099,24 @@
             "execution_class": "fake",
             "requires_owner_authority": false,
             "claim": "Execute the production AOSOperationControlPlane cancel/kill path, adapter/runtime, generic registry/store/recovery, exact public snapshot/list/inspect projector, production frame validator, lifecycle, three-track and custody owners, and caller-followed coordinator/native-update/operation-event seams with injected topology, windows, monotonic clock, native crop, media, file, shared microphone, broker, and custody dependencies. Preserve all four selections in fixed and followed-region admission; prove twelve exact public stop cases immediately after first durable prepared publication but before provisional owner insertion, after durable starting but before concrete runtime installation, before follow activation, during activation-owner contention, after timer arm, and in both cancel-first/kill-first races, including prepared-call blocking until the owner exists, replay/rejection, failed-admission no-effect, immutable first outcome, stopped geometry/timer, and complete cleanup. The two prepared-publication and two pre-install cases assert zero runtime start handoffs, broker acquisitions, native starts, and native stops; the eight post-install cases assert one native stop. One blocked durable stop-save case proves bounded startup return, retained keyed pending ownership until settlement, and zero later runtime, broker, or native effects. Consecutive preparation-and-cleanup save failure, waiting-public-stop/preparation-failure crossing, and post-admission stopped-geometry save failure prove bounded atomic settlement, public first-writer truth, durable stopped geometry, retained ownership until cleanup, replay/rejection, and zero later effects. Injected durable save failures across every later stream, artifact, claim-set, claim, and starting transition prove exact failed-terminal cleanup with no nonterminal child or claim. Prove captured schema-valid production operation-event and daemon envelopes, one generation-CAS winner, no-effect invalid/stale/duplicate updates, every immutable source discontinuity, exact deadline, native failure, unresolved pending recovery, cleanup convergence, and schema-bound admission/progress/terminal geometry truth alongside the existing multitrack, resource, lifecycle, and artifact matrix."
+          },
+          {
+            "path_ref": {
+              "path": "tests/m3-screen-recording-integrated.test.mjs",
+              "kind": "current"
+            },
+            "execution_class": "fake",
+            "requires_owner_authority": false,
+            "claim": "Canonical production-attached offline integration of the rev-2 registry/store/recovery/control plane with recording geometry, adapter, multitrack writer, custody, shared microphone, public projection, schema, control-race, recovery, and persistence-fault seams."
+          },
+          {
+            "path_ref": {
+              "path": "tests/m3-screen-recording-integrated.sh",
+              "kind": "current"
+            },
+            "execution_class": "fake",
+            "requires_owner_authority": false,
+            "claim": "Run the canonical M3 integrated proof inside explicit private temporary and state roots, then verify complete root removal with no retained artifacts."
           }
         ],
         "native": [
@@ -18429,7 +18447,7 @@
           ],
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_fake_test_mjs",
+            "M3.proof.tests_m3_screen_recording_integrated_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh",
             "M3.proof.tests_manual_screen_recording_native_proof_sh"
           ]
@@ -18452,7 +18470,7 @@
           ],
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_fake_test_mjs",
+            "M3.proof.tests_m3_screen_recording_integrated_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh",
             "M3.proof.tests_manual_screen_recording_native_proof_sh"
           ]
@@ -18475,7 +18493,7 @@
           ],
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_fake_test_mjs",
+            "M3.proof.tests_m3_screen_recording_integrated_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh",
             "M3.proof.tests_manual_screen_recording_native_proof_sh"
           ]
@@ -18492,7 +18510,7 @@
           ],
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_fake_test_mjs",
+            "M3.proof.tests_m3_screen_recording_integrated_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh"
           ]
         },
@@ -18509,7 +18527,7 @@
           ],
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_fake_test_mjs",
+            "M3.proof.tests_m3_screen_recording_integrated_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh"
           ]
         },
@@ -18527,7 +18545,7 @@
           ],
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_fake_test_mjs",
+            "M3.proof.tests_m3_screen_recording_integrated_test_mjs",
             "M3.proof.tests_screen_recording_follow_geometry_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh",
             "M3.proof.tests_manual_screen_recording_native_proof_sh"
@@ -18547,7 +18565,7 @@
           ],
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_fake_test_mjs",
+            "M3.proof.tests_m3_screen_recording_integrated_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh",
             "M3.proof.tests_manual_screen_recording_native_proof_sh"
           ]
@@ -18559,7 +18577,7 @@
           "criterion": "Screen video, system audio, and microphone tracks have independent availability, failure, fidelity, and custody truth under one recording operation. Media callback failure before a common epoch is normalized from the final selected-track summary, stamps every missing selected track, and selects terminal precedence video then system audio then microphone, while explicit internal failure origin preserves exact pre-native writer/input setup and other typed failures.",
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_fake_test_mjs",
+            "M3.proof.tests_m3_screen_recording_integrated_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh",
             "M3.proof.tests_manual_screen_recording_native_proof_sh"
           ],
@@ -18570,7 +18588,7 @@
           "criterion": "Native AX and managed DOM branches discard pre-center state and re-observe. Fixed admission binds exact source geometry; caller-followed movement supplies full fresh topology/region/binding facts, advances one generation only after native crop success, and rejects every immutable identity discontinuity.",
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_fake_test_mjs",
+            "M3.proof.tests_m3_screen_recording_integrated_test_mjs",
             "M3.proof.tests_screen_recording_follow_geometry_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh",
             "M3.proof.tests_manual_screen_recording_native_proof_sh"
@@ -18582,7 +18600,7 @@
           "criterion": "Recording sources, encoder, artifact custody, and operation status obey the M2 lifecycle and owner-control plane.",
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_fake_test_mjs",
+            "M3.proof.tests_m3_screen_recording_integrated_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh",
             "M3.proof.tests_manual_screen_recording_native_proof_sh"
           ],
@@ -18595,7 +18613,7 @@
           "criterion": "Static and fake proofs cover preparation, start, stop, failure, cleanup, fixed and caller-followed geometry, generation CAS, pending-intent recovery, deadline and immutable drift, track failure, artifact validation, and both pre-common-epoch system-audio/microphone callback orders across all missing-selected-track terminal precedences without claiming native capture.",
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_fake_test_mjs",
+            "M3.proof.tests_m3_screen_recording_integrated_test_mjs",
             "M3.proof.tests_screen_recording_follow_geometry_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh",
             "M3.proof.tests_manual_screen_recording_native_proof_sh"
@@ -18607,7 +18625,7 @@
           "criterion": "Native-live recording proof runs only in a separately authorized Screen Recording and microphone lane and verifies content-free outcomes.",
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
-            "M3.proof.tests_screen_recording_fake_test_mjs",
+            "M3.proof.tests_m3_screen_recording_integrated_test_mjs",
             "M3.proof.tests_native_screen_recording_contract_sh",
             "M3.proof.tests_manual_screen_recording_native_proof_sh"
           ],
@@ -18682,9 +18700,9 @@
           "execution_class": "static"
         },
         {
-          "id": "M3.proof.tests_screen_recording_fake_test_mjs",
+          "id": "M3.proof.tests_m3_screen_recording_integrated_test_mjs",
           "case_id": null,
-          "path": "tests/screen-recording-fake.test.mjs",
+          "path": "tests/m3-screen-recording-integrated.test.mjs",
           "kind": "current",
           "execution_class": "fake"
         },

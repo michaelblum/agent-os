@@ -1,0 +1,35 @@
+{
+  "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Canonical production-attached offline integration proof for the complete landed M3 recording system.",
+  "entries": [
+    {
+      "id": "m3-screen-recording-integrated-proof",
+      "path_patterns": [
+        "src/daemon/operation-*.swift",
+        "src/daemon/screen-recording-*.swift",
+        "src/daemon/microphone-*.swift",
+        "src/shared/envelope.swift",
+        "src/shared/response-envelope.swift",
+        "shared/schemas/aos-artifact-v1.schema.json",
+        "shared/schemas/aos-operation-v1.schema.json",
+        "shared/schemas/aos-operation-event-v1.schema.json",
+        "shared/schemas/aos-screen-recording-v1.schema.json",
+        "shared/schemas/daemon-event.schema.json",
+        "shared/schemas/daemon-response.schema.json",
+        "tests/m3-screen-recording-integrated.test.mjs",
+        "tests/m3-screen-recording-integrated.sh"
+      ],
+      "fixture_patterns": [],
+      "owner": "operation-control",
+      "harness_level": "model_unit",
+      "proof_kind": "m3_complete_landed_system_integration",
+      "contract": "One offline Swift system executes the actual rev-2 operation registry, store, recovery, control, screen geometry/follow adapter, multitrack coordinator, artifact custody, shared microphone adapter/session, and public projectors with injected non-native dependencies. It covers all fixed/followed track selections, admission-before-authority, common epoch, backpressure, duration, control boundaries and races, geometry failure/recovery families, custody CAS/recovery, and deterministic store-fault families.",
+      "worth": "This catches cross-owner defects that focused schema, static, compile, or separately isolated harnesses cannot prove, while remaining content-free and permissionless.",
+      "command": "bash tests/m3-screen-recording-integrated.sh",
+      "replaces": [],
+      "guard": "No repo binary, live service, native capture API authority, device, filesystem media, TCC, pixels, audio, or UI executes; emitted public admissions, follow results, snapshots, events, custody results, and response envelopes validate against the exact checked-in schemas.",
+      "status": "active"
+    }
+  ]
+}

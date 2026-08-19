@@ -23,6 +23,7 @@
     "test-proof-registry.d/sovereign-capability-authority.json",
     "test-proof-registry.d/privileged-capability-ledger.json",
     "test-proof-registry.d/operation-control.json",
-    "test-proof-registry.d/screen-recording.json"
+    "test-proof-registry.d/screen-recording.json",
+    "test-proof-registry.d/m3-screen-recording-integrated.json"
   ]
 }

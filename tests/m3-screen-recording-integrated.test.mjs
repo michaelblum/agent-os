@@ -1361,29 +1361,36 @@ struct IntegratedHarness {
                 "pre-install stop resumed native start")
         }
 
-        let race = try Environment()
-        let admission = try activate(race, followed: true).0
-        let cancelResult = LockedBox<Result<AOSOperationControlReceipt, Error>?>(nil)
-        let killResult = LockedBox<Result<AOSOperationControlReceipt, Error>?>(nil)
-        DispatchQueue.global().async {
-            do { let value = try race.cancel(admission.operation)
-                cancelResult.write { $0 = .success(value) }
-            } catch { cancelResult.write { $0 = .failure(error) } }
+        for pair in [(AOSOrdinaryControlAction.cancel, AOSOrdinaryControlAction.kill),
+                     (AOSOrdinaryControlAction.kill, AOSOrdinaryControlAction.cancel)] {
+            let firstBarrier = Barrier()
+            let stopCalls = LockedBox(0)
+            let race = try Environment(stopAdmission: {
+                var isFirst = false
+                stopCalls.write { $0 += 1; isFirst = $0 == 1 }
+                if isFirst { firstBarrier.block() }
+            })
+            let admission = try activate(race, followed: true).0
+            let firstResult = LockedBox<Result<AOSOperationControlReceipt, Error>?>(nil)
+            DispatchQueue.global().async {
+                do {
+                    let value = try issue(pair.0, race, admission.operation)
+                    firstResult.write { $0 = .success(value) }
+                } catch { firstResult.write { $0 = .failure(error) } }
+            }
+            firstBarrier.waitUntilEntered()
+            let winner = try issue(pair.1, race, admission.operation)
+            firstBarrier.release()
+            wait("blocked first-writer race did not settle") { firstResult.read() != nil }
+            guard case .failure(let firstError)? = firstResult.read(),
+                  (firstError as? AOSOperationCoreError) == .invalidTransition else {
+                fatalError("blocked race loser overwrote the winner")
+            }
+            require(winner.action == pair.1
+                && operation(admission, race).stopIntent == winner.stopIntent
+                && operation(admission, race).outcome == winner.terminalOutcome,
+                "control race lost deterministic second-writer winner")
         }
-        DispatchQueue.global().async {
-            do { let value = try race.kill(admission.operation)
-                killResult.write { $0 = .success(value) }
-            } catch { killResult.write { $0 = .failure(error) } }
-        }
-        wait("control race did not settle") {
-            cancelResult.read() != nil && killResult.read() != nil
-        }
-        let winners = [cancelResult.read(), killResult.read()].compactMap { value in
-            if case .success(let receipt)? = value { return receipt }
-            return nil
-        }
-        require(winners.count == 1 && operation(admission, race).state == .terminal,
-                "cancel/kill race did not preserve one durable writer: \(String(describing: cancelResult.read())) / \(String(describing: killResult.read()))")
     }
 
     static func submit(
@@ -1871,7 +1878,8 @@ struct IntegratedHarness {
         try runSharedMicrophoneConflict()
         let bytes = try JSONSerialization.data(withJSONObject: evidence, options: [.sortedKeys])
         print("m3e-evidence:\(String(data: bytes, encoding: .utf8)!)")
-        print("m3e-integrated: matrix=8 registry=2 actual-writer=1 shared-microphone=1 control-boundaries=3 follow-recovery=1 custody=1 store-faults=11")
+        let faultCount = (evidence["faults"] as! [Any]).count
+        print("m3e-integrated: matrix=8 registry=2 actual-writer=1 shared-microphone=1 control-boundaries=3 follow-recovery=1 custody=1 store-faults=\(faultCount)")
     }
 }
 `

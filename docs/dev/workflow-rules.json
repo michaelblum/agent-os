@@ -409,9 +409,12 @@
         "manifests/commands/source/aos/42-screen-recording.json",
         "manifests/commands/source/external/50-screen-recording.json",
         "docs/dev/test-proof-registry.d/screen-recording.json",
+        "docs/dev/test-proof-registry.d/m3-screen-recording-integrated.json",
         "tests/schemas/aos-screen-recording-v1.test.mjs",
         "tests/screen-recording-*.test.mjs",
-        "tests/native-screen-recording-contract.sh"
+        "tests/native-screen-recording-contract.sh",
+        "tests/m3-screen-recording-integrated.test.mjs",
+        "tests/m3-screen-recording-integrated.sh"
       ],
       "classes": ["operation_control", "native_capture", "schema", "command_contract"],
       "actions": ["schema_test", "focused_test", "native_compile"],
@@ -422,6 +425,11 @@
           "id": "screen-recording-contract",
           "command": "bash tests/native-screen-recording-contract.sh",
         "reason": "Validate atomic initial selected-track and required geometry admission, all four fixed/followed selections, generation-CAS native crop updates, the actual public cancel/kill control plane immediately after first durable prepared publication but before provisional owner insertion, after durable starting but before concrete runtime installation, before follow activation, during activation-owner contention, after timer arm, and in both first-writer races, prepared-call blocking until the owner exists, bounded startup under a blocked durable stop save, consecutive preparation-and-cleanup save failure, waiting-stop/preparation-failure crossing, post-admission stopped-geometry save failure, retained pending ownership through bounded atomic settlement, zero prepared/pre-install runtime and native effects, exact preparation-failure terminal cleanup, failed-admission no-effect, invalid/drift/deadline/native-failure/pending-recovery truth, exact public projections, shared microphone ownership and claim-set, multitrack lifecycle/failure/custody, source/help/schema convergence, and native compile without capture authority."
+        },
+        {
+          "id": "m3-screen-recording-integrated",
+          "command": "bash tests/m3-screen-recording-integrated.sh",
+          "reason": "Execute the canonical production-attached offline integration across registry, control, recovery, recording, microphone, custody, projection, schema, and injected fault seams."
         }
       ],
       "verification": [],
