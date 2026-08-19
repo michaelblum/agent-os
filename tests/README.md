@@ -150,7 +150,15 @@ handoffs, broker acquisitions, native starts, and native stops; the eight
 post-install cases prove exactly one native stop. Failed durable stop admission
 has no native effect. One blocked durable stop-save case proves the startup wait
 is bounded, the keyed pending owner survives until settlement, and no later
-runtime, broker, or native effect escapes. It also covers native
+runtime, broker, or native effect escapes. A consecutive preparation-save and
+first cleanup-save failure proves bounded retry reaches exact failed-terminal
+cleanup without releasing ownership. A waiting public stop crossed with a
+preparation-save failure proves the public first writer wins exact terminal
+truth while the start caller receives the preparation error. A post-admission
+stopped-geometry save failure proves the pending owner retries the atomic
+geometry-and-terminal mutation instead of suppressing the failure. All three
+assert exact stopped geometry, child/claim closure, replay/rejection, and zero
+later runtime, broker, or native effects. It also covers native
 failure; and unresolved pending cleanup. Accepted-source containment loss is
 also exercised through the production frame validator. Durable geometry changes
 advance one exact event sequence, and the harness captures the production
@@ -162,8 +170,10 @@ orders, final-summary normalization with deterministic video/system-audio/
 microphone precedence, per-track monotonicity and truth, independent bounded
 backpressure, and injected durable save faults after atomic operation admission
 across every later stream, artifact, claim-set, claim, and starting transition.
-Preparation failure terminal-closes exact mechanically absent children and
-claims under the same lifecycle owner. For all four exact track selections,
+Immediately after durable prepared publication and its injected barrier, the
+adapter installs the exact operation-keyed pending owner before the first child;
+preparation failure terminal-closes exact mechanically absent children and
+claims before that owner is released. For all four exact track selections,
 the harness executes the exact production snapshot/list/inspect projector used
 by `UnifiedDaemon` and validates the prepared and exact failed-terminal
 responses against `aos.operation.v1` without synthesizing wire

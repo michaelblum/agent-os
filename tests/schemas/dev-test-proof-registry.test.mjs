@@ -120,15 +120,19 @@ test('canonical registry entries keep ids unique and commands exact', async () =
   }
 });
 
-test('screen recording proof owns public stop from first durable prepared publication', () => {
+test('screen recording proof owns public stop and post-publication settlement', () => {
   const registry = loadCanonicalRegistry();
   const proof = registry.entries.find(({ id }) => id === 'screen-recording-producer-proof');
   assert.ok(proof, 'expected screen-recording-producer-proof');
-  assert.match(proof.contract, /lifecycle owner before the first durable prepared publication/u);
+  assert.match(proof.contract, /lifecycle serialization lock before the first durable prepared publication/u);
+  assert.match(proof.contract, /exact operation-keyed pending owner immediately after the prepared barrier and before the first child publication/u);
   assert.match(proof.contract, /public cancel\/kill call that selects the prepared record blocks until the pending owner exists/u);
   assert.match(proof.guard, /twelve exact public stop cases/u);
   assert.match(proof.guard, /two prepared-publication and two pre-install cases assert zero runtime start handoffs/u);
   assert.match(proof.guard, /blocked durable stop-save case proves bounded startup return/u);
+  assert.match(proof.guard, /Consecutive preparation-and-cleanup save failure/u);
+  assert.match(proof.guard, /waiting-public-stop\/preparation-failure crossing/u);
+  assert.match(proof.guard, /post-admission stopped-geometry save failure/u);
   assert.match(proof.guard, /exact failed-terminal cleanup with no nonterminal child or claim/u);
 });
 

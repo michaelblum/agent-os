@@ -13,14 +13,16 @@ track truth, and exact shared-owner partial-start cleanup while adding caller-ow
 tracking, generation-CAS crop updates, durable pending intent, and absolute
 follow-deadline truth without live native authority. M3D-V3 gives public
 cancel/kill one durable stop transaction that the selected adapter invokes under
-its lifecycle owner. That owner begins before the first durable `.prepared`
-publication and persists through pending-runtime registration and `starting`;
-a public stop that selects the prepared record blocks until the pending owner
-exists, then terminal-cleans with authority absent and denies the handoff.
-Preparation failure terminal-closes every mechanically absent child and claim
-before the lifecycle owner is released. A blocked durable stop save consumes
-only the bounded startup wait: native handoff remains denied and its exact
-pending owner stays keyed until the transaction settles.
+its lifecycle serialization lock. That lock begins before the first durable
+`.prepared` publication; immediately after the prepared barrier and before any
+child publication, the adapter installs an exact operation-keyed pending owner
+and holds the lock through `starting`. A public stop that selects the prepared
+record blocks until the pending owner exists, then terminal-cleans with authority
+absent and denies the handoff. Preparation/transition settlement retries
+transient saves within a fixed bound and releases the pending owner only after
+atomic child/claim, stopped-geometry, and terminal truth is durable. A blocked
+durable stop save consumes only the bounded startup wait: native handoff remains
+denied and its exact pending owner stays keyed until the transaction settles.
 After handoff, the screen adapter admits it under the same runtime lock as follow
 installation, activation, and startup settlement. The first exact stop
 intent/outcome is immutable and replayable, a different later action rejects,

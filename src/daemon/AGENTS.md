@@ -179,18 +179,22 @@ normal cleanup without reacquisition. Treat loss of accepted source containment
 during production frame validation as immutable target drift; an off-source
 proposed update remains a nonterminal invalid update. Public cancel/kill supplies
 one durable stop-admission transaction to the adapter. The adapter acquires its
-lifecycle owner before the first durable `.prepared` publication and holds it
-through exact pending-runtime insertion and `starting` publication. Public
-control that selects the listable prepared record blocks at that owner, then
-the pending runtime admits the transaction before any later runtime handoff;
-preparation failure atomically terminal-closes every mechanically absent child
-and claim before releasing the owner. A stop before runtime installation
+lifecycle serialization lock before the first durable `.prepared` publication.
+Immediately after the prepared-publication barrier and before the first child
+publication, it installs an exact operation-keyed pending owner and holds the
+serialization lock through `starting` publication. Public control that selects
+the listable prepared record blocks until that pending owner exists, then the
+pending runtime admits the transaction before any later runtime handoff.
+Preparation or transition settlement retries transient durable-save failure
+within a fixed bound; it releases the pending owner only after atomic terminal
+cleanup durably closes every mechanically absent child and claim and publishes
+stopped caller-followed geometry. A stop before runtime installation
 terminal-cleans with authority absent and permanently denies the handoff; after
 handoff, the screen runtime invokes the transaction under the same lock as
 coordinator installation, activation, and startup settlement. An already-entered
 stop whose durable save remains blocked can consume only the bounded startup
 wait: native handoff stays denied and the exact pending owner remains keyed until
-that transaction settles. The first exact
+that transaction and atomic stopped-geometry cleanup settle durably. The first exact
 intent/outcome is immutable and same-action replayable, a different later action
 is rejected, failed durable admission has no native effect, and admitted stop
 cancels the timer and persists stopped geometry before terminal-clean
