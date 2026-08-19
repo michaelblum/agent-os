@@ -17,6 +17,10 @@ protocol AOSScreenRecordingEncoding: AnyObject {
         _ sampleBuffer: CMSampleBuffer,
         track: AOSScreenRecordingTrackKind
     ) throws
+    func appendMicrophone(
+        _ buffer: AVAudioPCMBuffer,
+        at time: AVAudioTime
+    ) throws
     func finish(_ completion: @escaping (Result<AOSArtifactFileIdentity, Error>) -> Void)
     func cancel()
 }
@@ -94,6 +98,7 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
 
     init(
         systemAudioSelected: Bool,
+        microphoneSelected: Bool = false,
         maximumPendingSamplesPerTrack: Int,
         writer: AOSScreenRecordingWriterDependencies,
         inputs: [AOSScreenRecordingTrackKind: AOSScreenRecordingWriterInputDependencies],
@@ -101,8 +106,11 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
     ) throws {
         guard (1...8).contains(maximumPendingSamplesPerTrack),
               inputs[.video] != nil,
-              !systemAudioSelected || inputs[.systemAudio] != nil else {
-            throw AOSOperationCoreError.recordingSystemAudioUnavailable
+              !systemAudioSelected || inputs[.systemAudio] != nil,
+              !microphoneSelected || inputs[.microphone] != nil else {
+            throw microphoneSelected
+                ? AOSOperationCoreError.recordingMicrophoneUnavailable
+                : AOSOperationCoreError.recordingSystemAudioUnavailable
         }
         self.maximumPendingSamplesPerTrack = maximumPendingSamplesPerTrack
         self.writer = writer
@@ -113,6 +121,10 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
             .systemAudio: AOSScreenRecordingMutableTrackTruth(
                 selected: systemAudioSelected,
                 admitted: systemAudioSelected
+            ),
+            .microphone: AOSScreenRecordingMutableTrackTruth(
+                selected: microphoneSelected,
+                admitted: microphoneSelected
             ),
         ]
     }
@@ -128,9 +140,7 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
         defer { lock.unlock() }
         guard !finishAdmitted, !cancelled,
               var state = tracks[kind], state.selected, state.admitted else {
-            throw kind == .systemAudio
-                ? AOSOperationCoreError.recordingSystemAudioUnavailable
-                : AOSOperationCoreError.recordingEncoderFailed
+            throw unavailableFailure(kind)
         }
         state.available = true
         tracks[kind] = state
@@ -182,14 +192,18 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
                 throw missingTrackFailure
             }
             guard allPendingEmptyLocked() else {
+                let blockedTrack = AOSScreenRecordingTrackKind.allCases.first {
+                    tracks[$0]?.pending.isEmpty == false
+                } ?? .video
                 throw recordFailureLocked(
-                    track: tracks[.systemAudio]?.pending.isEmpty == false ? .systemAudio : .video,
+                    track: blockedTrack,
                     error: AOSOperationCoreError.recordingBackpressureExceeded
                 )
             }
-            guard tracks[.video]?.writtenSampleCount ?? 0 > 0,
-                  tracks[.systemAudio]?.selected != true
-                    || (tracks[.systemAudio]?.writtenSampleCount ?? 0) > 0 else {
+            guard AOSScreenRecordingTrackKind.allCases.allSatisfy({ kind in
+                tracks[kind]?.selected != true
+                    || (tracks[kind]?.writtenSampleCount ?? 0) > 0
+            }) else {
                 throw AOSOperationCoreError.recordingEncoderFailed
             }
             markInputsFinishedLocked()
@@ -228,15 +242,17 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
                         error: AOSOperationCoreError.recordingSystemAudioFailed
                     )
                 }
+                if self.tracks[.microphone]?.selected == true {
+                    _ = self.recordFailureLocked(
+                        track: .microphone,
+                        error: AOSOperationCoreError.recordingMicrophoneFailed
+                    )
+                }
             }
             let summary = self.summaryLocked()
             self.lock.unlock()
             guard succeeded else {
-                completion(.failure(
-                    summary.systemAudio.selected
-                        ? AOSOperationCoreError.recordingSystemAudioFailed
-                        : AOSOperationCoreError.recordingEncoderFailed
-                ))
+                completion(.failure(AOSOperationCoreError.recordingEncoderFailed))
                 return
             }
             do {
@@ -270,9 +286,7 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
         guard state.available else {
             throw recordFailureLocked(
                 track: kind,
-                error: kind == .systemAudio
-                    ? AOSOperationCoreError.recordingSystemAudioUnavailable
-                    : AOSOperationCoreError.recordingEncoderFailed
+                error: unavailableFailure(kind)
             )
         }
         if let previous = state.lastPresentationTime,
@@ -326,9 +340,7 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
                     tracks[kind] = state
                     throw recordFailureLocked(
                         track: kind,
-                        error: kind == .systemAudio
-                            ? AOSOperationCoreError.recordingSystemAudioFailed
-                            : AOSOperationCoreError.recordingEncoderFailed
+                        error: sampleFailure(kind)
                     )
                 }
                 state.writtenSampleCount &+= 1
@@ -340,9 +352,7 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
                 } catch {
                     throw recordFailureLocked(
                         track: kind,
-                        error: kind == .systemAudio
-                            ? AOSOperationCoreError.recordingSystemAudioFailed
-                            : AOSOperationCoreError.recordingEncoderFailed
+                        error: sampleFailure(kind)
                     )
                 }
             }
@@ -382,16 +392,25 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
     private func summaryLocked() -> AOSScreenRecordingTrackSummary {
         let video = tracks[.video]!.publicTruth
         let audio = tracks[.systemAudio]!.publicTruth
-        let selected = audio.selected ? ["video", "system_audio"] : ["video"]
+        let microphone = tracks[.microphone]!.publicTruth
+        let selected = AOSScreenRecordingTrackSummary.selectedTrackNames(
+            systemAudio: audio.selected,
+            microphone: microphone.selected
+        )
         let finalized = selected.filter { name in
-            name == "video" ? video.finalized : audio.finalized
+            switch name {
+            case "video": return video.finalized
+            case "system_audio": return audio.finalized
+            default: return microphone.finalized
+            }
         }
         return AOSScreenRecordingTrackSummary(
             selectedTracks: selected,
             finalizedTracks: finalized,
             commonMediaEpochNanoseconds: commonEpoch.flatMap(Self.nanoseconds),
             video: video,
-            systemAudio: audio
+            systemAudio: audio,
+            microphone: microphone
         )
     }
 
@@ -431,6 +450,14 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
             )
             if terminalFailure == nil { terminalFailure = audioFailure }
         }
+        if tracks[.microphone]?.selected == true,
+           tracks[.microphone]?.firstSamplePresent != true {
+            let microphoneFailure = recordFailureLocked(
+                track: .microphone,
+                error: AOSOperationCoreError.recordingMicrophoneNoSamples
+            )
+            if terminalFailure == nil { terminalFailure = microphoneFailure }
+        }
         return terminalFailure
     }
 
@@ -439,14 +466,39 @@ final class AOSScreenRecordingMultitrackCoordinator: @unchecked Sendable {
             track: .video,
             error: AOSOperationCoreError.recordingEncoderFailed
         )
-        guard tracks[.systemAudio]?.selected == true else {
-            return AOSOperationCoreError.recordingEncoderFailed
+        if tracks[.systemAudio]?.selected == true {
+            _ = recordFailureLocked(
+                track: .systemAudio,
+                error: AOSOperationCoreError.recordingSystemAudioFailed
+            )
         }
-        _ = recordFailureLocked(
-            track: .systemAudio,
-            error: AOSOperationCoreError.recordingSystemAudioFailed
-        )
-        return AOSOperationCoreError.recordingSystemAudioFailed
+        if tracks[.microphone]?.selected == true {
+            _ = recordFailureLocked(
+                track: .microphone,
+                error: AOSOperationCoreError.recordingMicrophoneFailed
+            )
+        }
+        return AOSOperationCoreError.recordingEncoderFailed
+    }
+
+    private func unavailableFailure(
+        _ kind: AOSScreenRecordingTrackKind
+    ) -> AOSOperationCoreError {
+        switch kind {
+        case .video: return .recordingEncoderFailed
+        case .systemAudio: return .recordingSystemAudioUnavailable
+        case .microphone: return .recordingMicrophoneUnavailable
+        }
+    }
+
+    private func sampleFailure(
+        _ kind: AOSScreenRecordingTrackKind
+    ) -> AOSOperationCoreError {
+        switch kind {
+        case .video: return .recordingEncoderFailed
+        case .systemAudio: return .recordingSystemAudioFailed
+        case .microphone: return .recordingMicrophoneFailed
+        }
     }
 
     private static func nanoseconds(_ time: CMTime) -> UInt64? {
@@ -470,7 +522,8 @@ final class AOSScreenRecordingEncoder: AOSScreenRecordingEncoding,
         geometry: AOSScreenRecordingGeometry,
         maximumOutputBytes: UInt64,
         maximumPendingSamplesPerTrack: Int,
-        systemAudioSelected: Bool
+        systemAudioSelected: Bool,
+        microphoneSelected: Bool = false
     ) throws {
         guard outputURL.deletingLastPathComponent().standardizedFileURL == rootURL.standardizedFileURL,
               !FileManager.default.fileExists(atPath: outputURL.path),
@@ -517,8 +570,26 @@ final class AOSScreenRecordingEncoder: AOSScreenRecordingEncoding,
             writer.add(audioInput)
             inputs[.systemAudio] = Self.dependencies(audioInput)
         }
+        if microphoneSelected {
+            let microphoneInput = AVAssetWriterInput(
+                mediaType: .audio,
+                outputSettings: [
+                    AVFormatIDKey: kAudioFormatMPEG4AAC,
+                    AVSampleRateKey: 48_000,
+                    AVNumberOfChannelsKey: 1,
+                    AVEncoderBitRateKey: 128_000,
+                ]
+            )
+            microphoneInput.expectsMediaDataInRealTime = true
+            guard writer.canAdd(microphoneInput) else {
+                throw AOSOperationCoreError.recordingMicrophoneUnavailable
+            }
+            writer.add(microphoneInput)
+            inputs[.microphone] = Self.dependencies(microphoneInput)
+        }
         coordinator = try AOSScreenRecordingMultitrackCoordinator(
             systemAudioSelected: systemAudioSelected,
+            microphoneSelected: microphoneSelected,
             maximumPendingSamplesPerTrack: maximumPendingSamplesPerTrack,
             writer: AOSScreenRecordingWriterDependencies(
                 startWriting: { writer.startWriting() },
@@ -551,6 +622,16 @@ final class AOSScreenRecordingEncoder: AOSScreenRecordingEncoding,
         track: AOSScreenRecordingTrackKind
     ) throws {
         try coordinator.append(sampleBuffer, track: track)
+    }
+
+    func appendMicrophone(
+        _ buffer: AVAudioPCMBuffer,
+        at time: AVAudioTime
+    ) throws {
+        try coordinator.append(
+            Self.microphoneSampleBuffer(buffer, at: time),
+            track: .microphone
+        )
     }
 
     func finish(_ completion: @escaping (Result<AOSArtifactFileIdentity, Error>) -> Void) {
@@ -626,6 +707,50 @@ final class AOSScreenRecordingEncoder: AOSScreenRecordingEncoding,
             return UInt64(CVPixelBufferGetDataSize(image))
         }
         return 0
+    }
+
+    private static func microphoneSampleBuffer(
+        _ buffer: AVAudioPCMBuffer,
+        at time: AVAudioTime
+    ) throws -> CMSampleBuffer {
+        guard buffer.frameLength > 0,
+              time.isHostTimeValid else {
+            throw AOSOperationCoreError.recordingMicrophoneFailed
+        }
+        let presentationTime = CMClockMakeHostTimeFromSystemUnits(time.hostTime)
+        guard presentationTime.isNumeric,
+              CMTimeCompare(presentationTime, .zero) >= 0 else {
+            throw AOSOperationCoreError.recordingTimestampNonMonotonic
+        }
+        var sampleBuffer: CMSampleBuffer?
+        let createStatus = CMAudioSampleBufferCreateWithPacketDescriptions(
+            allocator: kCFAllocatorDefault,
+            dataBuffer: nil,
+            dataReady: false,
+            makeDataReadyCallback: nil,
+            refcon: nil,
+            formatDescription: buffer.format.formatDescription,
+            sampleCount: CMItemCount(buffer.frameLength),
+            presentationTimeStamp: presentationTime,
+            packetDescriptions: nil,
+            sampleBufferOut: &sampleBuffer
+        )
+        guard createStatus == noErr, let sampleBuffer else {
+            throw AOSOperationCoreError.recordingMicrophoneFailed
+        }
+        let copyStatus = CMSampleBufferSetDataBufferFromAudioBufferList(
+            sampleBuffer,
+            blockBufferAllocator: kCFAllocatorDefault,
+            blockBufferMemoryAllocator: kCFAllocatorDefault,
+            flags: UInt32(kCMSampleBufferFlag_AudioBufferList_Assure16ByteAlignment),
+            bufferList: buffer.audioBufferList
+        )
+        guard copyStatus == noErr,
+              CMSampleBufferSetDataReady(sampleBuffer) == noErr,
+              CMSampleBufferIsValid(sampleBuffer) else {
+            throw AOSOperationCoreError.recordingMicrophoneFailed
+        }
+        return sampleBuffer
     }
 
     static func digest(_ value: String) -> String {

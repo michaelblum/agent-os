@@ -42,11 +42,11 @@ private final class AOSMicrophoneOperationClaimLeaseImpl: AOSMicrophoneOperation
 final class AOSMicrophoneOperationAdapter: AOSOperationControlAdapter, AOSMicrophoneOperationClaiming {
     typealias ContextResolver = (UUID) throws -> AOSMicrophoneOperationContext
 
-    static let registrationID = "microphone-capture-adapter"
-    static let registrationRevision: UInt64 = 1
+    static let registrationID = AOSMicrophoneOperationResourceIdentity.adapterRegistrationID
+    static let registrationRevision = AOSMicrophoneOperationResourceIdentity.adapterRegistrationRevision
     static let capabilityID = "microphone-capture-adapter"
     static let operationClass = "audio-capture"
-    static let resourceKey = "voice_io_native_session"
+    static let resourceKey = AOSMicrophoneOperationResourceIdentity.resourceKey
 
     private struct RuntimeBinding {
         let stop: (_ force: Bool) -> Void

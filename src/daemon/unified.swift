@@ -492,6 +492,24 @@ class UnifiedDaemon {
                     attribution: context.attribution
                 )
             },
+            microphoneAuthorization: AOSScreenRecordingMicrophoneAuthorizationDependencies(
+                status: { [weak self] in
+                    self?.voiceTransport.microphoneAuthorizationStatus() ?? .unknown
+                },
+                request: { [weak self] timeout in
+                    guard let self else {
+                        return AOSMicrophoneAuthorizationRequestResult(
+                            before: .unknown,
+                            after: .unknown,
+                            attempted: false,
+                            completed: false
+                        )
+                    }
+                    return self.voiceTransport.requestMicrophoneAuthorization(
+                        timeout: timeout
+                    )
+                }
+            ),
             reconcileHostBarrier: { [weak control] in
                 guard let control else { return }
                 let state = registry.snapshot().barrier.state
