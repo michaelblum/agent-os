@@ -17107,7 +17107,7 @@
             },
             "execution_class": "fake",
             "requires_owner_authority": false,
-            "claim": "Canonical production-attached offline integration of the rev-2 registry/store/recovery/control plane with recording geometry, adapter, multitrack writer, custody, shared microphone, public projection, schema, control-race, recovery, and persistence-fault seams."
+            "claim": "Canonical production-attached offline integration of the rev-2 registry with production file-store readback, production topology wire decoding/projection, recovery/control, recording geometry, adapter, multitrack writer, custody, shared microphone, exact pre-authority track settlement, mandatory-video precedence, fixed/follow drift/deadline behavior, successful and failed public schemas, authored/generated manifests, and terminal-clean or retained-residual compound persistence faults."
           },
           {
             "path_ref": {
@@ -17116,7 +17116,7 @@
             },
             "execution_class": "fake",
             "requires_owner_authority": false,
-            "claim": "Run the canonical M3 integrated proof inside explicit private temporary and state roots, then verify complete root removal with no retained artifacts."
+            "claim": "Exclusively create the canonical M3 integrated proof's fresh private temporary/state root, bind cleanup to its device/inode identity, and verify complete exact-root removal with no retained artifacts."
           }
         ],
         "native": [

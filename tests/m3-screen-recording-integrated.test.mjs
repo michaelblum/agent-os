@@ -860,13 +860,13 @@ final class Environment: @unchecked Sendable {
         try control.kill(context: context(), operation: operation)
     }
 
-    func request(
+    func requestValue(
         systemAudio: Bool,
         microphone: Bool,
         followed: Bool,
         duration: Int = 40,
         followDeadline: Int = 80
-    ) throws -> AOSScreenRecordingRequest {
+    ) throws -> [String: Any] {
         let target: [String: Any] = followed ? [
             "kind": "region", "display_ordinal": 1,
             "global_bounds": ["x": 10, "y": 10, "width": 40, "height": 30],
@@ -877,7 +877,7 @@ final class Environment: @unchecked Sendable {
             "update_interval_ms": 16,
             "update_deadline_ms": followDeadline,
         ] : ["mode": "fixed"]
-        return try AOSScreenRecordingRequest.validatingPublicValue([
+        return [
             "schema_version": "aos.screen-recording.request.v1",
             "request_id": "m3e-request",
             "canonical_parameter_digest": String(repeating: "b", count: 64),
@@ -896,7 +896,23 @@ final class Environment: @unchecked Sendable {
             ],
             "codec": "h264",
             "container": "quicktime",
-        ])
+        ]
+    }
+
+    func request(
+        systemAudio: Bool,
+        microphone: Bool,
+        followed: Bool,
+        duration: Int = 40,
+        followDeadline: Int = 80
+    ) throws -> AOSScreenRecordingRequest {
+        try AOSScreenRecordingRequest.validatingPublicValue(requestValue(
+            systemAudio: systemAudio,
+            microphone: microphone,
+            followed: followed,
+            duration: duration,
+            followDeadline: followDeadline
+        ))
     }
 
     func update(
@@ -953,7 +969,12 @@ final class Environment: @unchecked Sendable {
         )
     }
 
-    static func binding(observation: Int, state: Int) -> [String: Any] {
+    static func binding(
+        observation: Int,
+        state: Int,
+        windowID: Int = 77,
+        ownerPID: Int = 700
+    ) -> [String: Any] {
         func identity(_ id: String, _ generation: Int) -> [String: Any] {
             ["id": id, "generation": generation]
         }
@@ -964,7 +985,7 @@ final class Environment: @unchecked Sendable {
             "session": identity("session", 1),
             "navigation": identity("navigation", 1),
             "frame": identity("frame", 1),
-            "source_window": ["window_id": 77, "owner_pid": 700],
+            "source_window": ["window_id": windowID, "owner_pid": ownerPID],
         ]
     }
 
@@ -980,6 +1001,38 @@ final class Environment: @unchecked Sendable {
 func responseEnvelope(_ data: [String: Any]) -> [String: Any] {
     let bytes = responseJSONBytes(data, envelopeActive: true, envelopeRef: "m3e")!
     return try! JSONSerialization.jsonObject(with: bytes) as! [String: Any]
+}
+
+func daemonRequest(_ action: String, data: [String: Any]) -> [String: Any] {
+    ["v": 1, "service": "operation", "action": action, "data": data, "ref": "m3e"]
+}
+
+func controlProjection(
+    _ receipt: AOSOperationControlReceipt,
+    environment: Environment
+) -> [String: Any] {
+    let current = receipt.selectedOperations.compactMap {
+        try? environment.registry.inspect($0)
+    }
+    let cleanupRequired = current.contains {
+        [.cleanupRequired, .recovering].contains($0.state)
+    }
+    return [
+        "schema_version": "aos.operation.control-result.v1",
+        "operation": receipt.action.rawValue,
+        "outcome": receipt.selectedOperations.isEmpty
+            ? "empty_selection" : (cleanupRequired ? "cleanup_required" : "accepted"),
+        "selected_operation_count": receipt.selectedOperationCount,
+        "selected_operation_digest": receipt.selectedOperationDigest,
+        "results": current.map {
+            ["operation_id": $0.identity.id,
+             "operation_generation": $0.identity.generation,
+             "resulting_state": $0.state.rawValue,
+             "cleanup_result": [.cleanupRequired, .recovering].contains($0.state)
+                ? "residuals_present" : ($0.state == .terminal ? "zero_residuals" : "pending")]
+        },
+        "completed_at": "2026-08-19T00:00:00.000Z",
+    ]
 }
 
 func codableValue<T: Encodable>(_ value: T) -> [String: Any] {
@@ -1020,6 +1073,7 @@ struct IntegratedHarness {
     static var evidence: [String: Any] = [
         "admissions": [], "lists": [], "inspects": [], "events": [], "custody": [],
         "responses": [], "requests": [], "follow_updates": [], "controls": [], "faults": [],
+        "failed_lists": [], "failed_inspects": [],
     ]
 
     static func append(_ key: String, _ value: Any) {
@@ -1075,6 +1129,34 @@ struct IntegratedHarness {
             "pre-authority control left selected tracks unsettled")
     }
 
+    static func requireBoundedFaultOutcome(_ environment: Environment, _ label: String) {
+        let deadline = Date().addingTimeInterval(1)
+        repeat {
+            let state = environment.registry.snapshot()
+            if state.operations.isEmpty {
+                if state.streams.isEmpty && state.artifacts.isEmpty
+                    && state.resourceTransactions.isEmpty && state.resourceClaims.isEmpty
+                    && state.resourceBrokers.isEmpty && !environment.broker.retainsAuthority {
+                    return
+                }
+            } else if state.operations.allSatisfy({ operation in
+                let hasChildren = AOSOperationRegistry.hasNonterminalChildren(
+                    in: state, operation: operation.identity
+                )
+                let residual = environment.screenAdapter.residualDigest(
+                    operation: operation.identity
+                )
+                let terminalClean = operation.state == .terminal
+                    && !hasChildren && residual == nil && !environment.broker.retainsAuthority
+                let boundedRetained = [.cleanupRequired, .recovering].contains(operation.state)
+                    || (operation.state != .terminal && hasChildren && residual != nil)
+                return terminalClean || boundedRetained
+            }) { return }
+            Thread.sleep(forTimeInterval: 0.001)
+        } while Date() < deadline
+        fatalError("\(label) was neither terminal-clean nor exact retained-owner residual")
+    }
+
     static func runMatrix() throws {
         for followed in [false, true] {
             for selection in [(false, false), (true, false), (false, true), (true, true)] {
@@ -1082,13 +1164,15 @@ struct IntegratedHarness {
                 let environment: Environment
                 do { environment = try Environment() }
                 catch { fatalError("environment \(label): \(error)") }
-                let request = try environment.request(
+                let requestValue = try environment.requestValue(
                     systemAudio: selection.0,
                     microphone: selection.1,
                     followed: followed,
                     duration: 60,
                     followDeadline: 200
                 )
+                let request = try AOSScreenRecordingRequest.validatingPublicValue(requestValue)
+                append("requests", daemonRequest("record_screen", data: requestValue))
                 let admission: AOSScreenRecordingAdmission
                 do {
                     admission = try environment.screenAdapter.start(
@@ -1175,6 +1259,36 @@ struct IntegratedHarness {
         }
     }
 
+    static func runMandatoryVideoFailure() throws {
+        let environment = try Environment()
+        let request = try environment.request(
+            systemAudio: true, microphone: true, followed: false,
+            duration: 1_000, followDeadline: 500
+        )
+        let admission = try environment.screenAdapter.start(
+            request: request, connectionID: UUID()
+        )
+        wait("mandatory-video start missing") { environment.driver.startWasRequested() }
+        try environment.driver.publish(.systemAudio)
+        try environment.driver.publish(.microphone)
+        environment.driver.settleStart()
+        wait("mandatory-video failure did not terminalize") {
+            operation(admission, environment).state == .terminal
+        }
+        let terminal = operation(admission, environment)
+        let summary = terminal.progress!.trackSummary!
+        require(terminal.failureCode == AOSOperationCoreError.recordingNoFrames.code
+            && summary.video.failureCode == AOSOperationCoreError.recordingNoFrames.code
+            && summary.systemAudio.firstSamplePresent
+            && summary.microphone.firstSamplePresent,
+            "mandatory-video terminal precedence drifted")
+        let values = projection(terminal, state: environment.registry.snapshot())
+        append("failed_lists", values.0)
+        append("failed_inspects", values.1)
+        append("responses", responseEnvelope(values.0))
+        append("responses", responseEnvelope(values.1))
+    }
+
     static func activate(
         _ environment: Environment,
         followed: Bool,
@@ -1244,7 +1358,17 @@ struct IntegratedHarness {
                 )
                 && !active.broker.retainsAuthority,
                 "active stop left geometry, children, or authority")
-            append("controls", codableValue(receipt))
+            let projectedControl = controlProjection(receipt, environment: active)
+            append("controls", projectedControl)
+            append("responses", responseEnvelope(projectedControl))
+            append("requests", daemonRequest(action.rawValue, data: [
+                "request_id": "control-\(action.rawValue)",
+                "canonical_parameter_digest": String(repeating: "e", count: 64),
+                "selector": [
+                    "operation_id": activeAdmission.operation.id,
+                    "operation_generation": activeAdmission.operation.generation,
+                ],
+            ]))
 
             let preparedBarrier = Barrier()
             let stopObserved = LockedBox(false)
@@ -1390,6 +1514,20 @@ struct IntegratedHarness {
     }
 
     static func runFollowGeometryAndRecovery() throws {
+        let fixed = try Environment()
+        let fixedActive = try activate(fixed, followed: false)
+        let fixedUpdate = try submit(
+            fixed.update(fixedActive.0), environment: fixed, connection: fixedActive.1
+        )
+        wait("fixed-mode update did not reject") { fixedUpdate.read() != nil }
+        guard case .failure(.invalidTransition)? = fixedUpdate.read() else {
+            fatalError("fixed-mode follow update was not rejected")
+        }
+        require(operation(fixedActive.0, fixed).state == .active
+            && fixed.driver.geometryUpdates == 0,
+            "fixed-mode rejection changed runtime geometry")
+        _ = try fixed.cancel(fixedActive.0.operation)
+
         let environment = try Environment()
         let activated = try activate(environment, followed: true)
         let admission = activated.0
@@ -1482,6 +1620,27 @@ struct IntegratedHarness {
             operation(driftActive.0, topologyDrift).state == .terminal
         }
 
+        let sourceDrift = try Environment()
+        let sourceActive = try activate(sourceDrift, followed: true)
+        Thread.sleep(forTimeInterval: 0.02)
+        let changedSource = try submit(
+            sourceDrift.update(
+                sourceActive.0,
+                binding: Environment.binding(
+                    observation: 2, state: 2, windowID: 78, ownerPID: 701
+                )
+            ),
+            environment: sourceDrift,
+            connection: sourceActive.1
+        )
+        wait("immutable source drift did not settle") { changedSource.read() != nil }
+        guard case .failure(.recordingTargetDrift)? = changedSource.read() else {
+            fatalError("immutable source identity drift lost exact failure")
+        }
+        wait("source identity drift did not stop") {
+            operation(sourceActive.0, sourceDrift).state == .terminal
+        }
+
         let nativeFailure = try Environment()
         let nativeActive = try activate(nativeFailure, followed: true)
         Thread.sleep(forTimeInterval: 0.02)
@@ -1512,6 +1671,35 @@ struct IntegratedHarness {
         require(operation(deadlineActive.0, deadline).failureCode
             == AOSOperationCoreError.recordingFollowTimeout.code,
             "deadline timeout lost exact terminal code")
+
+        let rearmed = try Environment()
+        let rearmedActive = try activate(
+            rearmed, followed: true, duration: 1_000, deadline: 120
+        )
+        wait("re-arm deadline was not initially armed") {
+            operation(rearmedActive.0, rearmed)
+                .screenRecordingGeometry?.nextDeadlineNanoseconds != nil
+        }
+        let priorDeadline = operation(rearmedActive.0, rearmed)
+            .screenRecordingGeometry!.nextDeadlineNanoseconds!
+        Thread.sleep(forTimeInterval: 0.075)
+        let rearmResult = try submit(
+            rearmed.update(rearmedActive.0),
+            environment: rearmed,
+            connection: rearmedActive.1
+        )
+        wait("deadline re-arm update did not settle") { rearmResult.read() != nil }
+        guard case .success(let rearmedGeometry)? = rearmResult.read() else {
+            fatalError("deadline re-arm update failed")
+        }
+        require(rearmedGeometry.nextDeadlineNanoseconds! > priorDeadline,
+                "accepted update did not advance the absolute deadline")
+        Thread.sleep(forTimeInterval: 0.06)
+        require(operation(rearmedActive.0, rearmed).state == .active,
+                "original deadline fired after accepted-update re-arm")
+        wait("re-armed deadline did not expire", timeout: 1) {
+            operation(rearmedActive.0, rearmed).state == .terminal
+        }
 
         let store = try FaultStore()
         let prior = try Environment(store: store)
@@ -1746,6 +1934,7 @@ struct IntegratedHarness {
                 && !environment.broker.retainsAuthority
                 && !environment.driver.startWasRequested(),
                 "\(family.rawValue) fault leaked authority")
+            requireBoundedFaultOutcome(environment, family.rawValue)
             append("faults", family.rawValue)
         }
 
@@ -1769,6 +1958,7 @@ struct IntegratedHarness {
             [.terminal, .cleanupRequired].contains(operation(progressAdmission, progress).state)
         }
         require(progressStore.saw(.trackProgress), "track progress fault was not reached")
+        requireBoundedFaultOutcome(progress, "track_progress")
         append("faults", FaultStore.Family.trackProgress.rawValue)
 
         let pendingStore = try FaultStore()
@@ -1787,6 +1977,10 @@ struct IntegratedHarness {
         }
         require(pendingStore.saw(.followPending), "follow pending save was not reached")
         _ = try pending.cancel(pendingActive.0.operation)
+        wait("follow-pending cleanup did not settle") {
+            operation(pendingActive.0, pending).state == .terminal
+        }
+        requireBoundedFaultOutcome(pending, "follow_pending")
         append("faults", FaultStore.Family.followPending.rawValue)
 
         let commitStore = try FaultStore()
@@ -1807,6 +2001,7 @@ struct IntegratedHarness {
             operation(commitActive.0, commit).state == .terminal
         }
         require(commitStore.saw(.followCommit), "follow commit save was not reached")
+        requireBoundedFaultOutcome(commit, "follow_commit")
         append("faults", FaultStore.Family.followCommit.rawValue)
 
         for family in [FaultStore.Family.followStopped,
@@ -1820,22 +2015,30 @@ struct IntegratedHarness {
                 [.terminal, .cleanupRequired].contains(operation(active.0, environment).state)
             }
             require(store.saw(family), "\(family.rawValue) save was not reached")
+            requireBoundedFaultOutcome(environment, family.rawValue)
             append("faults", family.rawValue)
         }
 
-        let consecutiveStore = try FaultStore()
-        let consecutive = try Environment(store: consecutiveStore)
-        let consecutiveActive = try activate(
-            consecutive, followed: false, duration: 10_000
-        )
-        consecutiveStore.arm(.terminalCleanup, count: 8)
+        let compoundStore = try FaultStore()
+        let compound = try Environment(store: compoundStore)
+        compoundStore.arm(.activation)
+        compoundStore.arm(.terminalCleanup, count: 3)
         let started = Date()
-        do { _ = try consecutive.cancel(consecutiveActive.0.operation) } catch {}
+        do {
+            _ = try compound.screenAdapter.start(
+                request: compound.request(
+                    systemAudio: false, microphone: false, followed: true
+                ),
+                connectionID: UUID()
+            )
+            fatalError("compound activation/cleanup fault reported admission")
+        } catch {}
         require(Date().timeIntervalSince(started) < 3
-            && consecutiveStore.saw(.terminalCleanup)
-            && operation(consecutiveActive.0, consecutive).outcome != .succeeded,
-            "consecutive cleanup failure mismatch elapsed=\(Date().timeIntervalSince(started)) saw=\(consecutiveStore.saw(.terminalCleanup)) outcome=\(String(describing: operation(consecutiveActive.0, consecutive).outcome))")
-        append("faults", "consecutive_terminal_cleanup")
+            && compoundStore.saw(.activation)
+            && compoundStore.saw(.terminalCleanup),
+            "compound primary and cleanup-save faults were not both exercised")
+        requireBoundedFaultOutcome(compound, "compound_activation_cleanup")
+        append("faults", "compound_activation_cleanup")
     }
 
     static func runSharedMicrophoneConflict() throws {
@@ -1865,6 +2068,7 @@ struct IntegratedHarness {
 
     static func main() throws {
         try runMatrix()
+        try runMandatoryVideoFailure()
         try runPublicControl()
         try runFollowGeometryAndRecovery()
         try runCustody()
@@ -1926,10 +2130,15 @@ test('complete landed M3 recording executes as one production-attached offline s
     assert.equal(evidence.lists.length, 8)
     assert.equal(evidence.inspects.length, 8)
     assert.ok(evidence.events.length >= 8)
-    assert.equal(evidence.responses.length, 28)
+    assert.equal(evidence.responses.length, 32)
+    assert.equal(evidence.requests.length, 10)
+    assert.equal(evidence.controls.length, 2)
+    assert.equal(evidence.failed_lists.length, 1)
+    assert.equal(evidence.failed_inspects.length, 1)
     const validate = spawnSync('python3', ['-c', String.raw`
 import json, os, sys
-from jsonschema import Draft202012Validator, FormatChecker, RefResolver
+from jsonschema import Draft202012Validator, FormatChecker
+from referencing import Registry, Resource
 root=sys.argv[1]
 schemas=[]
 for name in os.listdir(root):
@@ -1937,34 +2146,61 @@ for name in os.listdir(root):
         value=json.load(open(os.path.join(root,name),encoding='utf-8'))
         if '$id' in value: schemas.append(value)
 store={value['$id']:value for value in schemas}
+registry=Registry().with_resources((key,Resource.from_contents(value)) for key,value in store.items())
 def by_name(name): return next(value for key,value in store.items() if key.endswith('/'+name))
 def definition(name, member):
     schema=by_name(name)
     target={'$schema':'https://json-schema.org/draft/2020-12/schema','$ref':schema['$id']+'#/$defs/'+member}
-    return Draft202012Validator(target,resolver=RefResolver.from_schema(target,store=store),format_checker=FormatChecker())
+    return Draft202012Validator(target,registry=registry,format_checker=FormatChecker())
+def whole(name): return Draft202012Validator(by_name(name),registry=registry,format_checker=FormatChecker())
 rows=json.load(sys.stdin)
 checks=[
   (definition('aos-screen-recording-v1.schema.json','admission_result'),rows['admissions']),
   (definition('aos-screen-recording-v1.schema.json','follow_update_result'),rows['follow_updates']),
   (definition('aos-operation-v1.schema.json','operation_list_result'),rows['lists']),
   (definition('aos-operation-v1.schema.json','operation_inspect_result'),rows['inspects']),
+  (definition('aos-operation-v1.schema.json','operation_list_result'),rows['failed_lists']),
+  (definition('aos-operation-v1.schema.json','operation_inspect_result'),rows['failed_inspects']),
+  (definition('aos-operation-v1.schema.json','operation_control_result'),rows['controls']),
   (definition('aos-artifact-v1.schema.json','artifact_custody_result'),rows['custody']),
-  (Draft202012Validator(by_name('daemon-event.schema.json'),resolver=RefResolver.from_schema(by_name('daemon-event.schema.json'),store=store),format_checker=FormatChecker()),rows['events']),
-  (Draft202012Validator(by_name('daemon-response.schema.json'),resolver=RefResolver.from_schema(by_name('daemon-response.schema.json'),store=store),format_checker=FormatChecker()),rows['responses']),
+  (whole('daemon-request.schema.json'),rows['requests']),
+  (whole('daemon-event.schema.json'),rows['events']),
+  (whole('daemon-response.schema.json'),rows['responses']),
 ]
 for validator, values in checks:
     for value in values:
         errors=list(validator.iter_errors(value))
         assert not errors,[error.message for error in errors]
-print('m3e-schemas: admissions=8 follow=1 list=8 inspect=8 custody=3 responses=28')
+print('m3e-schemas: requests=10 admissions=8 follow=1 list=9 inspect=9 controls=2 custody=3 responses=32')
 `, path.join(repoRoot, 'shared/schemas')], {
       encoding: 'utf8', input: JSON.stringify(evidence), timeout: 20_000,
     })
     assert.equal(validate.status, 0, `${validate.stdout}\n${validate.stderr}`)
-    assert.match(validate.stdout, /m3e-schemas: admissions=8 follow=1 list=8 inspect=8 custody=3 responses=28/u)
+    assert.match(validate.stdout, /m3e-schemas: requests=10 admissions=8 follow=1 list=9 inspect=9 controls=2 custody=3 responses=32/u)
   } finally {
     await rm(buildRoot, { recursive: true, force: true })
   }
+})
+
+test('authored recording manifests exactly match generated command aggregates', async () => {
+  const files = await Promise.all([
+    'manifests/commands/source/aos/42-screen-recording.json',
+    'manifests/commands/aos-commands.json',
+    'manifests/commands/source/external/50-screen-recording.json',
+    'manifests/commands/aos-external-commands.json',
+  ].map(async (name) => JSON.parse(await readFile(path.join(repoRoot, name), 'utf8'))))
+  const [authoredAos, generatedAos, authoredExternal, generatedExternal] = files
+  const generatedAosEntry = generatedAos.commands.filter(
+    ({ path: commandPath }) => commandPath.join(' ') === 'record',
+  )
+  const generatedExternalEntry = generatedExternal.commands.filter(
+    ({ path: commandPath }) => commandPath.join(' ') === 'record',
+  )
+  assert.deepEqual(generatedAosEntry, authoredAos.commands)
+  assert.deepEqual(generatedExternalEntry, authoredExternal.commands)
+  assert.deepEqual(authoredAos.commands[0].forms.map(({ id }) => id), [
+    'record-screen', 'record-screen-follow-update',
+  ])
 })
 
 test('integrated proof source closure remains production-owned and offline', async () => {
@@ -1978,8 +2214,11 @@ test('integrated proof source closure remains production-owned and offline', asy
     assert.match(self, new RegExp(path.basename(source).replaceAll('.', '\\.')), source)
   }
   assert.match(unified, /AOSAdapterRegistrySnapshot\.make\(\s*revision: 2/su)
+  assert.match(unified, /private func operationControlResult\([\s\S]*?aos\.operation\.control-result\.v1[\s\S]*?selected_operation_digest[\s\S]*?cleanup_result/u)
   assert.doesNotMatch(self, /^struct AOSDisplayTopology(?:Bounds|Point|Display|Snapshot)/mu)
   assert.doesNotMatch(self, /^func (?:aosDisplayTopologyWireValue|validateAOSDisplayTopologyWireValue)/mu)
   assert.doesNotMatch(self, /execFileSync\([^\n]*\.\/aos|spawnSync\([^\n]*\.\/aos/u)
+  assert.doesNotMatch(wrapper, /AOS_M3E_PROOF_ROOT/u)
+  assert.match(wrapper, /mktemp -d \/tmp\/aos-m3e-v1-proof\.XXXXXX/u)
   assert.doesNotMatch(wrapper, /\.\/aos|build\.sh|daemon|ScreenCaptureKit|AVAssetWriter/u)
 })

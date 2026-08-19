@@ -405,9 +405,13 @@
         "src/daemon/microphone-native-session.swift",
         "src/daemon/segmented-microphone-capture.swift",
         "src/daemon/screen-recording-*.swift",
+        "src/perceive/display-topology.swift",
         "shared/schemas/aos-screen-recording-v1.schema.json",
+        "shared/schemas/daemon-request.schema.json",
         "manifests/commands/source/aos/42-screen-recording.json",
         "manifests/commands/source/external/50-screen-recording.json",
+        "manifests/commands/aos-commands.json",
+        "manifests/commands/aos-external-commands.json",
         "docs/dev/test-proof-registry.d/screen-recording.json",
         "docs/dev/test-proof-registry.d/m3-screen-recording-integrated.json",
         "tests/schemas/aos-screen-recording-v1.test.mjs",
@@ -429,7 +433,7 @@
         {
           "id": "m3-screen-recording-integrated",
           "command": "bash tests/m3-screen-recording-integrated.sh",
-          "reason": "Execute the canonical production-attached offline integration across registry, control, recovery, recording, microphone, custody, projection, schema, and injected fault seams."
+          "reason": "Execute the canonical production-attached offline integration across the file store/readback, topology wire, registry, control, recovery, recording, microphone, custody, successful/failed public schemas, authored/generated manifests, and compound injected-fault seams."
         }
       ],
       "verification": [],

@@ -125,14 +125,16 @@ For the canonical complete landed-system integration, use:
 bash tests/m3-screen-recording-integrated.sh
 ```
 
-The integrated route compiles and executes the production registry, durable store,
-recovery and control planes, fixed/followed screen adapter, multitrack coordinator,
-artifact custody, shared microphone adapter/session, and public projectors against
-injected non-native dependencies. It proves all eight geometry/track selections,
-admission-before-authority, common-epoch/backpressure/finalization truth, public
-control boundaries and races, follow failure/recovery, custody CAS/recovery,
-persistence faults, and exact public schemas. It runs no repo binary, live service,
-native capture authority, device, TCC, pixels, audio, UI, or filesystem media.
+The integrated route compiles and executes the production registry, file-store
+readback, topology wire, recovery and control planes, fixed/followed screen adapter,
+multitrack coordinator, artifact custody, shared microphone adapter/session, and
+public projectors against injected non-native dependencies. It proves all eight
+geometry/track selections, exact pre-authority cardinality and settlement,
+mandatory-video precedence, fixed-mode rejection, immutable drift, deadline re-arm,
+control races, recovery, terminal-clean or retained-residual persistence faults,
+request/result/failure schemas, and authored/generated manifest equality. Its
+wrapper exclusively owns and removes one private root. It runs no repo binary, live
+service, native capture authority, device, TCC, pixels, audio, UI, or filesystem media.
 
 For deterministic Target Handle Runtime V1 coverage, use:
 
