@@ -6,22 +6,29 @@ import test from 'node:test'
 const root = path.resolve(import.meta.dirname, '..')
 const read = (file) => readFile(path.join(root, file), 'utf8')
 
-test('recording producer pins exact caps, fixed targets, and one optional same-stream AAC-LC track', async () => {
-  const [geometry, encoder, adapter] = await Promise.all([
+test('recording producer pins exact caps, fixed targets, and independent optional AAC-LC tracks', async () => {
+  const [geometry, encoder, adapter, microphoneSession, microphoneAdapter] = await Promise.all([
     read('src/daemon/screen-recording-geometry.swift'),
     read('src/daemon/screen-recording-encoder.swift'),
     read('src/daemon/screen-recording-operation-adapter.swift'),
+    read('src/daemon/microphone-native-session.swift'),
+    read('src/daemon/microphone-operation-adapter.swift'),
   ])
   for (const value of ['300_000', '60', '33_177_600', '8', '1_073_741_824']) {
     assert.match(geometry, new RegExp(value))
   }
   assert.match(encoder, /AVVideoCodecType\.h264/u)
   assert.match(encoder, /AVAssetWriter\(outputURL: outputURL, fileType: \.mov\)/u)
-  assert.equal((encoder.match(/AVAssetWriterInput\(/gu) ?? []).length, 2)
+  assert.equal((encoder.match(/AVAssetWriterInput\(/gu) ?? []).length, 3)
   assert.match(encoder, /mediaType:\s*\.audio/u)
   assert.match(encoder, /kAudioFormatMPEG4AAC/u)
   assert.match(encoder, /AVSampleRateKey:\s*48_000/u)
   assert.match(adapter, /configuration\.capturesAudio = request\.tracks\.systemAudio/u)
+  assert.doesNotMatch(adapter, /captureMicrophone|SCRecordingOutput/u)
+  assert.match(adapter, /AOSMicrophoneNativeSessionControlling/u)
+  assert.match(microphoneSession, /final class AOSMicrophoneNativeSession/u)
+  assert.match(microphoneSession, /input\.installTap/u)
+  assert.doesNotMatch(microphoneAdapter, /AVAudioEngine|installTap|removeTap/u)
   assert.match(adapter, /addStreamOutput\(output, type: \.audio/u)
   const videoOutput = adapter.indexOf('addStreamOutput(output, type: .screen')
   const videoAvailable = adapter.indexOf('encoder.markAvailable(.video)')
@@ -31,6 +38,8 @@ test('recording producer pins exact caps, fixed targets, and one optional same-s
   assert.ok(audioOutput >= 0 && audioOutput < audioAvailable)
   assert.equal((adapter.match(/let stream = SCStream\(/gu) ?? []).length, 1)
   assert.match(adapter, /resourceKey = "screen_capture_native_session"/u)
+  assert.match(adapter, /AOSMicrophoneOperationResourceIdentity\.resourceKey/u)
+  assert.match(adapter, /requests:\s*requests/u)
   assert.match(adapter, /validateCurrentBinding/u)
   assert.match(geometry, /let admittedTopology: AOSDisplayTopologySnapshot/u)
   assert.match(geometry, /canonicalTopologyData\(observedTopology\)[\s\S]*canonicalTopologyData\(geometry\.admittedTopology\)/u)
@@ -97,7 +106,7 @@ test('durability and custody ordering is producer-backed and retain is specifica
   assert.ok(initialSummary >= 0 && initialSummary < initialProgress && initialProgress < operation)
   assert.ok(operation >= 0 && stream > operation && artifact > stream)
   assert.ok(native > artifact)
-  const preparation = adapter.slice(adapter.indexOf('private func prepare('), adapter.indexOf('private func releaseClaim('))
+  const preparation = adapter.slice(adapter.indexOf('private func prepare('), adapter.indexOf('private func releaseClaims('))
   assert.match(preparation, /requestedBounds: request\.requestedBounds,\s*initialProgress: initialProgress/u)
   assert.doesNotMatch(preparation, /updateOperationProgress/u)
   assert.match(registry, /initialProgress: AOSOperationProgress\? = nil/u)

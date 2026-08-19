@@ -46,6 +46,7 @@ func recordCommand(args: [String]) {
     )
     let requestID = UUID().uuidString.lowercased()
     let systemAudioSelected = flags["--system-audio"] == "true"
+    let microphoneSelected = flags["--microphone"] == "true"
     let parameters: [String: Any] = [
         "schema_version": AOSScreenRecordingRequest.schemaVersion,
         "topology": (try? aosDisplayTopologyWireValue(topology)) ?? [:],
@@ -58,7 +59,7 @@ func recordCommand(args: [String]) {
         "tracks": [
             "video": true,
             "system_audio": systemAudioSelected,
-            "microphone": false,
+            "microphone": microphoneSelected,
         ],
         "codec": AOSScreenRecordingRequest.codec,
         "container": AOSScreenRecordingRequest.container,
@@ -98,14 +99,14 @@ private func parseScreenRecordingFlags(_ args: [String]) -> [String: String] {
     let allowed: Set<String> = [
         "--display", "--window-id", "--region", "--duration-ms", "--frame-rate",
         "--max-pixel-count", "--max-queue-frames", "--max-output-bytes",
-        "--system-audio",
+        "--system-audio", "--microphone",
     ]
     var values: [String: String] = [:]
     var index = 0
     while index < args.count {
         let flag = args[index]
         guard allowed.contains(flag), values[flag] == nil else { recordUsageError() }
-        if flag == "--system-audio" {
+        if flag == "--system-audio" || flag == "--microphone" {
             values[flag] = "true"
             index += 1
             continue
@@ -228,7 +229,7 @@ private func screenRecordingParameterDigest(_ parameters: [String: Any]) -> Stri
 
 private func recordUsageError() -> Never {
     exitError(
-        "__record screen requires --duration-ms 1...300000, one fixed display/window/region, optional --system-audio, frame-rate 1...60, pixels 4...33177600, queue 1...8, bytes 1024...1073741824, and --json.",
+        "__record screen requires --duration-ms 1...300000, one fixed display/window/region, optional --system-audio and --microphone, frame-rate 1...60, pixels 4...33177600, queue 1...8, bytes 1024...1073741824, and --json.",
         code: "INVALID_ARG"
     )
 }

@@ -106,7 +106,7 @@ Error response:
 | `operation.cancel` | Request cooperative cancellation of one exact owned operation. | `request_id`, `canonical_parameter_digest`, `selector`. |
 | `operation.kill` | Force-stop one exact owned operation and retain cleanup visibility. | `request_id`, `canonical_parameter_digest`, `selector`. |
 | `operation.kill_owner` | Stop the authenticated owner-set intersection selected by optional attribution/capability filters. | `request_id`, `canonical_parameter_digest`, `filters`. |
-| `operation.record_screen` | Admit one bounded fixed display/window/region H.264 plus optional AAC-LC system-audio QuickTime producer. | Closed `aos.screen-recording.request.v1` data, including canonical topology, target, hard bounds, `tracks={video:true,system_audio:<bool>,microphone:false}`, codec, and container. |
+| `operation.record_screen` | Admit one bounded fixed display/window/region H.264 producer with independently optional AAC-LC system-audio and microphone tracks. | Closed `aos.screen-recording.request.v1` data, including canonical topology, target, hard bounds, `tracks={video:true,system_audio:<bool>,microphone:<bool>}`, codec, and container. |
 | `operation.tap` | Return current typed tap unavailability without opening or sampling a tap. | `request_id`, `canonical_parameter_digest`. |
 | `operation.artifact_reveal\|artifact_remove\|artifact_retain` | Act on one exact producer-backed artifact generation; retain is typed unavailable. | `request_id`, `canonical_parameter_digest`, `selector`. |
 | `operation.artifact_release` | Transfer one exact producer-backed artifact generation without overwrite. | `request_id`, `canonical_parameter_digest`, `selector`, `destination`. |
@@ -191,15 +191,19 @@ producer-backed artifact fails closed instead of gaining custody behavior.
 `aos.screen-recording.request.v1` object before registry, claim, broker,
 ScreenCaptureKit, or file effects. It durably prepares one operation, stream,
 artifact, and exclusive `screen_capture_native_session` claim before native
-startup. The operation's first durable save atomically binds its identity,
-requested bounds, zero progress, and the exact request-selected video-only or
-video-plus-system-audio summary before any stream, artifact, claim, broker,
-writer, file, or native authority. Cleanup and boot recovery preserve that
+startup. If microphone is selected, the same claim-set also consumes the
+existing exclusive `voice_io_native_session` declaration; no screen-specific
+microphone resource or adapter exists. The operation's first durable save
+atomically binds its identity, requested bounds, zero progress, and the exact
+one of four video/system-audio/microphone selections before any stream,
+artifact, claim, broker, writer, file, or native authority. Cleanup and boot
+recovery preserve that
 summary; no later initial-summary backfill exists. Admission returns exact
 identities and a geometry-binding digest;
 progress and terminal operation events remain content-free. Video is mandatory;
-system audio is explicitly optional and omission remains exact video-only.
-Selected audio must be available and produce samples before success, and its
+system audio and microphone are independently optional and omission of both
+remains exact video-only. Selected audio must be available and produce samples
+before success, and its
 independent selected/admitted/available/sample/failure/drain/finalized summary
 is bound through progress, terminal result, artifact identity, and custody.
 Every positive first-sample claim carries positive sample-count and byte truth.
@@ -207,11 +211,16 @@ Total artifact bytes may advance from ready audio while written-video frame
 count remains zero; global bounds validate the exact per-track summary instead
 of imposing video-only byte equivalence. Shared-startup settlement classifies
 every missing selected track with `SCREEN_RECORDING_NO_VIDEO_FRAMES` taking
-terminal precedence over `SCREEN_RECORDING_SYSTEM_AUDIO_NO_SAMPLES` when both
-are silent. Screen-recording progress and terminal receipts require the exact
+terminal precedence over `SCREEN_RECORDING_SYSTEM_AUDIO_NO_SAMPLES`, which in
+turn precedes `SCREEN_RECORDING_MICROPHONE_NO_SAMPLES` when multiple selected
+tracks are silent. The daemon authorizes a selected microphone before writer,
+file, or native microphone authority and reports exact not-determined,
+restricted, denied, or unknown permission failures. One shared daemon-owned
+`AVAudioEngine` session owner serves both segmented capture and screen recording;
+it alone installs and removes the input tap. Screen-recording progress and terminal receipts require the exact
 track summary; success requires selected/finalized truth and an artifact, and a
 failed terminal receipt requires its typed failure code.
-Microphone tracks, followed geometry, dry-run, and raw-media fields are absent.
+Followed geometry, dry-run, and raw-media fields are absent.
 
 The private `operation.external_spawn_intent`,
 `operation.external_spawn_child_admit`, `operation.external_spawn_abandon`, and

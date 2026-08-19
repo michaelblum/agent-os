@@ -29,6 +29,33 @@ test('daemon health exposes explicit microphone authorization state', () => {
   assert.match(health, /microphoneState == ["]authorized["]/);
 });
 
+test('screen microphone authorization and native-session ownership stay daemon-shared and effect-ordered', () => {
+  const adapter = read('src/daemon/screen-recording-operation-adapter.swift');
+  const unified = read('src/daemon/unified.swift');
+  const segmented = read('src/daemon/segmented-microphone-capture.swift');
+  const session = read('src/daemon/microphone-native-session.swift');
+  const state = read('src/daemon/operation-state.swift');
+  const acquire = adapter.slice(
+    adapter.indexOf('private func acquireAndStart()'),
+    adapter.indexOf('private func createArtifactRoot()'),
+  );
+
+  assert.ok(acquire.indexOf('authorizeMicrophoneIfSelected()') < acquire.indexOf('sessionFactory('));
+  assert.ok(acquire.indexOf('authorizeMicrophoneIfSelected()') < acquire.indexOf('createArtifactRoot()'));
+  assert.match(unified, /microphoneAuthorization:\s*AOSScreenRecordingMicrophoneAuthorizationDependencies/u);
+  assert.doesNotMatch(adapter, /AVCaptureDevice\.requestAccess/u);
+  assert.equal((session.match(/AVAudioEngine\(\)/gu) ?? []).length, 1);
+  assert.equal((session.match(/installTap\(/gu) ?? []).length, 1);
+  assert.doesNotMatch(segmented, /AVAudioEngine|installTap|removeTap/u);
+  assert.doesNotMatch(adapter, /AVAudioEngine|installTap|removeTap/u);
+  for (const code of [
+    'MICROPHONE_PERMISSION_NOT_DETERMINED',
+    'MICROPHONE_PERMISSION_RESTRICTED',
+    'MICROPHONE_PERMISSION_DENIED',
+    'MICROPHONE_PERMISSION_UNKNOWN',
+  ]) assert.match(state, new RegExp(code, 'u'));
+});
+
 test('raw repo build stays plain while packaged metadata owns microphone usage text', () => {
   const build = read('build.sh');
   const metadata = read('packaging/Info.plist');

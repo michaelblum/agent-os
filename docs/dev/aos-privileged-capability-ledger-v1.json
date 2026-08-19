@@ -22,7 +22,7 @@
       "publication_state": "landed",
       "revision": "227382c1bcbdab56f551a85a69b0609eebbdfa0c"
     },
-    "publication_boundary": "Milestone 2 publishes the executable operation plane and microphone adapter. The bounded M3A/M3B slices add one fixed display/window/region mandatory-H.264-video producer with explicitly optional AAC-LC system audio and producer-backed reveal/remove/release custody at adapter-registry revision 2. Microphone tracks, follow geometry, public SDK roots, full M3 completion, and native live/TCC acceptance remain separately unclaimed."
+    "publication_boundary": "Milestone 2 publishes the executable operation plane and microphone adapter. The bounded M3A/M3B/M3C-V2 slices add one fixed display/window/region mandatory-H.264-video producer with independently optional AAC-LC system-audio and microphone tracks and producer-backed reveal/remove/release custody at adapter-registry revision 2. Follow geometry, public SDK roots, full M3 completion, and native live/TCC acceptance remain separately unclaimed."
   },
   "coverage": {
     "row_count": 32,
@@ -385,7 +385,7 @@
           }
         ],
         "named_absent_symbols": [],
-        "boundary_claim": "The private warm stream remains video-only, while the bounded public recording route uses one request-selected video/system-audio SCStream."
+        "boundary_claim": "The private warm stream remains video-only, while the bounded public recording route uses one request-selected video/system-audio SCStream and an independently selected shared-owner microphone input."
       },
       "screencapturekit-system-audio": {
         "disposition": "positive",
@@ -430,16 +430,18 @@
           }
         ],
         "named_absent_symbols": [],
-        "boundary_claim": "One bounded QuickTime writer owns mandatory H.264 video and explicitly optional AAC-LC system audio at one common media epoch."
+        "boundary_claim": "One bounded QuickTime writer owns mandatory H.264 video and independently optional AAC-LC system-audio and microphone tracks at one common media epoch."
       },
       "microphone-capture-adapter": {
         "disposition": "positive",
         "source_probes": [
         {
-          "path": "src/daemon/segmented-microphone-capture.swift",
+          "path": "src/daemon/microphone-native-session.swift",
           "classification": "production_source",
           "markers": [
-            "AVAudioEngine()"
+            "AVAudioEngine()",
+            "input.installTap",
+            "inputNode.removeTap"
           ]
         },
         {
@@ -452,7 +454,7 @@
         }
         ],
         "named_absent_symbols": [],
-        "boundary_claim": "The daemon microphone capture and permission owner is present."
+        "boundary_claim": "One shared daemon AVAudioEngine session owns microphone input-tap lifecycle for segmented capture and screen recording; the daemon remains the single permission owner."
       },
       "audio-playback": {
         "disposition": "positive",
@@ -4349,7 +4351,8 @@
             "src/daemon/desktop-frame-warm-pool.swift",
             "src/daemon/screen-recording-operation-adapter.swift",
             "src/daemon/screen-recording-encoder.swift",
-            "src/daemon/screen-recording-geometry.swift"
+            "src/daemon/screen-recording-geometry.swift",
+            "src/daemon/microphone-native-session.swift"
           ],
           "evidence_paths": [
             "tests/desktop-pixel-broker-contract.test.mjs",
@@ -4358,7 +4361,7 @@
             "tests/screen-recording-contract.test.mjs",
             "tests/screen-recording-fake.test.mjs"
           ],
-          "summary": "AOS owns one public bounded fixed display/window/region ScreenCaptureKit producer using mandatory H.264 video and explicitly optional AAC-LC system audio in one QuickTime writer, one absolute native-start/common-media deadline, a finite generation-bound startup/retirement owner, atomic stop-sample admission, the exclusive pixel broker, operation identity/control, typed per-track availability/sample/failure truth, and recoverable exact-identity transient artifact custody. Microphone tracks, followed geometry, SDK/Toolkit projection, and native-live acceptance remain absent."
+          "summary": "AOS owns one public bounded fixed display/window/region ScreenCaptureKit producer using mandatory H.264 video and independently optional AAC-LC system-audio and daemon-owned microphone tracks in one QuickTime writer, one absolute native-start/common-media deadline, a finite generation-bound startup/retirement owner, atomic stop-sample admission, the exclusive pixel broker, operation identity/control, typed per-track availability/sample/failure truth, and recoverable exact-identity transient artifact custody. The microphone selection reuses the existing exclusive voice_io_native_session declaration and shared AVAudioEngine session owner. Followed geometry, SDK/Toolkit projection, and native-live acceptance remain absent."
         },
         "exposure": {
           "cli": {
@@ -4408,9 +4411,9 @@
             "one fixed display, exact window, or global region wholly within one display"
           ],
           "depth": "Pixel plane only.",
-          "breadth": "One fixed display, exact window, or global region wholly within one display; mandatory video plus explicitly optional system audio.",
-          "completeness": "Public fixed recording request, operation/stream/artifact identity, one H.264 plus optional AAC-LC QuickTime writer, common-epoch multitrack coordination, action-specific artifact decoding, finite generation-bound startup/retirement ownership, atomic sample admission, typed per-track terminal truth, durable recoverable release custody, an executable compiled production-owner harness with fake dependencies, and native compile proof are current.",
-          "frontier": "One SCStream supplies mandatory `.screen` samples and request-selected `.audio` samples to the bounded writer; microphone output is explicitly absent.",
+          "breadth": "One fixed display, exact window, or global region wholly within one display; mandatory video plus independently optional system audio and microphone.",
+          "completeness": "Public fixed recording request with four exact track selections, operation/stream/artifact identity, one H.264 plus optional AAC-LC QuickTime writer, common-epoch multitrack coordination, shared microphone-session ownership, atomic dual-resource claim admission when selected, action-specific artifact decoding, finite generation-bound startup/retirement ownership, atomic sample admission, typed per-track terminal truth, durable recoverable release custody, an executable compiled production-owner harness with fake dependencies, and native compile proof are current.",
+          "frontier": "One SCStream supplies mandatory `.screen` samples and request-selected `.audio` samples; an independent shared-owner microphone input supplies the third writer track without macOS-15-only ScreenCaptureKit APIs.",
           "state_identity": "Canonical topology identity, display member identity, fixed geometry digest, operation generation, stream generation, and artifact generation."
         },
         "control": {
@@ -4454,7 +4457,7 @@
           },
           "cleanup": {
             "state": "complete",
-            "detail": "Proven stream/discovery retirement and pre-stop video/audio sample drain precede exactly-once writer-input/writer, broker, claim, file, runtime-owner, and terminal release; timeout or false retirement remains explicit cleanup-required authority."
+            "detail": "Proven stream/discovery and shared microphone-session retirement plus pre-stop selected-track sample drain precede exactly-once writer-input/writer, broker, claim-set, file, runtime-owner, and terminal release; timeout or false retirement remains explicit cleanup-required authority."
           },
           "recovery": {
             "state": "complete",
@@ -4466,7 +4469,7 @@
             "private in-process CMSampleBuffer delivery",
             "transient H.264 plus optional AAC-LC QuickTime artifact"
           ],
-          "fidelity": "Raw screen and system-audio samples remain outside history; the producer encodes the fixed source to mandatory H.264 plus explicitly optional AAC-LC QuickTime without mixing or a microphone input.",
+          "fidelity": "Raw screen, system-audio, and microphone samples remain outside history; the producer encodes the fixed source to mandatory H.264 plus independently optional AAC-LC tracks without mixing.",
           "transient_default": true,
           "retention": "AOS owns the transient file until reveal, remove, or release; retain is specifically unavailable.",
           "caller_owned_transforms": "Future crop, encode, redaction, and retention are caller-owned except mechanical codec/container production selected explicitly."
@@ -4484,7 +4487,7 @@
             },
             {
               "path": "tests/schemas/aos-screen-recording-v1.test.mjs",
-              "claim": "Validates mandatory-video and optional-system-audio request/admission/progress/result shapes, independent closed track truth, and hard bounds.",
+              "claim": "Validates all four mandatory-video, optional-system-audio, and optional-microphone request/admission/progress/result selections, independent closed track truth, and hard bounds.",
               "execution_class": "static",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -4492,7 +4495,7 @@
             },
             {
               "path": "tests/screen-recording-contract.test.mjs",
-              "claim": "Statically binds atomic operation identity/requested-bounds/zero-progress/initial selected-track-summary admission before later preparation, mandatory screen output, request-selected system-audio output on the same stream, one H.264 plus AAC-LC QuickTime writer, fixed geometry, generation-bound owner handoff, dual-track drain and terminal-truth calls, durable track-bound release ordering, and authored/generated command ownership.",
+              "claim": "Statically binds atomic operation identity/requested-bounds/zero-progress/initial selected-track-summary admission before later preparation, mandatory screen output, request-selected system-audio output, the shared daemon microphone-session owner, one conditional dual-resource claim-set, one H.264 plus two AAC-LC writer inputs, fixed geometry, generation-bound owner handoff, selected-track drain and terminal-truth calls, durable track-bound release ordering, and authored/generated command ownership.",
               "execution_class": "static",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -4502,7 +4505,7 @@
           "fake": [
             {
               "path": "tests/screen-recording-fake.test.mjs",
-              "claim": "Compiles and executes the production recording adapter, generic registry/in-memory durable store/recovery, exact public snapshot/list/inspect projector used by UnifiedDaemon, lifecycle, sample admission, multitrack coordinator, terminal truth, and custody coordinator with fake clock, video/audio callbacks, writer inputs/file, native session, and broker dependencies. It injects a durable save fault after operation admission but before stream/artifact/claim handoff and directly validates both video-only and selected-audio prepared, cleanup, recovered terminal, list, and inspect outputs against aos.operation.v1 without synthesized wire metadata. It also covers both arrival orders, one common epoch, per-track monotonicity, bounded backpressure, selected/unselected truth, typed audio unavailability/no-sample/failure, callback loss, startup stop/task cancellation, late start failure after active evidence, retirement timeout/false settlement, dual-track stop/drain/finalize ordering, zero-frame/missing-artifact cleanup, release/remove admission races, release fault phases, restart recovery, topology drift, lossy selectors, and extra-key/type rejection.",
+              "claim": "Compiles and executes the production recording adapter, request-derived admission and exact public snapshot/list/inspect projectors used by UnifiedDaemon, generic registry/in-memory durable store/recovery, lifecycle, sample admission, three-track coordinator, terminal truth, and custody coordinator with fake clock, video/system-audio callbacks, a real AOSMicrophoneNativeSession through injected non-native dependencies, writer inputs/file, and broker dependencies. It schema-validates the four production admission responses and injects a durable save fault after operation admission but before stream/artifact/claim handoff to validate all four selected-track summaries through prepared, cleanup, recovered terminal, list, and inspect outputs without synthesized wire metadata. It covers all six three-track first-sample orders at one common epoch, microphone monotonic rejection, independent per-track backpressure, selected/unselected truth, writer-global start/post-start/finalization failure on every selected track, microphone startup failure with unavailable truth, gated availability-before-sample admission, shared-deadline missing-track precedence, standalone-microphone resource conflict before native authority, one conditional dual-resource claim-set, microphone-selected cancel/peer-loss/deadline/retirement with aggregate authority absence before claim release, callback loss, startup cancellation, late start failure after active evidence, retirement timeout/false settlement, selected-track stop/drain/finalize ordering, zero-frame/missing-artifact cleanup, release/remove admission races, release fault phases, restart recovery, topology drift, exact CFBoolean rejection of numeric track values, lossy selectors, and extra-key/type rejection.",
               "execution_class": "fake",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -4519,7 +4522,7 @@
               "mutates_runtime": false
             }
           ],
-          "limitations": "Offline schema/static proof, an executable compiled production-owner seam harness with fake dependencies, and native compile proof establish only the listed seams. The adapter, registry, in-memory store, and boot recovery execute. AVAssetWriter and ScreenCaptureKit do not execute; neither do filesystem effects, daemon, TCC, native UI, or media. There are no live pixels, MOV acceptance, file custody effects, permission behavior, daemon restart, or crash acceptance."
+          "limitations": "Offline schema/static proof, an executable compiled production-owner seam harness with fake dependencies, and native compile proof establish only the listed seams. The adapter, registry, in-memory store, and boot recovery execute. AVAssetWriter and ScreenCaptureKit do not execute; neither do filesystem effects, daemon, TCC, native UI, or media. There are no live pixels, MOV acceptance, file custody effects, native permission/TCC behavior, daemon restart, or crash acceptance."
         }
       },
       "target": {
@@ -4779,7 +4782,7 @@
           "static": [
             {
               "path": "tests/schemas/aos-privileged-capability-ledger-v1.test.mjs",
-              "claim": "Pins the macOS 13.0 system-audio symbols, request-selected recording registration, warm-path capturesAudio=false truth, optional CLI/IPC contract, and microphone rejection.",
+              "claim": "Pins the macOS 13.0 system-audio symbols, request-selected recording registration, warm-path capturesAudio=false truth, and the independently optional system-audio CLI/IPC contract beside the microphone selection.",
               "execution_class": "static",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -4789,7 +4792,7 @@
           "fake": [
             {
               "path": "tests/screen-recording-fake.test.mjs",
-              "claim": "Compiles and executes production request, adapter, registry/store/recovery, and multitrack coordination with fake clock, video/audio callbacks, writer inputs/file, broker, and custody dependencies across both arrival orders, one absolute startup budget, common epoch, registration-versus-first-sample truth, positive count/byte admission, both-silent and single-missing-track settlement, audio progress under video-input backpressure, later mandatory-video success/failure, monotonicity, typed audio and writer-global failures, dual-track drain/finalize, retained typed unavailability, exact media binding, cleanup, and recovery.",
+              "claim": "Compiles and executes production request, adapter, registry/store/recovery, and three-track coordination with fake clock, video/system-audio/microphone callbacks, writer inputs/file, broker, and custody dependencies across both two-track arrival orders and all six three-track first-sample orders, one absolute startup budget, common epoch, registration-versus-first-sample truth, independent positive count/byte admission and backpressure, missing-track precedence, later mandatory-video success/failure, monotonicity, typed track and writer-global failures, selected-track drain/finalize, retained typed unavailability, exact media binding, cleanup, and recovery.",
               "execution_class": "fake",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -5055,16 +5058,14 @@
       },
       "target": {
         "milestone": "M3",
-        "disposition": "Expand",
+        "disposition": "Retire",
         "gaps": [
-          "Choose SCRecordingOutput only when its deployment and track contract fits.",
-          "Keep microphone and system-audio track identity explicit and operation-controlled."
+          "The macOS 15-only SCRecordingOutput/captureMicrophone route is intentionally rejected while macOS 14 remains supported."
         ],
-        "exit_gate": "M3 either selects or rejects the macOS 15 recording-output path from explicit deployment facts; if selected it has exact permissions, track facts, artifact custody, cancellation, cleanup, and fallback classification.",
+        "exit_gate": "Closed: M3 rejects the macOS 15 recording-output path from the explicit macOS 14 deployment floor and selects shared AVAudioEngine microphone input plus AVAssetWriter instead.",
         "reusable_atoms": [
-          "SCRecordingOutput adapter",
           "independent audio track descriptor",
-          "minimum-OS feature gate"
+          "minimum-OS rejection fact"
         ]
       }
     },
@@ -5134,7 +5135,7 @@
             "tests/screen-recording-contract.test.mjs",
             "tests/screen-recording-fake.test.mjs"
           ],
-          "summary": "AOS owns one bounded AVAssetWriter QuickTime producer with mandatory H.264 video and explicitly optional AAC-LC system audio. The generic operation transaction atomically persists identity, requested bounds, zero progress, and the exact request-selected initial track summary before stream, artifact, claim, broker, writer, file, or native authority; cleanup and boot recovery preserve it without a later backfill. One bounded either-arrival-order barrier selects the earliest media epoch within the remaining single startup budget; output-registration availability is distinct from positive-byte first-sample truth with positive count and bytes, and each selected track owns independent monotonicity, backpressure, failure, drain, and finalization truth. Shared-deadline settlement classifies every missing selected track with mandatory-video terminal precedence, and total artifact bytes may advance from ready audio independently of written-video frame progress. Writer-global failures mark every selected track. Microphone and general-purpose multitrack muxing remain absent."
+          "summary": "AOS owns one bounded AVAssetWriter QuickTime producer with mandatory H.264 video and independently optional AAC-LC system-audio and microphone tracks. The generic operation transaction atomically persists identity, requested bounds, zero progress, and the exact request-selected initial track summary before stream, artifact, claim, broker, writer, file, or native authority; cleanup and boot recovery preserve it without a later backfill. One bounded all-selected-track barrier chooses the earliest media epoch within the remaining single startup budget; output-registration availability is distinct from positive-byte first-sample truth with positive count and bytes, and each selected track owns independent monotonicity, backpressure, failure, drain, and finalization truth. Shared-deadline settlement classifies every missing selected track with video, system-audio, then microphone terminal precedence; pre-common-epoch media callback failures normalize from that final summary independent of callback order while pre-native typed failures remain exact. Total artifact bytes may advance from ready audio independently of written-video frame progress. Writer-global failures mark every selected track. General-purpose arbitrary-track muxing remains absent."
         },
         "exposure": {
           "cli": {
@@ -5178,15 +5179,15 @@
         "observation": {
           "mode": "stream",
           "roots": [
-            "timestamped screen-video and selected system-audio samples"
+            "timestamped screen-video and independently selected system-audio and microphone samples"
           ],
           "targets": [
-            "one mandatory H.264 video track and explicitly optional AAC-LC system-audio track"
+            "one mandatory H.264 video track and independently optional AAC-LC system-audio and microphone tracks"
           ],
           "depth": "Not hierarchical.",
-          "breadth": "One fixed recording with mandatory video and explicitly optional system audio; no microphone or arbitrary track set.",
+          "breadth": "One fixed recording with mandatory video and independently optional system audio and microphone; no arbitrary track set.",
           "completeness": "Atomic initial identity/bounds/zero-progress/selected-track-summary admission before any later authority, preparation-fault and boot-recovery summary preservation, bounded pre-start buffering and per-track backpressure, either arrival order, one common epoch, output-registration availability, positive-count/byte first-sample and successful-track truth, independent admitted-track and written-video/global-byte progress, complete shared-deadline missing-track settlement with mandatory-video precedence, per-track monotonic append, writer-global failure on every selected track, exactly-once selected-input drain and writer finalization, exact selected-track media/file identity, and cleanup are current.",
-          "frontier": "Microphone inputs, arbitrary track layouts/mixing, and live/native acceptance remain absent.",
+          "frontier": "Arbitrary track layouts/mixing and live/native acceptance remain absent.",
           "state_identity": "Operation/stream/artifact generations, selected/finalized tracks, common media epoch, per-track truth, and exact device, inode, byte count, content digest, and media type."
         },
         "control": {
@@ -5239,9 +5240,9 @@
         },
         "data_transport": {
           "transports": [
-            "transient H.264 plus optional AAC-LC QuickTime artifact"
+            "transient H.264 plus independently optional AAC-LC QuickTime artifact"
           ],
-          "fidelity": "The current writer encodes admitted screen-video frames and explicitly selected system-audio samples without mixing or content persistence outside the transient artifact.",
+          "fidelity": "The current writer encodes admitted screen-video frames and independently selected system-audio and microphone samples without mixing or content persistence outside the transient artifact.",
           "transient_default": true,
           "retention": "AOS retains transient custody until remove or release; retain is unavailable.",
           "caller_owned_transforms": "Codec, track layout, mixing, trimming, and persistence must be explicit caller selections behind mechanical writer bounds."
@@ -5251,7 +5252,7 @@
           "static": [
             {
               "path": "tests/schemas/aos-privileged-capability-ledger-v1.test.mjs",
-              "claim": "Pins the bounded one-writer H.264 plus optional AAC-LC QuickTime contract, one common media epoch, and exact microphone absence.",
+              "claim": "Pins the bounded one-writer H.264 plus independently optional AAC-LC QuickTime contract and one common media epoch across four exact selections.",
               "execution_class": "static",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -5261,7 +5262,7 @@
           "fake": [
             {
               "path": "tests/screen-recording-fake.test.mjs",
-              "claim": "Compiles and executes the production multitrack coordinator plus request, geometry, durable progress, lifecycle, sample admission, terminal truth, artifact-action decoder, and custody owners with fake writer inputs/file and other injected dependencies, including zero-byte audio, both writer-start failure orders, post-start writer failure, and the remaining single startup budget; AVAssetWriter itself remains compile-only.",
+              "claim": "Compiles and executes the production three-track coordinator plus request, geometry, durable progress, lifecycle, sample admission, terminal truth, artifact-action decoder, and custody owners with fake writer inputs/file and other injected dependencies, including all-selected common start, zero-byte and missing audio, microphone monotonic rejection, writer-global start/post-start/finalization failures on every selected track, and the remaining single startup budget; AVAssetWriter itself remains compile-only.",
               "execution_class": "fake",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -5271,7 +5272,7 @@
           "native": [
             {
               "path": "tests/native-screen-recording-contract.sh",
-              "claim": "Compiles the H.264 plus optional AAC-LC AVAssetWriter adapter without executing it.",
+              "claim": "Compiles the H.264 plus independently optional AAC-LC AVAssetWriter adapter without executing it.",
               "execution_class": "native_compile",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -5285,10 +5286,9 @@
         "milestone": "M3",
         "disposition": "Expand",
         "gaps": [
-          "Add independently selected microphone only in a later bounded slice.",
           "Run separately authorized native-live writer/audio/artifact acceptance."
         ],
-        "exit_gate": "M3 extends the current operation-controlled video writer only with exact audio-track/timestamp identity and no unreceipted partial artifact.",
+        "exit_gate": "M3 keeps the current operation-controlled three-track writer bound to exact audio-track/timestamp identity and no unreceipted partial artifact; only separately authorized native-live acceptance remains open for this fixed-recording slice.",
         "reusable_atoms": [
           "multitrack writer",
           "timestamp synchronizer",
@@ -5388,6 +5388,7 @@
         "state": "implemented",
         "primitive_paths": [
           "src/daemon/microphone-authorization.swift",
+          "src/daemon/microphone-native-session.swift",
           "src/daemon/segmented-microphone-capture.swift",
           "src/daemon/voice-transport.swift",
           "src/daemon/microphone-operation-adapter.swift",
@@ -5400,7 +5401,7 @@
           "shared/schemas/daemon-ipc.md",
           "shared/schemas/aos-operation-v1.schema.json"
         ],
-        "summary": "The M2 shared operation registry wraps the existing daemon-owned microphone capture lease, persists operation and exclusive voice-session claim before authority, binds generation-verified external helpers, streams existing meters, and routes cancel, kill, same-owner control, same-UID host stop, cleanup, and recovery through one adapter without changing capture fidelity."
+        "summary": "The M2 shared operation registry wraps the daemon-owned microphone capture lease, while one shared AOSMicrophoneNativeSession owns the AVAudioEngine graph and input tap consumed by both segmented capture and optional screen-recording microphone tracks. The operation plane persists the exclusive voice-session claim before authority, binds generation-verified external helpers, streams existing meters, and routes cancel, kill, same-owner control, same-UID host stop, cleanup, and recovery without changing capture fidelity."
         },
         "exposure": {
           "cli": {
@@ -5615,7 +5616,7 @@
         },
         {
           "path": "tests/voice-operation-claim-contract.test.mjs",
-          "claim": "Proves persistence-before-authority, exact exclusive voice-session claims, external-child finalization, no implicit barge-in, and cleanup-before-terminal with fake adapters.",
+          "claim": "Proves persistence-before-authority, exact exclusive voice-session claims, external-child finalization, no implicit barge-in, and cleanup-before-terminal with fake adapters, plus routes the actual production segmented terminal callback through the actual adapter/claim lifecycle for uncertain absence and retry-to-absence.",
           "execution_class": "fake",
           "requires_owner_authority": false,
           "tcc_services": [],
@@ -5625,7 +5626,7 @@
       "native": [
             {
               "path": "tests/voice-transport-native.sh",
-              "claim": "Compiles focused production capture/writer mechanics with injected authorization and no live microphone.",
+              "claim": "Compiles the production capture/writer and shared microphone-session owner mechanics, including injected segmented partial-start absence and bounded retry proof, without a live microphone.",
               "execution_class": "native_compile",
               "requires_owner_authority": false,
           "tcc_services": [],
@@ -16880,7 +16881,7 @@
               "path": "shared/schemas/aos-screen-recording-v1.schema.json",
               "kind": "current"
             },
-            "responsibility": "Own the closed fixed mandatory-video and optional-system-audio request/admission/progress/result shapes, request-to-selected/finalized-track coupling, positive-count/byte first-sample and successful truth, exact screen-operation progress/terminal summary and failure/artifact conditionals, exact artifact/media binding, hard bounds, topology binding, and custody linkage."
+            "responsibility": "Own the four closed fixed mandatory-video and independently optional system-audio/microphone request/admission/progress/result shapes, request-to-selected/finalized-track coupling, positive-count/byte first-sample and successful truth, exact screen-operation progress/terminal summary and failure/artifact conditionals, exact artifact/media binding, hard bounds, topology binding, and custody linkage."
           },
           {
             "owner_id": "recording-adapter",
@@ -16888,7 +16889,7 @@
               "path": "src/daemon/screen-recording-operation-adapter.swift",
               "kind": "current"
             },
-            "responsibility": "Own atomic initial identity/requested-bounds/zero-progress/selected-track-summary operation admission before stream/artifact/claim/broker/native/file authority, then one fixed ScreenCaptureKit stream with mandatory screen video and explicitly optional system audio under the operation plane; mark each selected track available only after successful output registration, spend one absolute deadline across native start and the remaining common-media barrier, classify every missing selected track with mandatory-video terminal precedence, and persist typed terminal truth. Cleanup and boot recovery preserve the admitted initial summary without a later backfill; no microphone track is current."
+            "responsibility": "Own atomic initial identity/requested-bounds/zero-progress/selected-track-summary operation admission before stream/artifact/claim/broker/native/file authority, then one fixed ScreenCaptureKit stream with mandatory screen video, explicitly optional system audio, and an independently selected shared-owner microphone track under the operation plane. Microphone selection consumes the existing exclusive voice_io_native_session declaration in the same claim-set as screen_capture_native_session. Mark selected tracks available only after source registration, spend one absolute deadline across native start and the remaining common-media barrier, normalize pre-common-epoch media callback failures from final selected-track truth, classify every missing selected track in video/system-audio/microphone precedence, and preserve pre-native writer/input setup and other typed failures by retaining explicit internal failure origin. Cleanup and boot recovery preserve the admitted initial summary without a later backfill."
           },
           {
             "owner_id": "recording-encoder",
@@ -16896,7 +16897,15 @@
               "path": "src/daemon/screen-recording-encoder.swift",
               "kind": "current"
             },
-            "responsibility": "Own bounded H.264 plus optional AAC-LC QuickTime production, positive-count/byte common-epoch admission, independent admitted and written-sample truth under per-track backpressure, drain/finalization truth, writer-global failure on every selected track, and exact selected-track output media identity validation."
+            "responsibility": "Own bounded H.264 plus independently optional AAC-LC system-audio and microphone QuickTime production, positive-count/byte all-selected common-epoch admission, independent admitted and written-sample truth under per-track backpressure, drain/finalization truth, writer-global failure on every selected track, and exact selected-track output media identity validation."
+          },
+          {
+            "owner_id": "recording-microphone-session",
+            "path_ref": {
+              "path": "src/daemon/microphone-native-session.swift",
+              "kind": "current"
+            },
+            "responsibility": "Solely own AVAudioEngine microphone input-tap start, health, stop, and exact authority-absence truth shared by segmented capture and screen recording while preserving the macOS 14 floor. A thrown start does not imply absence: segmented cleanup consults and boundedly retries this owner before terminalization or claim release."
           },
           {
             "owner_id": "recording-geometry",
@@ -16920,7 +16929,7 @@
               "path": "manifests/commands/source/external/50-screen-recording.json",
               "kind": "current"
             },
-            "responsibility": "Own the reviewed external route paired atomically with the M3A/M3B authored recording command source."
+            "responsibility": "Own the reviewed external route paired atomically with the M3A/M3B/M3C-V2 authored recording command source."
           }
         ]
       }
@@ -17034,6 +17043,15 @@
           },
           {
             "path_ref": {
+              "path": "tests/voice-transport-native.sh",
+              "kind": "current"
+            },
+            "execution_class": "native_compile",
+            "requires_owner_authority": false,
+            "claim": "Compile and execute the actual segmented capture plus shared microphone-session owner against injected native dependencies, proving failed partial starts consult and retry the shared owner and publish absence only after exact tap-and-engine absence."
+          },
+          {
+            "path_ref": {
               "path": "tests/manual/operation-control-native-proof.sh",
               "kind": "current"
             },
@@ -17053,7 +17071,7 @@
             },
             "execution_class": "static",
             "requires_owner_authority": false,
-            "claim": "Validate mandatory video, optional system audio, microphone/follow rejection, request-to-selected/finalized-track coupling, positive-count/byte first-sample and successful truth, screen-operation progress/terminal summary and typed failure/artifact conditionals, artifact/outcome/media identity binding, closed per-track truth, fixed geometry identity, bounds, outcomes, and custody linkage."
+            "claim": "Validate mandatory video, independently optional system audio and microphone across four exact selections, follow rejection, request-to-selected/finalized-track coupling, positive-count/byte first-sample and successful truth, screen-operation progress/terminal summary and typed failure/artifact conditionals, artifact/outcome/media identity binding, closed per-track truth, fixed geometry identity, bounds, outcomes, and custody linkage."
           },
           {
             "path_ref": {
@@ -17062,7 +17080,7 @@
             },
             "execution_class": "static",
             "requires_owner_authority": false,
-            "claim": "Statically bind atomic identity/requested-bounds/zero-progress/initial selected-track-summary admission before later preparation, the warm-path capturesAudio=false baseline and recording-selected screen/audio outputs on one SCStream, one H.264 plus AAC-LC QuickTime writer, generation-bound owner handoff, dual-track drain, terminal truth, track-bound release ordering, bounds, cleanup, and command/help ownership."
+            "claim": "Statically bind atomic identity/requested-bounds/zero-progress/initial selected-track-summary admission before later preparation, the warm-path capturesAudio=false baseline, recording-selected screen/system-audio outputs, the shared daemon microphone-session owner, the conditional dual-resource claim-set, one H.264 plus two AAC-LC writer inputs, generation-bound owner handoff, selected-track drain, terminal truth, track-bound release ordering, bounds, cleanup, and command/help ownership."
           }
         ],
         "fake": [
@@ -17073,7 +17091,7 @@
             },
             "execution_class": "fake",
             "requires_owner_authority": false,
-            "claim": "Execute the production adapter, generic registry/store/recovery, exact public snapshot/list/inspect projector used by UnifiedDaemon, lifecycle, sample admission, multitrack coordinator, terminal truth, and custody owners with an injected post-admission durable save fault, fake clock, video/audio callbacks, writer inputs/file, broker, and custody dependencies. Directly validate video-only and selected-audio prepared, cleanup, recovered terminal, list, and inspect outputs retain the exact initial summary and satisfy aos.operation.v1 without synthesized wire metadata. Also cover both arrival orders, one common epoch, one absolute delayed-native-start/common-media budget, both-silent and single-missing-track settlement with mandatory-video precedence, per-track monotonicity, concurrency/backpressure, audio byte progress while written-video frames remain zero, later mandatory-video completion/failure, selected/unselected registration availability and positive-count/byte first-sample truth, zero-byte audio, typed unavailable/no-sample failures, writer-global start failure in both orders and post-start failure on every selected track, dual-track stop/drain/finalize, callback loss, cancellation/owner loss/timeout, offline recovery, zero-frame/missing-artifact failure, typed retain unavailability, custody fault phases, cleanup residuals, fixed geometry, bounds, progress persistence, custody binding, and extra-key/type rejection."
+            "claim": "Execute the production adapter, generic registry/store/recovery, exact public snapshot/list/inspect projector used by UnifiedDaemon, lifecycle, sample admission, three-track coordinator, terminal truth, and custody owners with an injected post-admission durable save fault, fake clock, video/system-audio/microphone callbacks, writer inputs/file, shared microphone session, broker, and custody dependencies. Directly validate all four selection summaries through prepared, cleanup, recovered terminal, list, and inspect outputs against aos.operation.v1 without synthesized wire metadata. Assert exact public snapshot progress and terminal per-track values plus video/system-audio/microphone precedence for every pre-common-epoch callback interleaving, and prove a pre-native encoder-setup failure preserves its exact public typed result. Also cover all six three-track first-sample orders at one common epoch, one absolute delayed-native-start/common-media budget, multi-track missing settlement and precedence, independent per-track monotonicity and backpressure, audio byte progress while written-video frames remain zero, selected/unselected registration availability and positive-count/byte first-sample truth, typed unavailable/no-sample failures, writer-global failure on every selected track, standalone-microphone resource conflict before native authority, selected-track stop/drain/finalize, one conditional dual-resource claim-set, aggregate authority absence before claim release, callback loss, cancellation/owner loss/timeout, offline recovery, zero-frame/missing-artifact failure, typed retain unavailability, custody fault phases, cleanup residuals, fixed geometry, bounds, progress persistence, custody binding, and extra-key/type rejection."
           }
         ],
         "native": [
@@ -17746,7 +17764,7 @@
         },
         {
           "id": "voice_resource_claim_no_preemption",
-          "criterion": "M2 registers only the microphone-capture-adapter for an exclusive voice_io_native_session claim. Existing speech/audio output remains a legacy reservation sentinel on the same native session: it participates atomically in admission conflict and cannot preempt or be preempted, but remains outside registered stop-all coverage until a later adapter migration. Capture/output conflicts are typed; voice-transport no longer performs implicit barge_in cancellation. The caller explicitly retries, cancels, or kills.",
+          "criterion": "M2 registers only the microphone-capture-adapter for an exclusive voice_io_native_session claim. Existing speech/audio output remains a legacy reservation sentinel on the same native session: it participates atomically in admission conflict and cannot preempt or be preempted, but remains outside registered stop-all coverage until a later adapter migration. Capture/output conflicts are typed; voice-transport no longer performs implicit barge_in cancellation. Segmented partial-start cleanup consults and boundedly retries the shared native-session owner, and never infers absence from a thrown start. The caller explicitly retries, cancels, or kills.",
           "proof_ref_ids": [
             "M2.proof.tests_schemas_aos_operation_v1_test_mjs",
             "M2.proof.tests_operation_resource_claims_test_mjs",
@@ -17757,7 +17775,7 @@
         },
         {
           "id": "terminal_residual_invariant",
-          "criterion": "Terminal publication requires verified absence of authority and residuals or exact transferred or retained artifact custody across crash and retry recovery.",
+          "criterion": "Terminal publication and claim release require verified absence of authority and residuals or exact transferred or retained artifact custody across crash and retry recovery; a microphone start attempt that throws remains nonterminal until the shared owner proves exact tap-and-engine absence.",
           "proof_ref_ids": [
             "M2.proof.tests_schemas_aos_operation_v1_test_mjs",
             "M2.proof.tests_operation_control_contract_test_mjs",
@@ -17769,7 +17787,7 @@
         },
         {
           "id": "microphone_control_plane",
-          "criterion": "The existing microphone adapter is projected through operation identity, list/inspect/status/recent, cancel/kill, tap, artifact, cleanup, and the internal recording indicator.",
+          "criterion": "The existing microphone adapter is projected through operation identity, list/inspect/status/recent, cancel/kill, tap, artifact, cleanup, and the internal recording indicator. Segmented capture and recording share the exact native-session owner and preserve uncertain partial-start authority as cleanup required until bounded retry proves absence.",
           "proof_ref_ids": [
             "M2.proof.tests_schemas_aos_operation_v1_test_mjs",
             "M2.proof.tests_operation_control_contract_test_mjs",
@@ -18539,7 +18557,7 @@
       "exit_gates": [
         {
           "id": "recording_tracks_independent",
-          "criterion": "Screen video, system audio, and microphone tracks have independent availability, failure, fidelity, and custody truth under one recording operation.",
+          "criterion": "Screen video, system audio, and microphone tracks have independent availability, failure, fidelity, and custody truth under one recording operation. Media callback failure before a common epoch is normalized from the final selected-track summary, stamps every missing selected track, and selects terminal precedence video then system audio then microphone, while explicit internal failure origin preserves exact pre-native writer/input setup and other typed failures.",
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
             "M3.proof.tests_screen_recording_contract_test_mjs",
@@ -18577,7 +18595,7 @@
         },
         {
           "id": "fake_recording_proof",
-          "criterion": "Static and fake proofs cover preparation, start, stop, failure, cleanup, geometry drift, track failure, and artifact validation without claiming native capture.",
+          "criterion": "Static and fake proofs cover preparation, start, stop, failure, cleanup, geometry drift, track failure, artifact validation, and both pre-common-epoch system-audio/microphone callback orders across all missing-selected-track terminal precedences without claiming native capture.",
           "proof_ref_ids": [
             "M3.proof.tests_schemas_aos_screen_recording_v1_test_mjs",
             "M3.proof.tests_screen_recording_contract_test_mjs",

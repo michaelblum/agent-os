@@ -5,6 +5,7 @@ import Foundation
 let aosVoiceSegmentMinimumDuration: TimeInterval = 0.5
 let aosVoiceSegmentMaximumDuration: TimeInterval = 5
 let aosVoiceSegmentDefaultDuration: TimeInterval = 3
+let aosSegmentedMicrophoneAuthorityStopAttemptLimit = 8
 
 enum AOSMicrophoneCaptureTerminalTrigger: String, Equatable {
     case completed
@@ -352,7 +353,7 @@ final class AOSAtomicVoiceSegmentWriter {
 }
 
 final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
-    typealias InputHandler = (AVAudioPCMBuffer, AVAudioTime) -> Void
+    typealias InputHandler = AOSMicrophoneNativeInputHandler
 
     private struct FinishRequest {
         let keepSegments: Bool
@@ -373,17 +374,18 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
     private let inputEngineHealthy: (() -> Bool)?
     private let stopInputEngine: (() -> Void)?
     private let receiveInput: ((AVAudioPCMBuffer) -> Void)?
+    private let nativeSession: any AOSMicrophoneNativeSessionControlling
     private let authorizeMicrophone: () -> AOSMicrophoneAuthorizationState
     private let authorizationState: () -> AOSMicrophoneAuthorizationState
     private let emit: (String, [String: Any]) -> Void
     private let terminal: (AOSMicrophoneCaptureTermination) -> Void
     private let writer: AOSAtomicVoiceSegmentWriter
-    private let engine = AVAudioEngine()
     private let queue = DispatchQueue(label: "aos.voice.segmented-capture")
     private let finishLock = NSLock()
     private let inputGate = AOSCaptureInputGate()
     private var engineArming = false
-    private var engineOwned = false
+    private var injectedInputEngineStartAttempted = false
+    private var sharedOwnerStartAttempted = false
     private var captureAdmitted = false
     private var finishRequested = false
     private var finished = false
@@ -391,7 +393,6 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
     private var converter: AVAudioConverter?
     private var meterTimer: DispatchSourceTimer?
     private var startedAt: DispatchTime?
-    private var tapInstalled = false
     private var sequence = 0
     private var lastMetrics = AOSAudioFrameMetrics(rms: 0, peak: 0)
 
@@ -412,6 +413,7 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
         inputEngineHealthy: (() -> Bool)? = nil,
         stopInputEngine: (() -> Void)? = nil,
         receiveInput: ((AVAudioPCMBuffer) -> Void)? = nil,
+        nativeSession: (any AOSMicrophoneNativeSessionControlling)? = nil,
         authorizeMicrophone: (() -> AOSMicrophoneAuthorizationState)? = nil,
         authorizationState: @escaping () -> AOSMicrophoneAuthorizationState,
         emit: @escaping (String, [String: Any]) -> Void,
@@ -426,6 +428,7 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
         self.inputEngineHealthy = inputEngineHealthy
         self.stopInputEngine = stopInputEngine
         self.receiveInput = receiveInput
+        self.nativeSession = nativeSession ?? AOSMicrophoneNativeSession()
         self.authorizeMicrophone = authorizeMicrophone ?? authorizationState
         self.authorizationState = authorizationState
         self.emit = emit
@@ -508,12 +511,11 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
     }
 
     private func completeEngineArming(
-        started: Bool,
+        started _: Bool,
         startupError: Error?
     ) -> AOSVoiceTransportFailure? {
         finishLock.lock()
         engineArming = false
-        if started { engineOwned = true }
         let cancellationWon = finishRequested
         let shouldScheduleFinish = cancellationWon && !finished
         finishLock.unlock()
@@ -796,41 +798,27 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
             self?.enqueueInput(buffer, at: time)
         }
         if let startInputEngine {
+            finishLock.lock()
+            injectedInputEngineStartAttempted = true
+            finishLock.unlock()
             try startInputEngine(handler)
             return
         }
-        var startupError: Error?
-        aosRunOnMainSync {
-            let input = engine.inputNode
-            let inputFormat = input.outputFormat(forBus: 0)
-            guard inputFormat.channelCount > 0,
-                  inputFormat.sampleRate.isFinite,
-                  inputFormat.sampleRate > 0,
-                  let converter = AVAudioConverter(from: inputFormat, to: writer.outputFormat) else {
-                startupError = AOSVoiceTransportFailure(
-                    code: "MICROPHONE_UNAVAILABLE",
-                    message: "microphone input is unavailable"
-                )
-                return
-            }
-            self.converter = converter
-            input.installTap(onBus: 0, bufferSize: 1024, format: inputFormat, block: handler)
-            tapInstalled = true
-            engine.prepare()
-            do {
-                try engine.start()
-            } catch {
-                if tapInstalled {
-                    input.removeTap(onBus: 0)
-                    tapInstalled = false
-                }
-                startupError = AOSVoiceTransportFailure(
-                    code: "MICROPHONE_UNAVAILABLE",
-                    message: "microphone input is unavailable"
-                )
-            }
+        finishLock.lock()
+        sharedOwnerStartAttempted = true
+        finishLock.unlock()
+        let inputFormat = try nativeSession.start(handler)
+        guard let converter = AVAudioConverter(
+            from: inputFormat,
+            to: writer.outputFormat
+        ) else {
+            _ = nativeSession.stop()
+            throw AOSVoiceTransportFailure(
+                code: "CAPTURE_FORMAT_UNAVAILABLE",
+                message: "microphone input format is unavailable"
+            )
         }
-        if let startupError { throw startupError }
+        self.converter = converter
     }
 
     private func enqueueInput(_ input: AVAudioPCMBuffer, at time: AVAudioTime) {
@@ -848,12 +836,7 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
 
     private func captureEngineIsHealthy() -> Bool {
         if let inputEngineHealthy { return inputEngineHealthy() }
-        var healthy = false
-        aosRunOnMainSync {
-            healthy = engine.isRunning
-                && engine.inputNode.outputFormat(forBus: 0).channelCount > 0
-        }
-        return healthy
+        return nativeSession.healthy
     }
 
     private func finishPending() {
@@ -931,24 +914,22 @@ final class AOSSegmentedMicrophoneCaptureSession: AOSMicrophoneCaptureLease {
 
     private func stopEngine() -> Bool {
         inputGate.close()
-        finishLock.lock()
-        let shouldStop = engineOwned
-        engineOwned = false
-        finishLock.unlock()
-        guard shouldStop else { return true }
-        if let stopInputEngine {
-            stopInputEngine()
+        if startInputEngine != nil {
+            finishLock.lock()
+            let shouldStop = injectedInputEngineStartAttempted
+            injectedInputEngineStartAttempted = false
+            finishLock.unlock()
+            guard shouldStop else { return inputEngineHealthy?() == false }
+            stopInputEngine?()
             return inputEngineHealthy?() == false
         }
-        var authorityAbsent = false
-        aosRunOnMainSync {
-            if tapInstalled {
-                engine.inputNode.removeTap(onBus: 0)
-                tapInstalled = false
-            }
-            if engine.isRunning { engine.stop() }
-            authorityAbsent = !engine.isRunning && !tapInstalled
+        finishLock.lock()
+        let shouldStopSharedOwner = sharedOwnerStartAttempted
+        finishLock.unlock()
+        guard shouldStopSharedOwner else { return true }
+        for _ in 0..<aosSegmentedMicrophoneAuthorityStopAttemptLimit {
+            if nativeSession.stop(), nativeSession.authorityAbsent { return true }
         }
-        return authorityAbsent
+        return nativeSession.authorityAbsent
     }
 }

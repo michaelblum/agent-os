@@ -176,6 +176,26 @@
               }
             }
           }
+        },
+        {
+          "properties": {
+            "media_type": {"const": "video/quicktime; codecs=avc1,mp4a.40.2"},
+            "track_summary": {
+              "properties": {
+                "selected_tracks": {"const": ["video", "microphone"]}
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "media_type": {"const": "video/quicktime; codecs=avc1,mp4a.40.2"},
+            "track_summary": {
+              "properties": {
+                "selected_tracks": {"const": ["video", "system_audio", "microphone"]}
+              }
+            }
+          }
         }
       ]
     },

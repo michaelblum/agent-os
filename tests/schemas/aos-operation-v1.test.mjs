@@ -269,6 +269,11 @@ const videoTrackSummary = {
     sample_count: 0, sample_byte_count: 0, failure_code: null,
     drained: true, finalized: true,
   },
+  microphone: {
+    selected: false, admitted: false, available: false, first_sample_present: false,
+    sample_count: 0, sample_byte_count: 0, failure_code: null,
+    drained: true, finalized: true,
+  },
 };
 
 const audioTrackSummary = {
@@ -277,6 +282,20 @@ const audioTrackSummary = {
   common_media_epoch_ns: 1,
   video: videoTrackSummary.video,
   system_audio: {
+    selected: true, admitted: true, available: true, first_sample_present: true,
+    sample_count: 1, sample_byte_count: 100, failure_code: null,
+    drained: true, finalized: true,
+  },
+  microphone: videoTrackSummary.microphone,
+};
+
+const microphoneTrackSummary = {
+  selected_tracks: ['video', 'microphone'],
+  finalized_tracks: ['video', 'microphone'],
+  common_media_epoch_ns: 1,
+  video: videoTrackSummary.video,
+  system_audio: videoTrackSummary.system_audio,
+  microphone: {
     selected: true, admitted: true, available: true, first_sample_present: true,
     sample_count: 1, sample_byte_count: 100, failure_code: null,
     drained: true, finalized: true,
@@ -493,6 +512,7 @@ test('screen-recording operations require progress and terminal track truth plus
       failure_code: 'SCREEN_RECORDING_NO_VIDEO_FRAMES', drained: false, finalized: false,
     },
     system_audio: videoTrackSummary.system_audio,
+    microphone: videoTrackSummary.microphone,
   };
   const failed = {
     ...screenBase,
@@ -512,8 +532,14 @@ test('screen-recording operations require progress and terminal track truth plus
   delete withoutTerminalSummary.terminal.track_summary;
   const withoutTerminalFailure = structuredClone(failed);
   delete withoutTerminalFailure.terminal.failure_code;
+  const microphoneSuccess = {
+    ...screenBase,
+    progress: { ...screenBase.progress, bytes: 200, track_summary: microphoneTrackSummary },
+    terminal: { ...screenBase.terminal, track_summary: microphoneTrackSummary },
+  };
   assertValidation([
     target(OPERATION_ID, 'operation_snapshot', screenBase, true, 'screen success'),
+    target(OPERATION_ID, 'operation_snapshot', microphoneSuccess, true, 'screen microphone success'),
     target(OPERATION_ID, 'operation_snapshot', failed, true, 'screen failure'),
     target(OPERATION_ID, 'operation_snapshot', withoutProgressSummary, false, 'screen progress summary required'),
     target(OPERATION_ID, 'operation_snapshot', withoutTerminalSummary, false, 'screen terminal summary required'),

@@ -15,11 +15,55 @@ struct AOSScreenRecordingAdmission: Codable, Equatable {
     let artifact: AOSOperationIdentity
     let daemonGeneration: UInt64
     let geometryBindingDigest: String
+
+    func publicValue(request: AOSScreenRecordingRequest) -> [String: Any] {
+        [
+            "schema_version": "aos.screen-recording.admission-result.v1",
+            "operation": [
+                "operation_id": operation.id,
+                "operation_generation": operation.generation,
+            ],
+            "stream": [
+                "stream_id": stream.id,
+                "stream_generation": stream.generation,
+            ],
+            "artifact": [
+                "artifact_id": artifact.id,
+                "artifact_generation": artifact.generation,
+            ],
+            "daemon_generation": daemonGeneration,
+            "geometry_binding_digest": geometryBindingDigest,
+            "tracks": [
+                "video": true,
+                "system_audio": request.tracks.systemAudio,
+                "microphone": request.tracks.microphone,
+            ],
+            "track_summary": aosScreenRecordingTrackSummaryValue(.initial(
+                systemAudioSelected: request.tracks.systemAudio,
+                microphoneSelected: request.tracks.microphone
+            )),
+            "codec": AOSScreenRecordingRequest.codec,
+            "container": AOSScreenRecordingRequest.container,
+        ]
+    }
 }
 
 struct AOSScreenRecordingClaimAdmission {
     let publicAdmission: AOSScreenRecordingAdmission
-    let claim: AOSResourceClaimBinding
+    let claims: [AOSResourceClaimBinding]
+}
+
+struct AOSScreenRecordingMicrophoneAuthorizationDependencies {
+    let status: () -> AOSMicrophoneAuthorizationState
+    let request: (TimeInterval) -> AOSMicrophoneAuthorizationRequestResult
+
+    static func live() -> Self {
+        let provider = AOSSystemMicrophoneAuthorization()
+        return Self(
+            status: { provider.status() },
+            request: { provider.request(timeout: $0) }
+        )
+    }
 }
 
 protocol AOSScreenRecordingRuntimeControlling: AnyObject {
@@ -76,6 +120,100 @@ struct AOSScreenRecordingNativeSession {
     let signal: AOSDesktopPixelStartupSignal
     let start: AOSDesktopPixelNativeOperation
     let stop: AOSDesktopPixelNativeOperation
+    let microphoneSession: (any AOSMicrophoneNativeSessionControlling)?
+
+    init(
+        encoder: AOSScreenRecordingEncoding,
+        lifecycle: AOSDesktopPixelStreamLifecycle,
+        signal: AOSDesktopPixelStartupSignal,
+        start: @escaping AOSDesktopPixelNativeOperation,
+        stop: @escaping AOSDesktopPixelNativeOperation,
+        microphoneSession: (any AOSMicrophoneNativeSessionControlling)? = nil
+    ) {
+        self.encoder = encoder
+        self.lifecycle = lifecycle
+        self.signal = signal
+        self.start = start
+        self.stop = stop
+        self.microphoneSession = microphoneSession
+    }
+}
+
+final class AOSScreenRecordingMicrophoneInput: @unchecked Sendable {
+    let session: any AOSMicrophoneNativeSessionControlling
+
+    private let didFail: AOSScreenRecordingFailureSink
+    private weak var encoder: (any AOSScreenRecordingEncoding)?
+    private let frameAdmission: AOSDesktopPixelFrameAdmissionGate
+    private let lock = NSLock()
+    private let persistProgress: AOSScreenRecordingProgressSink
+    private let startup: AOSDesktopPixelStartupSignal
+    private var ready = false
+
+    init(
+        session: any AOSMicrophoneNativeSessionControlling,
+        encoder: any AOSScreenRecordingEncoding,
+        frameAdmission: AOSDesktopPixelFrameAdmissionGate,
+        startup: AOSDesktopPixelStartupSignal,
+        persistProgress: @escaping AOSScreenRecordingProgressSink,
+        didFail: @escaping AOSScreenRecordingFailureSink
+    ) {
+        self.session = session
+        self.encoder = encoder
+        self.frameAdmission = frameAdmission
+        self.startup = startup
+        self.persistProgress = persistProgress
+        self.didFail = didFail
+    }
+
+    func start() throws {
+        do {
+            _ = try session.start { [weak self] buffer, time in
+                self?.receive(buffer, at: time)
+            }
+            guard let encoder else {
+                throw AOSOperationCoreError.recordingCleanupRequired
+            }
+            try encoder.markAvailable(.microphone)
+            lock.lock()
+            ready = true
+            lock.unlock()
+        } catch {
+            lock.lock()
+            ready = false
+            lock.unlock()
+            _ = session.stop()
+            throw error
+        }
+    }
+
+    @discardableResult
+    func stop() -> Bool {
+        lock.lock()
+        ready = false
+        lock.unlock()
+        return session.stop()
+    }
+
+    private func receive(_ buffer: AVAudioPCMBuffer, at time: AVAudioTime) {
+        lock.lock()
+        let mayAdmit = ready
+        lock.unlock()
+        guard mayAdmit,
+              let encoder,
+              let token = frameAdmission.admit() else {
+            return
+        }
+        defer { token.complete() }
+        do {
+            try encoder.appendMicrophone(buffer, at: time)
+            let progress = encoder.progress
+            try persistProgress(progress)
+            if progress.sessionStarted { startup.succeed() }
+        } catch {
+            didFail(error)
+        }
+    }
 }
 
 typealias AOSScreenRecordingProgressSink = @Sendable (
@@ -88,6 +226,8 @@ typealias AOSScreenRecordingSessionFactory = @Sendable (
     @escaping AOSScreenRecordingProgressSink,
     @escaping AOSScreenRecordingFailureSink
 ) async throws -> AOSScreenRecordingNativeSession
+typealias AOSScreenRecordingMicrophoneSessionFactory = @Sendable () ->
+    any AOSMicrophoneNativeSessionControlling
 
 private func aosScreenRecordingReleaseDestinationIdentity(
     _ destination: URL,
@@ -219,6 +359,8 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
     private let reconcileHostBarrier: () -> Void
     private let registry: AOSOperationRegistry
     private let sessionFactory: AOSScreenRecordingSessionFactory?
+    private let microphoneAuthorization: AOSScreenRecordingMicrophoneAuthorizationDependencies
+    private let microphoneSessionFactory: AOSScreenRecordingMicrophoneSessionFactory
     private let startupTimeout: TimeInterval
     private var runtimes: [AOSOperationIdentity: AOSScreenRecordingRuntimeControlling] = [:]
 
@@ -246,6 +388,10 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         contextResolver: @escaping ContextResolver,
         files: AOSScreenRecordingFileDependencies = .live,
         sessionFactory: AOSScreenRecordingSessionFactory? = nil,
+        microphoneAuthorization: AOSScreenRecordingMicrophoneAuthorizationDependencies = .live(),
+        microphoneSessionFactory: @escaping AOSScreenRecordingMicrophoneSessionFactory = {
+            AOSMicrophoneNativeSession()
+        },
         startupTimeout: TimeInterval = aosDesktopPixelStreamRetirementTimeout,
         reconcileHostBarrier: @escaping () -> Void = {}
     ) throws {
@@ -263,6 +409,8 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         self.files = files
         self.reconcileHostBarrier = reconcileHostBarrier
         self.sessionFactory = sessionFactory
+        self.microphoneAuthorization = microphoneAuthorization
+        self.microphoneSessionFactory = microphoneSessionFactory
         self.startupTimeout = startupTimeout
     }
 
@@ -287,6 +435,8 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
             registry: registry,
             request: request,
             sessionFactory: sessionFactory,
+            microphoneAuthorization: microphoneAuthorization,
+            microphoneSessionFactory: microphoneSessionFactory,
             startupTimeout: startupTimeout
         )
         lock.lock()
@@ -329,7 +479,7 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         lock.unlock()
         if let digest = runtime?.residualDigest() { return digest }
         return registry.snapshot().resourceClaims.first(where: {
-            $0.operation == operation && $0.resourceKey == Self.resourceKey && $0.state != .terminal
+            $0.operation == operation && $0.state != .terminal
         })?.reattachTokenDigest
     }
 
@@ -645,7 +795,7 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
                     byteCount: progress.byteCount
                 )
             }
-            try releaseClaim(admission.claim, authorityAbsent: authorityAbsent)
+            try releaseClaims(admission.claims, authorityAbsent: authorityAbsent)
             let operation = try registry.inspect(publicAdmission.operation)
             if operation.state == .starting || operation.state == .active {
                 _ = try registry.transitionOperation(
@@ -701,11 +851,34 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
                 id: registration.id,
                 revision: registration.revision
               ) == registration,
-              let declaration = initial.adapterRegistry.declaration(resourceKey: Self.resourceKey) else {
+              let screenDeclaration = initial.adapterRegistry.declaration(
+                resourceKey: Self.resourceKey
+              ) else {
             throw AOSOperationCoreError.barrierClosed
         }
+        let microphoneDeclaration: AOSResourceDeclaration?
+        if request.tracks.microphone {
+            guard initial.adapterRegistry.registration(
+                id: AOSMicrophoneOperationResourceIdentity.adapterRegistrationID,
+                revision: AOSMicrophoneOperationResourceIdentity.adapterRegistrationRevision
+            ) != nil,
+            let declaration = initial.adapterRegistry.declaration(
+                resourceKey: AOSMicrophoneOperationResourceIdentity.resourceKey
+            ),
+            declaration.adapterRegistrationID
+                == AOSMicrophoneOperationResourceIdentity.adapterRegistrationID,
+            declaration.adapterRegistrationRevision
+                == AOSMicrophoneOperationResourceIdentity.adapterRegistrationRevision,
+            declaration.admissionMode == .exclusive else {
+                throw AOSOperationCoreError.adapterRegistryConflict
+            }
+            microphoneDeclaration = declaration
+        } else {
+            microphoneDeclaration = nil
+        }
         let initialTrackSummary = AOSScreenRecordingTrackSummary.initial(
-            systemAudioSelected: request.tracks.systemAudio
+            systemAudioSelected: request.tracks.systemAudio,
+            microphoneSelected: request.tracks.microphone
         )
         let initialProgress = AOSOperationProgress(
             frameCount: 0,
@@ -729,18 +902,16 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
                 parent: operation.identity,
                 trackSummary: initialTrackSummary
             )
-            let generation = initial.resourceClaims
-                .filter { $0.resourceKey == Self.resourceKey }
-                .map(\.resourceGeneration).max() ?? 0
-            let transaction = try AOSOperationResourceTransaction.prepare(
-                registry: registry,
-                operation: operation.identity,
-                expectedBarrierGeneration: initial.barrier.generation,
-                expectedAdapterRegistry: initial.adapterRegistry,
-                requests: [AOSResourceClaimRequest(
-                    adapterRegistrationID: registration.id,
-                    adapterRegistrationRevision: registration.revision,
-                    resourceKey: Self.resourceKey,
+            func request(
+                declaration: AOSResourceDeclaration
+            ) -> AOSResourceClaimRequest {
+                let generation = initial.resourceClaims
+                    .filter { $0.resourceKey == declaration.resourceKey }
+                    .map(\.resourceGeneration).max() ?? 0
+                return AOSResourceClaimRequest(
+                    adapterRegistrationID: declaration.adapterRegistrationID,
+                    adapterRegistrationRevision: declaration.adapterRegistrationRevision,
+                    resourceKey: declaration.resourceKey,
                     admissionMode: .exclusive,
                     resourceDeclarationDigest: declaration.declarationDigest,
                     expectedResourceGeneration: generation,
@@ -748,7 +919,18 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
                     expectedSubscriberSetRevision: nil,
                     expectedSubscriberSetCount: nil,
                     expectedSubscriberSetDigest: nil
-                )]
+                )
+            }
+            var requests = [request(declaration: screenDeclaration)]
+            if let microphoneDeclaration {
+                requests.append(request(declaration: microphoneDeclaration))
+            }
+            let transaction = try AOSOperationResourceTransaction.prepare(
+                registry: registry,
+                operation: operation.identity,
+                expectedBarrierGeneration: initial.barrier.generation,
+                expectedAdapterRegistry: initial.adapterRegistry,
+                requests: requests
             )
             _ = try AOSOperationResourceTransaction.beginReservation(
                 registry: registry,
@@ -762,11 +944,14 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
                 registry: registry,
                 transactionID: transaction.transactionID
             )
-            guard let claimID = receipt.claims.first,
-                  receipt.claims.count == 1,
-                  let claim = registry.snapshot().resourceClaims.first(where: {
-                    $0.claimID == claimID && $0.state == .active
-                  }) else {
+            let expectedResources = Set(requests.map(\.resourceKey))
+            let claims = registry.snapshot().resourceClaims.filter {
+                receipt.claims.contains($0.claimID)
+                    && $0.operation == operation.identity
+                    && $0.state == .active
+            }
+            guard claims.count == requests.count,
+                  Set(claims.map(\.resourceKey)) == expectedResources else {
                 throw AOSOperationCoreError.resourceDeclarationConflict
             }
             _ = try registry.transitionOperation(operation.identity, to: .starting)
@@ -779,12 +964,14 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
                     daemonGeneration: operation.daemonGeneration,
                     geometryBindingDigest: geometry.bindingDigest
                 ),
-                claim: AOSResourceClaimBinding(
-                    claimID: claim.claimID,
-                    operation: claim.operation,
-                    resourceKey: claim.resourceKey,
-                    resourceGeneration: claim.resourceGeneration
-                )
+                claims: claims.map {
+                    AOSResourceClaimBinding(
+                        claimID: $0.claimID,
+                        operation: $0.operation,
+                        resourceKey: $0.resourceKey,
+                        resourceGeneration: $0.resourceGeneration
+                    )
+                }
             )
         } catch {
             markCleanupRequired(operation.identity)
@@ -792,24 +979,31 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         }
     }
 
-    private func releaseClaim(
-        _ claim: AOSResourceClaimBinding,
+    private func releaseClaims(
+        _ claims: [AOSResourceClaimBinding],
         authorityAbsent: Bool
     ) throws {
-        let state = registry.snapshot().resourceClaims.first { $0.claimID == claim.claimID }?.state
-        if state == .active {
-            _ = try AOSOperationResourceClaim.beginExclusiveRelease(
-                registry: registry,
-                binding: claim
-            )
-        }
-        let released = try AOSOperationResourceClaim.finishExclusiveRelease(
-            registry: registry,
-            binding: claim,
-            absenceVerified: authorityAbsent
-        )
-        guard released.state == .terminal, released.absenceVerified else {
+        guard authorityAbsent else {
             throw AOSOperationCoreError.recordingCleanupRequired
+        }
+        for claim in claims.sorted(by: { $0.resourceKey > $1.resourceKey }) {
+            let state = registry.snapshot().resourceClaims.first {
+                $0.claimID == claim.claimID
+            }?.state
+            if state == .active {
+                _ = try AOSOperationResourceClaim.beginExclusiveRelease(
+                    registry: registry,
+                    binding: claim
+                )
+            }
+            let released = try AOSOperationResourceClaim.finishExclusiveRelease(
+                registry: registry,
+                binding: claim,
+                absenceVerified: true
+            )
+            guard released.state == .terminal, released.absenceVerified else {
+                throw AOSOperationCoreError.recordingCleanupRequired
+            }
         }
     }
 
@@ -1015,21 +1209,40 @@ private func aosScreenRecordingProgress(
     let summary = progress.trackSummary
     let videoFailure: String?
     let audioFailure: String?
+    let microphoneFailure: String?
     switch failure {
     case .recordingNoFrames:
         videoFailure = failure.code
         audioFailure = summary.systemAudio.selected
                 && !summary.systemAudio.firstSamplePresent
             ? AOSOperationCoreError.recordingSystemAudioNoSamples.code : nil
+        microphoneFailure = summary.microphone.selected
+                && !summary.microphone.firstSamplePresent
+            ? AOSOperationCoreError.recordingMicrophoneNoSamples.code : nil
     case .recordingSystemAudioUnavailable,
          .recordingSystemAudioNoSamples,
          .recordingSystemAudioFailed:
         videoFailure = nil
         audioFailure = failure.code
+        microphoneFailure = summary.microphone.selected
+                && !summary.microphone.firstSamplePresent
+            ? AOSOperationCoreError.recordingMicrophoneNoSamples.code : nil
+    case .recordingMicrophonePermissionNotDetermined,
+         .recordingMicrophonePermissionRestricted,
+         .recordingMicrophonePermissionDenied,
+         .recordingMicrophonePermissionUnknown,
+         .recordingMicrophoneUnavailable,
+         .recordingMicrophoneNoSamples,
+         .recordingMicrophoneFailed:
+        videoFailure = nil
+        audioFailure = nil
+        microphoneFailure = failure.code
     case .recordingEncoderFailed:
         videoFailure = failure.code
         audioFailure = summary.systemAudio.selected
             ? AOSOperationCoreError.recordingSystemAudioFailed.code : nil
+        microphoneFailure = summary.microphone.selected
+            ? AOSOperationCoreError.recordingMicrophoneFailed.code : nil
     default:
         return progress
     }
@@ -1057,7 +1270,8 @@ private func aosScreenRecordingProgress(
             finalizedTracks: summary.finalizedTracks,
             commonMediaEpochNanoseconds: summary.commonMediaEpochNanoseconds,
             video: truth(summary.video, failureCode: videoFailure),
-            systemAudio: truth(summary.systemAudio, failureCode: audioFailure)
+            systemAudio: truth(summary.systemAudio, failureCode: audioFailure),
+            microphone: truth(summary.microphone, failureCode: microphoneFailure)
         ),
         sessionStarted: progress.sessionStarted
     )
@@ -1067,12 +1281,21 @@ private func aosScreenRecordingSettledFailure(
     _ fallback: Error,
     summary: AOSScreenRecordingTrackSummary
 ) -> AOSOperationCoreError {
+    if let typed = fallback as? AOSOperationCoreError,
+       typed == .recordingSystemAudioUnavailable
+        || typed == .recordingMicrophoneUnavailable {
+        return typed
+    }
     if !summary.video.firstSamplePresent {
         return .recordingNoFrames
     }
     if summary.systemAudio.selected,
        !summary.systemAudio.firstSamplePresent {
         return .recordingSystemAudioNoSamples
+    }
+    if summary.microphone.selected,
+       !summary.microphone.firstSamplePresent {
+        return .recordingMicrophoneNoSamples
     }
     if let typed = fallback as? AOSOperationCoreError { return typed }
     if fallback as? AOSDesktopPixelStreamLifecycleFailure == .startupDeadlineExceeded {
@@ -1081,13 +1304,51 @@ private func aosScreenRecordingSettledFailure(
     return .recordingEncoderFailed
 }
 
+private struct AOSScreenRecordingFailureContext: Error {
+    enum Origin {
+        case preNativeSetup
+        case mediaLifecycle
+    }
+
+    let error: Error
+    let origin: Origin
+
+    var mayNormalizeFromTrackTruth: Bool { origin == .mediaLifecycle }
+
+    static func preNativeSetup(_ error: Error) -> Self {
+        Self(error: error, origin: .preNativeSetup)
+    }
+
+    static func mediaLifecycle(_ error: Error) -> Self {
+        Self(error: error, origin: .mediaLifecycle)
+    }
+}
+
 private func aosScreenRecordingTerminalFailure(
-    _ failure: Error?,
+    _ failure: AOSScreenRecordingFailureContext?,
     progress: AOSScreenRecordingEncoderProgress
 ) -> AOSOperationCoreError? {
     guard let failure else { return nil }
-    if let typed = failure as? AOSOperationCoreError { return typed }
-    return aosScreenRecordingSettledFailure(failure, summary: progress.trackSummary)
+    if !failure.mayNormalizeFromTrackTruth {
+        return failure.error as? AOSOperationCoreError ?? .recordingEncoderFailed
+    }
+    if let typed = failure.error as? AOSOperationCoreError {
+        switch typed {
+        case .recordingStartupDeadlineExceeded,
+             .recordingNoFrames,
+             .recordingSystemAudioNoSamples,
+             .recordingSystemAudioFailed,
+             .recordingMicrophoneNoSamples,
+             .recordingMicrophoneFailed,
+             .recordingTimestampNonMonotonic,
+             .recordingBackpressureExceeded,
+             .recordingEncoderFailed:
+            break
+        default:
+            return typed
+        }
+    }
+    return aosScreenRecordingSettledFailure(failure.error, summary: progress.trackSummary)
 }
 
 final class AOSNativeScreenRecordingRuntime:
@@ -1107,6 +1368,8 @@ final class AOSNativeScreenRecordingRuntime:
     private let registry: AOSOperationRegistry
     private let request: AOSScreenRecordingRequest
     private let sessionFactory: AOSScreenRecordingSessionFactory?
+    private let microphoneAuthorization: AOSScreenRecordingMicrophoneAuthorizationDependencies
+    private let microphoneSessionFactory: AOSScreenRecordingMicrophoneSessionFactory
     private let startupTimeout: TimeInterval
     private var progressTimeline: AOSScreenRecordingProgressTimeline
     private var finishStarted = false
@@ -1114,9 +1377,10 @@ final class AOSNativeScreenRecordingRuntime:
     private let startupCancellation = AOSDesktopPixelStartupCancellation()
     private var startupSettled = false
     private var startupOwner: AOSDesktopPixelStartupOwner?
-    private var terminalFailure: Error?
+    private var terminalFailure: AOSScreenRecordingFailureContext?
     private var stopIntent: AOSStopIntent?
     private var stream: SCStream?
+    private var microphoneSession: (any AOSMicrophoneNativeSessionControlling)?
 
     init(
         adapter: AOSScreenRecordingOperationAdapter,
@@ -1128,6 +1392,10 @@ final class AOSNativeScreenRecordingRuntime:
         registry: AOSOperationRegistry,
         request: AOSScreenRecordingRequest,
         sessionFactory: AOSScreenRecordingSessionFactory? = nil,
+        microphoneAuthorization: AOSScreenRecordingMicrophoneAuthorizationDependencies = .live(),
+        microphoneSessionFactory: @escaping AOSScreenRecordingMicrophoneSessionFactory = {
+            AOSMicrophoneNativeSession()
+        },
         startupTimeout: TimeInterval = aosDesktopPixelStreamRetirementTimeout
     ) {
         self.adapter = adapter
@@ -1139,6 +1407,8 @@ final class AOSNativeScreenRecordingRuntime:
         self.registry = registry
         self.request = request
         self.sessionFactory = sessionFactory
+        self.microphoneAuthorization = microphoneAuthorization
+        self.microphoneSessionFactory = microphoneSessionFactory
         self.startupTimeout = startupTimeout
         self.progressTimeline = AOSScreenRecordingProgressTimeline(
             maximumDurationMilliseconds: request.durationMilliseconds
@@ -1156,8 +1426,11 @@ final class AOSNativeScreenRecordingRuntime:
                     return
                 }
             } catch {
-                let selectedIntent = settleStartup(failure: error)
-                    ?? (error is AOSOperationCoreError ? .adapterFailed : .permissionRevoked)
+                let failure = (error as? AOSScreenRecordingFailureContext)
+                    ?? .preNativeSetup(error)
+                let selectedIntent = settleStartup(failure: failure)
+                    ?? (failure.error is AOSOperationCoreError
+                        ? .adapterFailed : .permissionRevoked)
                 await finish(intent: selectedIntent)
             }
         }
@@ -1167,7 +1440,10 @@ final class AOSNativeScreenRecordingRuntime:
         stop(intent: intent, failure: nil)
     }
 
-    private func stop(intent: AOSStopIntent, failure: Error?) {
+    private func stop(
+        intent: AOSStopIntent,
+        failure: AOSScreenRecordingFailureContext?
+    ) {
         lock.lock()
         _ = frameAdmission.close()
         _ = progressTimeline.admitStop(atNanoseconds: registry.now())
@@ -1190,7 +1466,10 @@ final class AOSNativeScreenRecordingRuntime:
 
     func residualDigest() -> String? {
         lock.lock()
-        let hasAuthority = producerLease != nil || startupOwner != nil || stream != nil
+        let hasAuthority = producerLease != nil
+            || startupOwner != nil
+            || stream != nil
+            || microphoneSession?.authorityAbsent == false
         lock.unlock()
         guard hasAuthority else { return nil }
         return AOSScreenRecordingEncoder.digest(
@@ -1198,12 +1477,15 @@ final class AOSNativeScreenRecordingRuntime:
         )
     }
 
-    private func settleStartup(failure: Error?) -> AOSStopIntent? {
+    private func settleStartup(
+        failure: AOSScreenRecordingFailureContext?
+    ) -> AOSStopIntent? {
         lock.lock()
         startupSettled = true
         if terminalFailure == nil { terminalFailure = failure }
         if failure != nil, stopIntent == nil {
-            stopIntent = failure is AOSOperationCoreError ? .adapterFailed : .permissionRevoked
+            stopIntent = failure?.error is AOSOperationCoreError
+                ? .adapterFailed : .permissionRevoked
         }
         guard let selectedIntent = stopIntent, !finishStarted else {
             lock.unlock()
@@ -1221,6 +1503,8 @@ final class AOSNativeScreenRecordingRuntime:
         )
         installProducerLease(lease)
         try requireStartupNotCancelled()
+        try authorizeMicrophoneIfSelected()
+        try requireStartupNotCancelled()
         if let sessionFactory {
             let session = try await sessionFactory(
                 request.tracks,
@@ -1232,7 +1516,10 @@ final class AOSNativeScreenRecordingRuntime:
                     try self.persistProgress(progress)
                 },
                 { [weak self] error in
-                    self?.stop(intent: .adapterFailed, failure: error)
+                    self?.stop(
+                        intent: .adapterFailed,
+                        failure: .mediaLifecycle(error)
+                    )
                 }
             )
             installEncoder(session.encoder)
@@ -1254,7 +1541,8 @@ final class AOSNativeScreenRecordingRuntime:
             geometry: geometry,
             maximumOutputBytes: request.maximumOutputBytes,
             maximumPendingSamplesPerTrack: Int(request.maximumQueueFrames),
-            systemAudioSelected: request.tracks.systemAudio
+            systemAudioSelected: request.tracks.systemAudio,
+            microphoneSelected: request.tracks.microphone
         )
         installEncoder(encoder)
         try requireStartupNotCancelled()
@@ -1333,9 +1621,34 @@ final class AOSNativeScreenRecordingRuntime:
                 try self.persistProgress(progress)
             },
             didFail: { [weak self] error in
-                self?.stop(intent: .adapterFailed, failure: error)
+                self?.stop(
+                    intent: .adapterFailed,
+                    failure: .mediaLifecycle(error)
+                )
             }
         )
+        let microphoneSession = request.tracks.microphone
+            ? microphoneSessionFactory() : nil
+        let microphoneInput = microphoneSession.map {
+            AOSScreenRecordingMicrophoneInput(
+                session: $0,
+                encoder: encoder,
+                frameAdmission: frameAdmission,
+                startup: startup,
+                persistProgress: { [weak self] progress in
+                    guard let self else {
+                        throw AOSOperationCoreError.recordingCleanupRequired
+                    }
+                    try self.persistProgress(progress)
+                },
+                didFail: { [weak self] error in
+                    self?.stop(
+                        intent: .adapterFailed,
+                        failure: .mediaLifecycle(error)
+                    )
+                }
+            )
+        }
         let stream = SCStream(filter: filter, configuration: configuration, delegate: output)
         let videoQueue = DispatchQueue(label: "com.aos.screen-recording.video")
         try stream.addStreamOutput(output, type: .screen, sampleHandlerQueue: videoQueue)
@@ -1355,19 +1668,35 @@ final class AOSNativeScreenRecordingRuntime:
             lifecycle: output,
             signal: startup,
             start: { completion in
+                do {
+                    try microphoneInput?.start()
+                } catch {
+                    completion(.failure(error))
+                    return
+                }
                 stream.startCapture { error in
+                    if error != nil { _ = microphoneInput?.stop() }
                     completion(error.map(Result.failure) ?? .success(()))
                 }
             },
             stop: { completion in
+                let microphoneAbsent = microphoneInput?.stop() ?? true
                 stream.stopCapture { error in
-                    completion(error.map(Result.failure) ?? .success(()))
+                    if let error {
+                        completion(.failure(error))
+                    } else if !microphoneAbsent {
+                        completion(.failure(AOSOperationCoreError.recordingCleanupRequired))
+                    } else {
+                        completion(.success(()))
+                    }
                 }
-            }
+            },
+            microphoneSession: microphoneSession
         ))
     }
 
     private func startSession(_ session: AOSScreenRecordingNativeSession) async throws {
+        installMicrophoneSession(session.microphoneSession)
         let startedAt = DispatchTime.now().uptimeNanoseconds
         let budgetNanoseconds = UInt64(startupTimeout * 1_000_000_000)
         let deadline = startedAt.addingReportingOverflow(budgetNanoseconds)
@@ -1386,7 +1715,10 @@ final class AOSNativeScreenRecordingRuntime:
                 },
                 cancellation: startupCancellation,
                 lateFailure: { [weak self] error in
-                    self?.stop(intent: .adapterFailed, failure: error)
+                    self?.stop(
+                        intent: .adapterFailed,
+                        failure: .mediaLifecycle(error)
+                    )
                 },
                 start: { [weak self] _, completion in
                     self?.admitCaptureStartAndScheduleDeadline()
@@ -1395,19 +1727,17 @@ final class AOSNativeScreenRecordingRuntime:
                 stop: { _, completion in session.stop(completion) }
             )
         } catch {
-            let summary = session.encoder.progress.trackSummary
-            throw aosScreenRecordingSettledFailure(error, summary: summary)
+            throw AOSScreenRecordingFailureContext.mediaLifecycle(error)
         }
         installStartupOwner(owner)
-        if request.tracks.systemAudio {
+        if request.tracks.systemAudio || request.tracks.microphone {
             while !session.encoder.progress.sessionStarted {
                 try requireStartupNotCancelled()
                 let remaining: TimeInterval
                 do {
                     remaining = try remainingStartupTime(until: deadline.partialValue)
                 } catch {
-                    let summary = session.encoder.progress.trackSummary
-                    throw aosScreenRecordingSettledFailure(error, summary: summary)
+                    throw AOSScreenRecordingFailureContext.mediaLifecycle(error)
                 }
                 try await Task.sleep(
                     nanoseconds: min(1_000_000, UInt64(remaining * 1_000_000_000))
@@ -1423,6 +1753,26 @@ final class AOSNativeScreenRecordingRuntime:
             throw AOSDesktopPixelStreamLifecycleFailure.startupDeadlineExceeded
         }
         return TimeInterval(deadline - now) / 1_000_000_000
+    }
+
+    private func authorizeMicrophoneIfSelected() throws {
+        guard request.tracks.microphone else { return }
+        var state = microphoneAuthorization.status()
+        if state == .notDetermined {
+            state = microphoneAuthorization.request(min(30, startupTimeout)).after
+        }
+        switch state {
+        case .authorized:
+            return
+        case .notDetermined:
+            throw AOSOperationCoreError.recordingMicrophonePermissionNotDetermined
+        case .restricted:
+            throw AOSOperationCoreError.recordingMicrophonePermissionRestricted
+        case .denied:
+            throw AOSOperationCoreError.recordingMicrophonePermissionDenied
+        case .unknown:
+            throw AOSOperationCoreError.recordingMicrophonePermissionUnknown
+        }
     }
 
     private func finish(intent: AOSStopIntent) async {
@@ -1445,7 +1795,8 @@ final class AOSNativeScreenRecordingRuntime:
         } else {
             true
         }
-        guard retired, discoveryRetired else {
+        let microphoneAbsent = resources.microphoneSession?.authorityAbsent ?? true
+        guard retired, discoveryRetired, microphoneAbsent else {
             adapter?.runtimeRetirementRemainsUncertain(
                 admission.publicAdmission.operation
             )
@@ -1474,9 +1825,9 @@ final class AOSNativeScreenRecordingRuntime:
         lease: AOSDesktopPixelExclusiveProducerLease?
     ) async {
         var artifact: AOSArtifactFileIdentity?
-        var failure = terminalFailureSnapshot()
+        var failureContext = terminalFailureSnapshot()
         if let encoder {
-            if failure != nil {
+            if failureContext != nil {
                 encoder.cancel()
             } else {
                 do {
@@ -1502,17 +1853,26 @@ final class AOSNativeScreenRecordingRuntime:
                     case .recordingNoFrames,
                          .recordingSystemAudioUnavailable,
                          .recordingSystemAudioNoSamples,
-                         .recordingSystemAudioFailed:
-                        failure = error
+                         .recordingSystemAudioFailed,
+                         .recordingMicrophonePermissionNotDetermined,
+                         .recordingMicrophonePermissionRestricted,
+                         .recordingMicrophonePermissionDenied,
+                         .recordingMicrophonePermissionUnknown,
+                         .recordingMicrophoneUnavailable,
+                         .recordingMicrophoneNoSamples,
+                         .recordingMicrophoneFailed:
+                        failureContext = .mediaLifecycle(error)
                     default:
-                        failure = files.exists(artifactURL)
-                            ? error : AOSOperationCoreError.recordingArtifactMissing
+                        failureContext = .mediaLifecycle(
+                            files.exists(artifactURL)
+                                ? error : AOSOperationCoreError.recordingArtifactMissing
+                        )
                     }
                     encoder.cancel()
                 }
             }
-        } else if failure == nil {
-            failure = AOSOperationCoreError.recordingNoFrames
+        } else if failureContext == nil {
+            failureContext = .mediaLifecycle(AOSOperationCoreError.recordingNoFrames)
         }
         let leaseReleased = lease.map(broker.releaseExclusiveProducer) ?? true
         guard leaseReleased else {
@@ -1524,10 +1884,16 @@ final class AOSNativeScreenRecordingRuntime:
         let rawProgress = encoder?.progress ?? AOSScreenRecordingEncoderProgress(
             frameCount: 0,
             byteCount: 0,
-            trackSummary: .initial(systemAudioSelected: request.tracks.systemAudio),
+            trackSummary: .initial(
+                systemAudioSelected: request.tracks.systemAudio,
+                microphoneSelected: request.tracks.microphone
+            ),
             sessionStarted: false
         )
-        failure = aosScreenRecordingTerminalFailure(failure, progress: rawProgress)
+        let failure = aosScreenRecordingTerminalFailure(
+            failureContext,
+            progress: rawProgress
+        )
         let progress = aosScreenRecordingProgress(rawProgress, applying: failure)
         let elapsedMilliseconds = admittedElapsedMilliseconds()
         adapter?.runtimeDidFinish(
@@ -1542,7 +1908,7 @@ final class AOSNativeScreenRecordingRuntime:
         )
     }
 
-    private func terminalFailureSnapshot() -> Error? {
+    private func terminalFailureSnapshot() -> AOSScreenRecordingFailureContext? {
         lock.lock()
         defer { lock.unlock() }
         return terminalFailure
@@ -1564,7 +1930,9 @@ final class AOSNativeScreenRecordingRuntime:
                 } else {
                     true
                 }
-                guard retired, discoveryRetired,
+                _ = resources.microphoneSession?.stop()
+                let microphoneAbsent = resources.microphoneSession?.authorityAbsent ?? true
+                guard retired, discoveryRetired, microphoneAbsent,
                       await frameAdmission.waitForDrain(
                         timeout: aosDesktopPixelStreamRetirementTimeout
                       ) else { continue }
@@ -1636,6 +2004,14 @@ final class AOSNativeScreenRecordingRuntime:
         lock.unlock()
     }
 
+    private func installMicrophoneSession(
+        _ session: (any AOSMicrophoneNativeSessionControlling)?
+    ) {
+        lock.lock()
+        microphoneSession = session
+        lock.unlock()
+    }
+
     private func installStartupOwner(_ owner: AOSDesktopPixelStartupOwner) {
         lock.lock()
         if startupOwner == nil { startupOwner = owner }
@@ -1652,11 +2028,18 @@ final class AOSNativeScreenRecordingRuntime:
         owner: AOSDesktopPixelStartupOwner?,
         encoder: AOSScreenRecordingEncoding?,
         lease: AOSDesktopPixelExclusiveProducerLease?,
-        discoveryRetirement: AOSDesktopPixelRetirementLatch?
+        discoveryRetirement: AOSDesktopPixelRetirementLatch?,
+        microphoneSession: (any AOSMicrophoneNativeSessionControlling)?
     ) {
         lock.lock()
         defer { lock.unlock() }
-        return (startupOwner, encoder, producerLease, discoveryRetirement)
+        return (
+            startupOwner,
+            encoder,
+            producerLease,
+            discoveryRetirement,
+            microphoneSession
+        )
     }
 
     private func createArtifactRoot() throws {

@@ -4602,10 +4602,12 @@ const expectedSourceDisposition = {
     "disposition": "positive",
     "source_probes": [
       {
-        "path": "src/daemon/segmented-microphone-capture.swift",
+        "path": "src/daemon/microphone-native-session.swift",
         "classification": "production_source",
         "markers": [
-          "AVAudioEngine()"
+          "AVAudioEngine()",
+          "input.installTap",
+          "inputNode.removeTap"
         ]
       },
       {
@@ -8960,13 +8962,14 @@ test('all tracked paths classify and named-family production/privilege scans are
   }
 });
 
-test('screen recording proof owns optional system audio, warm audio-off, custody, and public reachability', async () => {
+test('screen recording proof owns optional system audio and microphone, warm audio-off, custody, and public reachability', async () => {
   const rows = byId(await json(ledgerRelativePath));
   const row = rows.get('screencapturekit-screen-video');
-  const [pixelSource, adapter, encoder] = await Promise.all([
+  const [pixelSource, adapter, encoder, microphoneSession] = await Promise.all([
     read('src/daemon/desktop-pixel-native.swift'),
     read('src/daemon/screen-recording-operation-adapter.swift'),
     read('src/daemon/screen-recording-encoder.swift'),
+    read('src/daemon/microphone-native-session.swift'),
   ]);
   assert.match(pixelSource, /configuration\.capturesAudio\s*=\s*false/u);
   assert.match(adapter, /configuration\.capturesAudio\s*=\s*request\.tracks\.systemAudio/u);
@@ -8975,6 +8978,10 @@ test('screen recording proof owns optional system audio, warm audio-off, custody
   assert.match(encoder, /AVVideoCodecKey:\s*AVVideoCodecType\.h264/u);
   assert.match(encoder, /AVFormatIDKey:\s*kAudioFormatMPEG4AAC/u);
   assert.match(encoder, /writer\.startSession\(atSourceTime:/u);
+  assert.match(adapter, /AOSMicrophoneOperationResourceIdentity\.resourceKey/u);
+  assert.match(adapter, /AOSMicrophoneNativeSessionControlling/u);
+  assert.match(microphoneSession, /AVAudioEngine\(\)/u);
+  assert.doesNotMatch(adapter, /SCRecordingOutput|captureMicrophone/u);
   assert.deepEqual(row.current.observation.roots, ['one canonical display-topology observation']);
   assert.deepEqual(row.current.observation.targets, ['one fixed display, exact window, or global region wholly within one display']);
   assert.deepEqual(row.current.data_transport.transports, [
@@ -8986,7 +8993,7 @@ test('screen recording proof owns optional system audio, warm audio-off, custody
   assert.equal(row.current.control.artifacts.state, 'partial');
   assert.match(row.current.proof.limitations, /compiled production-owner seam harness/u);
   assert.match(row.current.proof.limitations, /AVAssetWriter and ScreenCaptureKit do not execute/u);
-  assert.match(row.current.proof.limitations, /no live pixels, MOV acceptance, file custody effects, permission behavior, daemon restart, or crash acceptance/u);
+  assert.match(row.current.proof.limitations, /no live pixels, MOV acceptance, file custody effects, native permission\/TCC behavior, daemon restart, or crash acceptance/u);
 });
 
 test('canvas action bus proves exact seven source labels without executing app quit', async () => {
@@ -9133,6 +9140,6 @@ test('paired authority, executable M2 bindings, and the remaining M6 decision ar
   assert.equal(ledger.later_open_decisions[0].milestone, 'M6');
   assert.match(
     ledger.authority.publication_boundary,
-    /Milestone 2 publishes the executable operation plane and microphone adapter.+bounded M3A\/M3B slices add one fixed display\/window\/region mandatory-H\.264-video producer with explicitly optional AAC-LC system audio/isu,
+    /Milestone 2 publishes the executable operation plane and microphone adapter.+bounded M3A\/M3B\/M3C-V2 slices add one fixed display\/window\/region mandatory-H\.264-video producer with independently optional AAC-LC system-audio and microphone tracks/isu,
   );
 });

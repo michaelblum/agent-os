@@ -38,6 +38,13 @@ enum AOSOperationCoreError: Error, Equatable, CustomStringConvertible {
     case recordingSystemAudioUnavailable
     case recordingSystemAudioNoSamples
     case recordingSystemAudioFailed
+    case recordingMicrophonePermissionNotDetermined
+    case recordingMicrophonePermissionRestricted
+    case recordingMicrophonePermissionDenied
+    case recordingMicrophonePermissionUnknown
+    case recordingMicrophoneUnavailable
+    case recordingMicrophoneNoSamples
+    case recordingMicrophoneFailed
     case recordingTimestampNonMonotonic
     case recordingBackpressureExceeded
     case recordingArtifactMissing
@@ -81,6 +88,13 @@ enum AOSOperationCoreError: Error, Equatable, CustomStringConvertible {
         case .recordingSystemAudioUnavailable: return "SCREEN_RECORDING_SYSTEM_AUDIO_UNAVAILABLE"
         case .recordingSystemAudioNoSamples: return "SCREEN_RECORDING_SYSTEM_AUDIO_NO_SAMPLES"
         case .recordingSystemAudioFailed: return "SCREEN_RECORDING_SYSTEM_AUDIO_FAILED"
+        case .recordingMicrophonePermissionNotDetermined: return "MICROPHONE_PERMISSION_NOT_DETERMINED"
+        case .recordingMicrophonePermissionRestricted: return "MICROPHONE_PERMISSION_RESTRICTED"
+        case .recordingMicrophonePermissionDenied: return "MICROPHONE_PERMISSION_DENIED"
+        case .recordingMicrophonePermissionUnknown: return "MICROPHONE_PERMISSION_UNKNOWN"
+        case .recordingMicrophoneUnavailable: return "SCREEN_RECORDING_MICROPHONE_UNAVAILABLE"
+        case .recordingMicrophoneNoSamples: return "SCREEN_RECORDING_MICROPHONE_NO_SAMPLES"
+        case .recordingMicrophoneFailed: return "SCREEN_RECORDING_MICROPHONE_FAILED"
         case .recordingTimestampNonMonotonic: return "SCREEN_RECORDING_TIMESTAMP_NON_MONOTONIC"
         case .recordingBackpressureExceeded: return "SCREEN_RECORDING_BACKPRESSURE_EXCEEDED"
         case .recordingArtifactMissing: return "SCREEN_RECORDING_ARTIFACT_MISSING"
@@ -107,6 +121,12 @@ enum AOSOperationDigestDomain: String, CaseIterable {
     case callerEvidence = "caller-evidence"
     case residualSet = "residual-set"
     case reattachToken = "reattach-token"
+}
+
+enum AOSMicrophoneOperationResourceIdentity {
+    static let adapterRegistrationID = "microphone-capture-adapter"
+    static let adapterRegistrationRevision: UInt64 = 1
+    static let resourceKey = "voice_io_native_session"
 }
 
 enum AOSOperationDigest {
@@ -546,6 +566,7 @@ struct AOSOperationProgress: Codable, Equatable {
 enum AOSScreenRecordingTrackKind: String, Codable, CaseIterable {
     case video
     case systemAudio = "system_audio"
+    case microphone
 }
 
 struct AOSScreenRecordingTrackTruth: Codable, Equatable {
@@ -566,8 +587,12 @@ struct AOSScreenRecordingTrackSummary: Codable, Equatable {
     let commonMediaEpochNanoseconds: UInt64?
     let video: AOSScreenRecordingTrackTruth
     let systemAudio: AOSScreenRecordingTrackTruth
+    let microphone: AOSScreenRecordingTrackTruth
 
-    static func initial(systemAudioSelected: Bool) -> Self {
+    static func initial(
+        systemAudioSelected: Bool,
+        microphoneSelected: Bool = false
+    ) -> Self {
         let pending = AOSScreenRecordingTrackTruth(
             selected: true,
             admitted: true,
@@ -580,7 +605,10 @@ struct AOSScreenRecordingTrackSummary: Codable, Equatable {
             finalized: false
         )
         return Self(
-            selectedTracks: systemAudioSelected ? ["video", "system_audio"] : ["video"],
+            selectedTracks: selectedTrackNames(
+                systemAudio: systemAudioSelected,
+                microphone: microphoneSelected
+            ),
             finalizedTracks: [],
             commonMediaEpochNanoseconds: nil,
             video: pending,
@@ -594,20 +622,35 @@ struct AOSScreenRecordingTrackSummary: Codable, Equatable {
                 failureCode: nil,
                 drained: !systemAudioSelected,
                 finalized: !systemAudioSelected
+            ),
+            microphone: AOSScreenRecordingTrackTruth(
+                selected: microphoneSelected,
+                admitted: microphoneSelected,
+                available: false,
+                firstSamplePresent: false,
+                sampleCount: 0,
+                sampleByteCount: 0,
+                failureCode: nil,
+                drained: !microphoneSelected,
+                finalized: !microphoneSelected
             )
         )
     }
 
     var selectedSystemAudio: Bool { systemAudio.selected }
+    var selectedMicrophone: Bool { microphone.selected }
 
     var expectedMediaType: String {
-        selectedSystemAudio
+        selectedSystemAudio || selectedMicrophone
             ? "video/quicktime; codecs=avc1,mp4a.40.2"
             : "video/quicktime; codecs=avc1"
     }
 
     var isSuccessful: Bool {
-        selectedTracks == (systemAudio.selected ? ["video", "system_audio"] : ["video"])
+        selectedTracks == Self.selectedTrackNames(
+            systemAudio: systemAudio.selected,
+            microphone: microphone.selected
+        )
             && commonMediaEpochNanoseconds != nil
             && video.selected
             && video.admitted
@@ -638,7 +681,37 @@ struct AOSScreenRecordingTrackSummary: Codable, Equatable {
                     && systemAudio.drained
                     && systemAudio.finalized
             ))
+            && (!microphone.selected || (
+                microphone.admitted
+                    && microphone.available
+                    && microphone.firstSamplePresent
+                    && microphone.sampleCount > 0
+                    && microphone.sampleByteCount > 0
+                    && microphone.failureCode == nil
+                    && microphone.drained
+                    && microphone.finalized
+            ))
+            && (microphone.selected || (
+                !microphone.admitted
+                    && !microphone.available
+                    && !microphone.firstSamplePresent
+                    && microphone.sampleCount == 0
+                    && microphone.sampleByteCount == 0
+                    && microphone.failureCode == nil
+                    && microphone.drained
+                    && microphone.finalized
+            ))
             && finalizedTracks == selectedTracks
+    }
+
+    static func selectedTrackNames(
+        systemAudio: Bool,
+        microphone: Bool
+    ) -> [String] {
+        var names = ["video"]
+        if systemAudio { names.append("system_audio") }
+        if microphone { names.append("microphone") }
+        return names
     }
 }
 
@@ -664,6 +737,7 @@ func aosScreenRecordingTrackSummaryValue(
         "common_media_epoch_ns": summary.commonMediaEpochNanoseconds ?? NSNull(),
         "video": track(summary.video),
         "system_audio": track(summary.systemAudio),
+        "microphone": track(summary.microphone),
     ]
 }
 
@@ -1059,6 +1133,12 @@ enum AOSOperationPublicProjection {
         let publishedCount = state.resourceClaims.filter {
             $0.transactionID == transaction.transactionID
         }.count
+        let recoveryDisposition: Any = switch transaction.state {
+        case .cleanupRequired, .recovering:
+            transaction.recoveryDisposition?.rawValue ?? NSNull()
+        default:
+            NSNull()
+        }
         return [
             "transaction_id": transaction.transactionID,
             "attempt_sequence": transaction.attemptSequence,
@@ -1075,7 +1155,7 @@ enum AOSOperationPublicProjection {
             "canonical_request_array": transaction.canonicalRequests.map(claimRequest),
             "claim_set_digest": transaction.claimSetDigest,
             "state": transaction.state.rawValue,
-            "recovery_disposition": transaction.recoveryDisposition?.rawValue ?? NSNull(),
+            "recovery_disposition": recoveryDisposition,
             "receipt": [
                 "outcome": publishedCount > 0 ? "committed" : "rejected",
                 "attempt_sequence": transaction.attemptSequence,

@@ -16,7 +16,8 @@ same-effective-UID host control over one exact adapter-registry revision
 (including status-host break-glass), bounded retained replay plus expected-
 barrier CAS, distinct artifact/claim recovery dispositions, prior-generation
 recovery across nine target machines, and split claim-set/resource/broker semantics. M2
-registers only the microphone adapter; unadapted legacy daemon subsystems remain
+registers the microphone adapter and M3 registers the fixed screen-recording
+adapter at exact registry revision 2; unadapted legacy daemon subsystems remain
 outside its stop-all receipts, and legacy voice output is a non-preempting
 admission sentinel on the shared native session. An empty registered selection
 and asynchronous microphone termination use bounded durable reconciliation
@@ -165,19 +166,30 @@ redaction, persistence, and GPU delivery belong to downstream adapters.
 recording producer. It acquires the exact exclusive operation resource and
 broker producer lease before ScreenCaptureKit/file authority, then records one
 fixed display, exact window, or single-display global region as H.264 QuickTime
-video with explicitly optional AAC-LC system audio in one writer and one
-SCStream. It retains and revalidates the exact admitted canonical topology
-before filter creation and every sample. Video is mandatory, omitted system
-audio preserves exact video-only output, microphone is rejected, and geometry
-never follows after admission. A bounded either-arrival-order barrier starts
-both selected tracks at one earliest media epoch. Each track owns independent
+video with independently optional AAC-LC system-audio and microphone tracks in
+one writer. System audio uses the same SCStream; microphone uses the shared
+daemon session owner described below. It retains and revalidates the exact admitted canonical topology
+before filter creation and every sample. Video is mandatory, omitting both
+optional tracks preserves exact video-only output, and geometry never follows
+after admission. A bounded all-selected-track barrier starts the selected set
+at one earliest media epoch. Each track owns independent
 selected, admitted, available, sample, failure, drain, and finalized truth;
-availability begins only after successful native output registration, while a
-positive-byte admitted sample separately establishes first-sample truth with
-positive per-track count and byte truth. Selected audio unavailable, no-sample,
+availability begins only after successful native source/output registration,
+while a positive-byte admitted sample separately establishes first-sample truth
+with positive per-track count and byte truth. The microphone input starts the
+shared native session, marks availability only after tap/engine startup
+succeeds, and then opens callback admission; startup callbacks cannot race
+ahead of availability. Selected audio unavailable, no-sample,
 or failure cannot silently succeed. When the shared startup deadline settles,
 every missing selected track receives its exact failure; missing mandatory video
-is the deterministic terminal failure when both tracks are silent. Writer-global
+is the deterministic terminal failure, followed by system audio and microphone
+when multiple tracks are silent. Media callback failure before common-epoch
+settlement is normalized from that final selected-track truth rather than its
+scheduling order. The adapter retains an internal failure origin at the
+startup/terminal seam, so only media-lifecycle settlement is eligible for that
+normalization; pre-native permission, authorization, writer/input setup,
+setup-unavailable, and resource-conflict failures retain their exact typed
+code. Writer-global
 start or post-start failure stamps every selected track before terminalization.
 Media duration spans capture-start through stop admission only, and written-video
 frame progress, total artifact bytes, and content-free per-track admission
@@ -190,11 +202,12 @@ native owner before any start request.
 callback loss, startup stop, or cancellation retains that owner until native
 retirement is proven. First-frame evidence remains active even if its delayed
 start callback fails, so exactly one stop must settle before authority release.
-Stop atomically closes sample admission, drains only already-admitted video and
-audio samples, finishes both selected writer inputs and the writer exactly once,
+Stop atomically closes sample admission, drains only already-admitted selected
+samples, retires both screen and microphone authority, and finishes selected
+writer inputs and the writer exactly once,
 and requires positive-byte successful truth for every selected track plus a
-finalized, nonempty artifact with the exact video-only or H.264-plus-AAC media
-identity before success. Public screen-recording progress and terminal receipts
+finalized, nonempty artifact with the exact selected-track media identity before
+success. Public screen-recording progress and terminal receipts
 require the exact track summary. The adapter derives its closed initial
 selected-track summary from the decoded request and passes it as zero progress
 to the generic `prepareOperation` transaction, so operation identity, requested
@@ -205,10 +218,16 @@ never backfills that initial truth, and cleanup plus boot recovery preserve it.
 projection, including progress and terminal truth; `UnifiedDaemon` delegates
 those complete responses to it so the production-attached fake harness executes
 the same projection without starting a daemon or synthesizing wire metadata.
+The recording admission owns one request-derived public projection for all four
+track selections, and `UnifiedDaemon` delegates the response to that projection.
 Success also requires artifact presence, while failure requires a typed terminal
 code. Stop, failure, and boot recovery must
-settle stream authority, drain or cancel the writer, release the broker and
-operation claim, and remove any unoffered file before terminalizing.
+settle stream and shared microphone authority, drain or cancel the writer,
+release the broker and every operation claim, and remove any unoffered file
+before terminalizing. Microphone selection conditionally consumes the existing
+exclusive `voice_io_native_session` declaration in the same claim-set as
+`screen_capture_native_session`; do not create another adapter, resource key,
+or registry revision.
 Offered artifacts support owner- and generation-bound reveal, remove, and
 same-volume no-overwrite release; release persists the exact generation,
 source, destination, and phase before mutation and recovery resolves only to
@@ -489,6 +508,14 @@ call. First capture may request from `not_determined`; denied, restricted, and
 unknown states fail before file creation. Health must publish the live daemon
 state so foreground CLI preflight can never substitute for capture-owner
 authorization.
+`microphone-native-session.swift` is the sole daemon `AVAudioEngine` input-tap
+owner. Both `segmented-microphone-capture.swift` and selected screen recording
+delegate start, health, stop, and exact authority-absence truth to it. Preserve
+the macOS 14 floor. A segmented partial-start failure must consult this owner,
+perform bounded stop retries, and report uncertain absence rather than infer it
+from missing start success; the operation claim remains until exact tap/engine
+absence is reported. Do not add `SCRecordingOutput`, `captureMicrophone`,
+another engine/tap owner, or a screen-specific microphone authorization path.
 
 `connection-outbound-writer.swift` owns daemon socket output. Each connection
 has one bounded serial writer for responses and events; slow-client timeout or

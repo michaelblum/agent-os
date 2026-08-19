@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json",
-  "title": "AOS fixed screen recording with optional system audio v1",
+  "title": "AOS fixed screen recording with optional system audio and microphone v1",
   "oneOf": [
     {"$ref": "#/$defs/request"},
     {"$ref": "#/$defs/admission_result"},
@@ -20,11 +20,11 @@
       "properties": {
         "video": {"const": true},
         "system_audio": {"type": "boolean"},
-        "microphone": {"const": false}
+        "microphone": {"type": "boolean"}
       },
       "additionalProperties": false
     },
-    "track_name": {"enum": ["video", "system_audio"]},
+    "track_name": {"enum": ["video", "system_audio", "microphone"]},
     "track_truth": {
       "type": "object",
       "required": [
@@ -90,63 +90,71 @@
       ],
       "additionalProperties": false
     },
+    "successful_track_truth": {
+      "properties": {
+        "selected": {"const": true},
+        "admitted": {"const": true},
+        "available": {"const": true},
+        "first_sample_present": {"const": true},
+        "sample_count": {"$ref": "#/$defs/positive_count"},
+        "sample_byte_count": {"$ref": "#/$defs/positive_count"},
+        "failure_code": {"type": "null"},
+        "drained": {"const": true},
+        "finalized": {"const": true}
+      }
+    },
+    "inert_track_truth": {
+      "properties": {
+        "selected": {"const": false},
+        "admitted": {"const": false},
+        "available": {"const": false},
+        "first_sample_present": {"const": false},
+        "sample_count": {"const": 0},
+        "sample_byte_count": {"const": 0},
+        "failure_code": {"type": "null"},
+        "drained": {"const": true},
+        "finalized": {"const": true}
+      }
+    },
     "successful_track_summary": {
       "allOf": [
         {"$ref": "#/$defs/track_summary"},
         {
           "properties": {
             "common_media_epoch_ns": {"$ref": "#/$defs/count"},
-            "video": {
-              "properties": {
-                "selected": {"const": true},
-                "admitted": {"const": true},
-                "available": {"const": true},
-                "first_sample_present": {"const": true},
-                "sample_count": {"$ref": "#/$defs/positive_count"},
-                "sample_byte_count": {"$ref": "#/$defs/positive_count"},
-                "failure_code": {"type": "null"},
-                "drained": {"const": true},
-                "finalized": {"const": true}
-              }
-            }
+            "video": {"$ref": "#/$defs/successful_track_truth"}
           },
           "oneOf": [
             {
               "properties": {
                 "selected_tracks": {"const": ["video"]},
                 "finalized_tracks": {"const": ["video"]},
-                "system_audio": {
-                  "properties": {
-                    "selected": {"const": false},
-                    "admitted": {"const": false},
-                    "available": {"const": false},
-                    "first_sample_present": {"const": false},
-                    "sample_count": {"const": 0},
-                    "sample_byte_count": {"const": 0},
-                    "failure_code": {"type": "null"},
-                    "drained": {"const": true},
-                    "finalized": {"const": true}
-                  }
-                }
+                "system_audio": {"$ref": "#/$defs/inert_track_truth"},
+                "microphone": {"$ref": "#/$defs/inert_track_truth"}
               }
             },
             {
               "properties": {
                 "selected_tracks": {"const": ["video", "system_audio"]},
                 "finalized_tracks": {"const": ["video", "system_audio"]},
-                "system_audio": {
-                  "properties": {
-                    "selected": {"const": true},
-                    "admitted": {"const": true},
-                    "available": {"const": true},
-                    "first_sample_present": {"const": true},
-                    "sample_count": {"$ref": "#/$defs/positive_count"},
-                    "sample_byte_count": {"$ref": "#/$defs/positive_count"},
-                    "failure_code": {"type": "null"},
-                    "drained": {"const": true},
-                    "finalized": {"const": true}
-                  }
-                }
+                "system_audio": {"$ref": "#/$defs/successful_track_truth"},
+                "microphone": {"$ref": "#/$defs/inert_track_truth"}
+              }
+            },
+            {
+              "properties": {
+                "selected_tracks": {"const": ["video", "microphone"]},
+                "finalized_tracks": {"const": ["video", "microphone"]},
+                "system_audio": {"$ref": "#/$defs/inert_track_truth"},
+                "microphone": {"$ref": "#/$defs/successful_track_truth"}
+              }
+            },
+            {
+              "properties": {
+                "selected_tracks": {"const": ["video", "system_audio", "microphone"]},
+                "finalized_tracks": {"const": ["video", "system_audio", "microphone"]},
+                "system_audio": {"$ref": "#/$defs/successful_track_truth"},
+                "microphone": {"$ref": "#/$defs/successful_track_truth"}
               }
             }
           ]
@@ -154,48 +162,55 @@
       ]
     },
     "tracks_summary_binding": {
-      "if": {
-        "properties": {
-          "tracks": {
-            "properties": {"system_audio": {"const": true}}
+      "oneOf": [
+        {
+          "properties": {
+            "tracks": {"properties": {"system_audio": {"const": false}, "microphone": {"const": false}}},
+            "track_summary": {"properties": {"selected_tracks": {"const": ["video"]}}}
+          }
+        },
+        {
+          "properties": {
+            "tracks": {"properties": {"system_audio": {"const": true}, "microphone": {"const": false}}},
+            "track_summary": {"properties": {"selected_tracks": {"const": ["video", "system_audio"]}}}
+          }
+        },
+        {
+          "properties": {
+            "tracks": {"properties": {"system_audio": {"const": false}, "microphone": {"const": true}}},
+            "track_summary": {"properties": {"selected_tracks": {"const": ["video", "microphone"]}}}
+          }
+        },
+        {
+          "properties": {
+            "tracks": {"properties": {"system_audio": {"const": true}, "microphone": {"const": true}}},
+            "track_summary": {"properties": {"selected_tracks": {"const": ["video", "system_audio", "microphone"]}}}
           }
         }
-      },
-      "then": {
-        "properties": {
-          "track_summary": {
-            "properties": {
-              "selected_tracks": {"const": ["video", "system_audio"]}
-            }
-          }
-        }
-      },
-      "else": {
-        "properties": {
-          "track_summary": {
-            "properties": {"selected_tracks": {"const": ["video"]}}
-          }
-        }
-      }
+      ]
     },
     "selected_track_set": {
       "oneOf": [
         {"const": ["video"]},
-        {"const": ["video", "system_audio"]}
+        {"const": ["video", "system_audio"]},
+        {"const": ["video", "microphone"]},
+        {"const": ["video", "system_audio", "microphone"]}
       ]
     },
     "track_set": {
       "oneOf": [
         {"const": []},
         {"const": ["video"]},
-        {"const": ["video", "system_audio"]}
+        {"const": ["video", "system_audio"]},
+        {"const": ["video", "microphone"]},
+        {"const": ["video", "system_audio", "microphone"]}
       ]
     },
     "track_summary": {
       "type": "object",
       "required": [
         "selected_tracks", "finalized_tracks", "common_media_epoch_ns",
-        "video", "system_audio"
+        "video", "system_audio", "microphone"
       ],
       "properties": {
         "selected_tracks": {"$ref": "#/$defs/selected_track_set"},
@@ -204,69 +219,87 @@
           "oneOf": [{"type": "null"}, {"$ref": "#/$defs/count"}]
         },
         "video": {"$ref": "#/$defs/track_truth"},
-        "system_audio": {"$ref": "#/$defs/track_truth"}
+        "system_audio": {"$ref": "#/$defs/track_truth"},
+        "microphone": {"$ref": "#/$defs/track_truth"}
       },
       "allOf": [
         {
-          "if": {"properties": {"selected_tracks": {"const": ["video"]}}},
-          "then": {
-            "properties": {
-              "finalized_tracks": {"enum": [[], ["video"]]},
-              "video": {"properties": {"selected": {"const": true}, "admitted": {"const": true}}},
-              "system_audio": {
-                "properties": {
-                  "selected": {"const": false},
-                  "admitted": {"const": false},
-                  "available": {"const": false},
-                  "first_sample_present": {"const": false},
-                  "sample_count": {"const": 0},
-                  "sample_byte_count": {"const": 0},
-                  "failure_code": {"type": "null"},
-                  "drained": {"const": true},
-                  "finalized": {"const": true}
-                }
+          "properties": {
+            "video": {"properties": {"selected": {"const": true}, "admitted": {"const": true}}}
+          },
+          "oneOf": [
+            {
+              "properties": {
+                "selected_tracks": {"const": ["video"]},
+                "finalized_tracks": {"enum": [[], ["video"]]},
+                "system_audio": {"$ref": "#/$defs/inert_track_truth"},
+                "microphone": {"$ref": "#/$defs/inert_track_truth"}
+              }
+            },
+            {
+              "properties": {
+                "selected_tracks": {"const": ["video", "system_audio"]},
+                "finalized_tracks": {"enum": [[], ["video"], ["video", "system_audio"]]},
+                "system_audio": {"properties": {"selected": {"const": true}, "admitted": {"const": true}}},
+                "microphone": {"$ref": "#/$defs/inert_track_truth"}
+              }
+            },
+            {
+              "properties": {
+                "selected_tracks": {"const": ["video", "microphone"]},
+                "finalized_tracks": {"enum": [[], ["video"], ["video", "microphone"]]},
+                "system_audio": {"$ref": "#/$defs/inert_track_truth"},
+                "microphone": {"properties": {"selected": {"const": true}, "admitted": {"const": true}}}
+              }
+            },
+            {
+              "properties": {
+                "selected_tracks": {"const": ["video", "system_audio", "microphone"]},
+                "finalized_tracks": {"enum": [[], ["video"], ["video", "system_audio"], ["video", "system_audio", "microphone"]]},
+                "system_audio": {"properties": {"selected": {"const": true}, "admitted": {"const": true}}},
+                "microphone": {"properties": {"selected": {"const": true}, "admitted": {"const": true}}}
               }
             }
-          },
-          "else": {
-            "properties": {
-              "video": {"properties": {"selected": {"const": true}, "admitted": {"const": true}}},
-              "system_audio": {"properties": {"selected": {"const": true}, "admitted": {"const": true}}}
-            }
-          }
+          ]
         },
         {
           "if": {"properties": {"finalized_tracks": {"const": []}}},
-          "then": {
-            "properties": {
-              "video": {"properties": {"finalized": {"const": false}}},
-              "system_audio": {
-                "if": {"properties": {"selected": {"const": true}}},
-                "then": {"properties": {"finalized": {"const": false}}}
-              }
-            }
-          }
+          "then": {"properties": {
+            "video": {"properties": {"finalized": {"const": false}}},
+            "system_audio": {"if": {"properties": {"selected": {"const": true}}}, "then": {"properties": {"finalized": {"const": false}}}},
+            "microphone": {"if": {"properties": {"selected": {"const": true}}}, "then": {"properties": {"finalized": {"const": false}}}}
+          }}
         },
         {
           "if": {"properties": {"finalized_tracks": {"const": ["video"]}}},
-          "then": {
-            "properties": {
-              "video": {"properties": {"finalized": {"const": true}}},
-              "system_audio": {
-                "if": {"properties": {"selected": {"const": true}}},
-                "then": {"properties": {"finalized": {"const": false}}}
-              }
-            }
-          }
+          "then": {"properties": {
+            "video": {"properties": {"finalized": {"const": true}}},
+            "system_audio": {"if": {"properties": {"selected": {"const": true}}}, "then": {"properties": {"finalized": {"const": false}}}},
+            "microphone": {"if": {"properties": {"selected": {"const": true}}}, "then": {"properties": {"finalized": {"const": false}}}}
+          }}
         },
         {
           "if": {"properties": {"finalized_tracks": {"const": ["video", "system_audio"]}}},
-          "then": {
-            "properties": {
-              "video": {"properties": {"finalized": {"const": true}}},
-              "system_audio": {"properties": {"finalized": {"const": true}}}
-            }
-          }
+          "then": {"properties": {
+            "video": {"properties": {"finalized": {"const": true}}},
+            "system_audio": {"properties": {"finalized": {"const": true}}},
+            "microphone": {"if": {"properties": {"selected": {"const": true}}}, "then": {"properties": {"finalized": {"const": false}}}}
+          }}
+        },
+        {
+          "if": {"properties": {"finalized_tracks": {"const": ["video", "microphone"]}}},
+          "then": {"properties": {
+            "video": {"properties": {"finalized": {"const": true}}},
+            "microphone": {"properties": {"finalized": {"const": true}}}
+          }}
+        },
+        {
+          "if": {"properties": {"finalized_tracks": {"const": ["video", "system_audio", "microphone"]}}},
+          "then": {"properties": {
+            "video": {"properties": {"finalized": {"const": true}}},
+            "system_audio": {"properties": {"finalized": {"const": true}}},
+            "microphone": {"properties": {"finalized": {"const": true}}}
+          }}
         }
       ],
       "additionalProperties": false

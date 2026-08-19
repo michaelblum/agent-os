@@ -97,41 +97,73 @@ with the exact command and guard posture.
 `node scripts/aos-dev-workflow.mjs recommend --json` enforces this only for
 changed proof assets; untouched legacy tests remain runnable debt.
 
-For the bounded fixed recording producer with optional system audio, use:
+For the shared daemon microphone owner and standalone segmented consumer, use:
+
+```bash
+bash tests/voice-transport-native.sh
+```
+
+This route compiles the actual `microphone-native-session.swift` owner with the
+actual segmented consumer and voice transport. Injected non-native owner
+dependencies prove successful start/stop, failed start with immediate absence,
+persistent uncertain absence, bounded repeated stop, and retry-to-absence. The
+operation-adapter proof compiles that same production segmented-owner path and
+routes its actual terminal callback into the actual adapter/claim lifecycle;
+uncertain absence retains `cleanup_required` operation and claim truth, while
+retry-to-absence releases the claim and terminalizes the operation.
+No audio device, daemon, TCC, or repo binary executes.
+
+For the bounded fixed recording producer with independently optional system
+audio and microphone, use:
 
 ```bash
 bash tests/native-screen-recording-contract.sh
 ```
 
-This route validates the closed schema, mandatory H.264 video, optional AAC-LC
-system audio in one QuickTime writer and SCStream, fixed geometry and drift
-behavior, authored/generated help, and a whole-source Swift typecheck. Its
+This route validates the closed four-selection schema, mandatory H.264 video,
+independently optional AAC-LC system-audio and daemon-owned microphone tracks
+in one QuickTime writer, fixed geometry and drift behavior, shared microphone
+session ownership, authored/generated help, and a whole-source Swift typecheck. Its
 executable compiled harness runs the
 production recording adapter, registry, in-memory durable store, lifecycle,
 sample admission, multitrack coordination, terminal truth, custody coordinator,
-and boot recovery with injected fake clock, video/audio callbacks, writer
-inputs/file, native session, and broker dependencies. It covers both arrival
-orders, one common epoch, per-track monotonicity and truth, bounded backpressure,
-and an injected durable save fault after atomic operation admission but before
-stream/artifact/claim handoff. For both video-only and selected-audio requests,
+and boot recovery with injected fake clock, video/system-audio/microphone
+callbacks, writer inputs/file, a real `AOSMicrophoneNativeSession` executing
+through injected non-native dependencies, and broker dependencies. It covers
+all six three-track first-sample orders at one
+common epoch, pre-epoch system-audio/microphone callback failures in both
+orders, final-summary normalization with deterministic video/system-audio/
+microphone precedence, per-track monotonicity and truth, independent bounded
+backpressure, and an injected durable save fault after atomic operation
+admission but before stream/artifact/claim handoff. For all four exact track selections,
 the harness executes the exact production snapshot/list/inspect projector used
 by `UnifiedDaemon` and validates the prepared, cleanup-required, and recovered
 terminal responses against `aos.operation.v1` without synthesizing wire
-metadata or backfilling track truth. It
+metadata or backfilling track truth. Four callback-failure terminal projections
+assert exact snapshot progress and terminal per-track values and precedence;
+one pre-native encoder-setup projection proves its exact typed failure is not
+normalized. All five exercise the same snapshot/list/inspect owner and schema
+route. It also executes
+the production admission projection and validates all four responses against
+the recording schema. It
 also covers registration availability distinct from positive-byte first-sample truth,
 positive per-track sample counts and bytes, zero-byte rejection, writer-global
-failure on every selected track, typed selected-audio failures, both-silent
-per-track settlement with mandatory-video terminal precedence, audio byte
-progress while video input is backpressured, later mandatory-video success and
-failure, one total native-start/common-barrier budget, callback
+failure on every selected track, typed selected-audio failures, simultaneous
+per-track settlement with video/system-audio/microphone terminal precedence,
+standalone-microphone resource conflict before native authority, one conditional
+dual-resource claim-set and aggregate authority retirement,
+microphone startup failure with unavailable truth, gated availability-before-
+sample admission, microphone-selected cancel/peer-loss/deadline/retirement,
+audio byte progress while video input is backpressured, later mandatory-video
+success and failure, one total native-start/common-barrier budget, callback
 loss, startup stop and task cancellation,
 late start failure after active evidence, retirement timeout/false settlement,
-dual-track stop/drain/finalize, successful-summary/media-identity schema
+selected-track stop/drain/finalize, successful-summary/media-identity schema
 coupling, required screen progress/terminal summaries and typed failure/artifact
 truth, zero/missing-artifact cleanup, typed retain unavailability, release/remove
 races, every release fault phase, restart recovery, and decoder extra-key/type
 rejection. It does not execute
-ScreenCaptureKit, AVAssetWriter, filesystem effects, `./aos`, the daemon, TCC,
+ScreenCaptureKit, AVAssetWriter, AVAudioEngine, filesystem effects, `./aos`, the daemon, TCC,
 native UI, pixels, or media.
 
 For deterministic Target Handle Runtime V1 coverage, use:

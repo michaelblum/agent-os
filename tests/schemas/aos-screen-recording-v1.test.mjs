@@ -68,17 +68,24 @@ const trackTruth = (selected, overrides = {}) => ({
   ...overrides,
 })
 
-const trackSummary = (systemAudio, overrides = {}) => ({
-  selected_tracks: systemAudio ? ['video', 'system_audio'] : ['video'],
+const selectedTrackNames = (systemAudio, microphone) => [
+  'video',
+  ...(systemAudio ? ['system_audio'] : []),
+  ...(microphone ? ['microphone'] : []),
+]
+
+const trackSummary = (systemAudio, microphone, overrides = {}) => ({
+  selected_tracks: selectedTrackNames(systemAudio, microphone),
   finalized_tracks: [],
   common_media_epoch_ns: null,
   video: trackTruth(true),
   system_audio: trackTruth(systemAudio),
+  microphone: trackTruth(microphone),
   ...overrides,
 })
 
-const successfulTrackSummary = (systemAudio) => trackSummary(systemAudio, {
-  finalized_tracks: systemAudio ? ['video', 'system_audio'] : ['video'],
+const successfulTrackSummary = (systemAudio, microphone) => trackSummary(systemAudio, microphone, {
+  finalized_tracks: selectedTrackNames(systemAudio, microphone),
   common_media_epoch_ns: 1_000_000,
   video: trackTruth(true, {
     available: true, first_sample_present: true, sample_count: 3,
@@ -88,14 +95,20 @@ const successfulTrackSummary = (systemAudio) => trackSummary(systemAudio, {
     available: true, first_sample_present: true, sample_count: 5,
     sample_byte_count: 500, drained: true, finalized: true,
   } : {}),
+  microphone: trackTruth(microphone, microphone ? {
+    available: true, first_sample_present: true, sample_count: 7,
+    sample_byte_count: 700, drained: true, finalized: true,
+  } : {}),
 })
 
-test('screen-recording schema accepts exact fixed video-only and optional-system-audio shapes', () => {
+test('screen-recording schema accepts all four exact video, system-audio, and microphone selections', () => {
   assert.deepEqual(validate('request', base), [])
-  assert.deepEqual(validate('request', {
-    ...base,
-    tracks: { ...base.tracks, system_audio: true },
-  }), [])
+  for (const [system_audio, microphone] of [[true, false], [false, true], [true, true]]) {
+    assert.deepEqual(validate('request', {
+      ...base,
+      tracks: { ...base.tracks, system_audio, microphone },
+    }), [])
+  }
   const admission = {
     schema_version: 'aos.screen-recording.admission-result.v1',
     operation: { operation_id: 'operation-1', operation_generation: 1 },
@@ -104,7 +117,7 @@ test('screen-recording schema accepts exact fixed video-only and optional-system
     daemon_generation: 4,
     geometry_binding_digest: SHA,
     tracks: base.tracks,
-    track_summary: trackSummary(false),
+    track_summary: trackSummary(false, false),
     codec: 'h264',
     container: 'quicktime',
   }
@@ -115,11 +128,11 @@ test('screen-recording schema accepts exact fixed video-only and optional-system
   }).length > 0)
 })
 
-test('screen-recording schema rejects microphone, implicit or malformed tracks, follow extras, and bounds breaches', () => {
+test('screen-recording schema rejects implicit or malformed tracks, follow extras, and bounds breaches', () => {
   const invalid = [
-    { ...base, tracks: { ...base.tracks, microphone: true } },
     { ...base, tracks: { video: true, microphone: false } },
     { ...base, tracks: { ...base.tracks, system_audio: 'yes' } },
+    { ...base, tracks: { ...base.tracks, microphone: 'yes' } },
     { ...base, tracks: { ...base.tracks, video: false } },
     { ...base, follow: true },
     { ...base, duration_ms: 300_001 },
@@ -137,15 +150,15 @@ test('screen-recording schema rejects microphone, implicit or malformed tracks, 
 })
 
 test('track summaries are closed and independently bind selection, samples, failures, drain, and finalization', () => {
-  assert.deepEqual(validate('track_summary', trackSummary(false)), [])
-  assert.deepEqual(validate('track_summary', trackSummary(true, {
+  assert.deepEqual(validate('track_summary', trackSummary(false, false)), [])
+  assert.deepEqual(validate('track_summary', trackSummary(true, true, {
     video: trackTruth(true, {
       available: true, first_sample_present: true,
       sample_count: 1, sample_byte_count: 100,
     }),
   })), [])
-  assert.deepEqual(validate('track_summary', trackSummary(true, {
-    finalized_tracks: ['video', 'system_audio'],
+  assert.deepEqual(validate('track_summary', trackSummary(true, true, {
+    finalized_tracks: ['video', 'system_audio', 'microphone'],
     common_media_epoch_ns: 1_000_000,
     video: trackTruth(true, {
       available: true, first_sample_present: true, sample_count: 3,
@@ -155,40 +168,52 @@ test('track summaries are closed and independently bind selection, samples, fail
       available: true, first_sample_present: true, sample_count: 5,
       sample_byte_count: 500, drained: true, finalized: true,
     }),
+    microphone: trackTruth(true, {
+      available: true, first_sample_present: true, sample_count: 7,
+      sample_byte_count: 700, drained: true, finalized: true,
+    }),
   })), [])
   const invalid = [
-    { ...trackSummary(true), selected_tracks: [] },
-    { ...trackSummary(true), selected_tracks: ['system_audio', 'video'] },
-    { ...trackSummary(true), finalized_tracks: ['system_audio'] },
-    { ...trackSummary(true), source_name: 'private' },
-    { ...trackSummary(true), video: { ...trackTruth(true), sample_count: -1 } },
-    { ...trackSummary(true), video: { ...trackTruth(true), first_sample_present: true } },
+    { ...trackSummary(true, true), selected_tracks: [] },
+    { ...trackSummary(true, true), selected_tracks: ['system_audio', 'video', 'microphone'] },
+    { ...trackSummary(true, true), finalized_tracks: ['microphone'] },
+    { ...trackSummary(true, true), source_name: 'private' },
+    { ...trackSummary(true, true), video: { ...trackTruth(true), sample_count: -1 } },
+    { ...trackSummary(true, true), video: { ...trackTruth(true), first_sample_present: true } },
     {
-      ...trackSummary(true),
+      ...trackSummary(true, true),
       video: {
         ...trackTruth(true), available: true, first_sample_present: true,
         sample_count: 0, sample_byte_count: 100,
       },
     },
     {
-      ...trackSummary(true),
+      ...trackSummary(true, true),
       video: {
         ...trackTruth(true), available: true, first_sample_present: true,
         sample_count: 1, sample_byte_count: 0,
       },
     },
-    { ...trackSummary(true), video: { ...trackTruth(true), finalized: true, drained: false } },
-    { ...trackSummary(true), video: { ...trackTruth(true), finalized: true } },
-    { ...trackSummary(true, { finalized_tracks: ['video'] }), video: trackTruth(true) },
+    { ...trackSummary(true, true), video: { ...trackTruth(true), finalized: true, drained: false } },
+    { ...trackSummary(true, true), video: { ...trackTruth(true), finalized: true } },
+    { ...trackSummary(true, true, { finalized_tracks: ['video'] }), video: trackTruth(true) },
     {
-      ...trackSummary(true),
+      ...trackSummary(true, true),
       system_audio: { ...trackTruth(true), selected: false, admitted: false, finalized: true },
     },
     {
-      ...trackSummary(false),
+      ...trackSummary(false, false),
       system_audio: { ...trackTruth(false), available: true },
     },
-    { ...trackSummary(true), system_audio: { ...trackTruth(true), failure_code: 'private detail' } },
+    {
+      ...trackSummary(true, true),
+      microphone: { ...trackTruth(true), selected: false, admitted: false, finalized: true },
+    },
+    {
+      ...trackSummary(false, false),
+      microphone: { ...trackTruth(false), available: true },
+    },
+    { ...trackSummary(true, true), microphone: { ...trackTruth(true), failure_code: 'private detail' } },
   ]
   for (const value of invalid) assert.ok(validate('track_summary', value).length > 0)
 })
@@ -203,7 +228,7 @@ test('successful results bind request tracks, nonempty finalized truth, and arti
     byte_count: 800,
     duration_ms: 1_000,
     tracks: base.tracks,
-    track_summary: successfulTrackSummary(false),
+    track_summary: successfulTrackSummary(false, false),
     codec: 'h264',
     container: 'quicktime',
     cleanup_result: 'zero_residuals',
@@ -218,9 +243,9 @@ test('successful results bind request tracks, nonempty finalized truth, and arti
     {
       ...completion,
       track_summary: {
-        ...successfulTrackSummary(false),
+        ...successfulTrackSummary(false, false),
         video: {
-          ...successfulTrackSummary(false).video,
+          ...successfulTrackSummary(false, false).video,
           sample_byte_count: 0,
         },
       },
@@ -229,9 +254,20 @@ test('successful results bind request tracks, nonempty finalized truth, and arti
       ...completion,
       tracks: { ...base.tracks, system_audio: true },
       track_summary: {
-        ...successfulTrackSummary(true),
+        ...successfulTrackSummary(true, false),
         system_audio: {
-          ...successfulTrackSummary(true).system_audio,
+          ...successfulTrackSummary(true, false).system_audio,
+          sample_byte_count: 0,
+        },
+      },
+    },
+    {
+      ...completion,
+      tracks: { ...base.tracks, microphone: true },
+      track_summary: {
+        ...successfulTrackSummary(false, true),
+        microphone: {
+          ...successfulTrackSummary(false, true).microphone,
           sample_byte_count: 0,
         },
       },

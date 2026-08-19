@@ -144,16 +144,20 @@ private func validProgressSummary(
     frameCount: UInt64,
     byteCount: UInt64
 ) -> Bool {
-    let selected = summary.systemAudio.selected
-        ? ["video", "system_audio"] : ["video"]
+    let selected = AOSScreenRecordingTrackSummary.selectedTrackNames(
+        systemAudio: summary.systemAudio.selected,
+        microphone: summary.microphone.selected
+    )
     guard summary.selectedTracks == selected,
           summary.video.selected,
           summary.video.admitted,
           summary.systemAudio.selected == summary.systemAudio.admitted,
+          summary.microphone.selected == summary.microphone.admitted,
           frameCount <= summary.video.sampleCount,
           byteCount == 0
             || summary.video.firstSamplePresent
-            || summary.systemAudio.firstSamplePresent,
+            || summary.systemAudio.firstSamplePresent
+            || summary.microphone.firstSamplePresent,
           validTrackTruth(summary.video) else {
         return false
     }
@@ -170,8 +174,25 @@ private func validProgressSummary(
             return false
         }
     }
+    if summary.microphone.selected {
+        guard validTrackTruth(summary.microphone) else { return false }
+    } else {
+        guard !summary.microphone.available,
+              !summary.microphone.firstSamplePresent,
+              summary.microphone.sampleCount == 0,
+              summary.microphone.sampleByteCount == 0,
+              summary.microphone.failureCode == nil,
+              summary.microphone.drained,
+              summary.microphone.finalized else {
+            return false
+        }
+    }
     let finalized = selected.filter {
-        $0 == "video" ? summary.video.finalized : summary.systemAudio.finalized
+        switch $0 {
+        case "video": return summary.video.finalized
+        case "system_audio": return summary.systemAudio.finalized
+        default: return summary.microphone.finalized
+        }
     }
     return summary.finalizedTracks == finalized
 }
@@ -196,8 +217,8 @@ struct AOSScreenRecordingTracks: Codable, Equatable {
     let systemAudio: Bool
     let microphone: Bool
 
-    static func fixed(systemAudio: Bool) -> Self {
-        Self(video: true, systemAudio: systemAudio, microphone: false)
+    static func fixed(systemAudio: Bool, microphone: Bool = false) -> Self {
+        Self(video: true, systemAudio: systemAudio, microphone: microphone)
     }
 }
 
@@ -273,9 +294,9 @@ struct AOSScreenRecordingRequest: Codable, Equatable {
               let maximumBytes = uint64(value["max_output_bytes"]),
               let tracksValue = value["tracks"] as? [String: Any],
               Set(tracksValue.keys) == ["video", "system_audio", "microphone"],
-              tracksValue["video"] as? Bool == true,
-              let systemAudio = tracksValue["system_audio"] as? Bool,
-              tracksValue["microphone"] as? Bool == false,
+              exactBoolean(tracksValue["video"]) == true,
+              let systemAudio = exactBoolean(tracksValue["system_audio"]),
+              let microphone = exactBoolean(tracksValue["microphone"]),
               value["codec"] as? String == codec,
               value["container"] as? String == container,
               (AOSScreenRecordingLimits.minimumDurationMilliseconds
@@ -302,7 +323,10 @@ struct AOSScreenRecordingRequest: Codable, Equatable {
             maximumPixelCount: maximumPixels,
             maximumQueueFrames: queueFrames,
             maximumOutputBytes: maximumBytes,
-            tracks: .fixed(systemAudio: systemAudio),
+            tracks: .fixed(
+                systemAudio: systemAudio,
+                microphone: microphone
+            ),
             codec: codec,
             container: container
         )
@@ -392,6 +416,14 @@ struct AOSScreenRecordingRequest: Codable, Equatable {
         return UInt64(integer)
     }
 
+    private static func exactBoolean(_ value: Any?) -> Bool? {
+        guard let number = value as? NSNumber,
+              CFGetTypeID(number) == CFBooleanGetTypeID() else {
+            return nil
+        }
+        return number.boolValue
+    }
+
     private static func bounds(_ value: Any?) throws -> AOSDisplayTopologyBounds {
         guard let object = value as? [String: Any],
               Set(object.keys) == ["x", "y", "width", "height"],
@@ -438,7 +470,6 @@ struct AOSScreenRecordingRequest: Codable, Equatable {
 enum AOSScreenRecordingGeometryValidator {
     static func resolve(_ request: AOSScreenRecordingRequest) throws -> AOSScreenRecordingGeometry {
         guard request.tracks.video,
-              !request.tracks.microphone,
               request.codec == AOSScreenRecordingRequest.codec,
               request.container == AOSScreenRecordingRequest.container,
               let display = request.topology.displays.first(where: {

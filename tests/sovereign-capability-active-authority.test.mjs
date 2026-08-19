@@ -330,9 +330,9 @@ test('authority topology is schema-valid, unique, local, and publication-honest'
     authority.verification.current_only_projection.expected_inventory_revision,
   );
   assert.deepEqual(
-    currentOnlyProjection(currentLedger, currentProjectionExceptions, m3CapabilityCurrentChanges),
-    currentOnlyProjection(baselineLedger, currentProjectionExceptions, m3CapabilityCurrentChanges),
-    'M2 plus the explicit M3A/M3B overlay must preserve all other current capability truth',
+    currentOnlyProjection(currentLedger, currentProjectionExceptions, currentProjectionExceptions),
+    currentOnlyProjection(baselineLedger, currentProjectionExceptions, currentProjectionExceptions),
+    'M2 plus the explicit M3A/M3B/M3C-V2 overlay must preserve all other current capability truth',
   );
   const currentRows = new Map(currentLedger.capabilities.map((row) => [row.id, row.current]));
   const baselineRows = new Map(baselineLedger.capabilities.map((row) => [row.id, row.current]));
@@ -345,8 +345,8 @@ test('authority topology is schema-valid, unique, local, and publication-honest'
   const screenVideo = currentRows.get('screencapturekit-screen-video');
   assert.equal(screenVideo.implementation.state, 'partial');
   assert.equal(screenVideo.exposure.cli.state, 'complete');
-  assert.match(screenVideo.implementation.summary, /mandatory H\.264 video.+optional AAC-LC system audio/iu);
-  assert.match(screenVideo.observation.frontier, /request-selected `\.audio` samples/iu);
+  assert.match(screenVideo.implementation.summary, /mandatory H\.264 video.+optional AAC-LC system-audio.+microphone tracks/iu);
+  assert.match(screenVideo.observation.frontier, /request-selected `\.audio` samples.+shared-owner microphone input/iu);
   const systemAudio = currentRows.get('screencapturekit-system-audio');
   assert.equal(systemAudio.implementation.state, 'partial');
   assert.equal(systemAudio.exposure.cli.state, 'complete');
@@ -354,13 +354,13 @@ test('authority topology is schema-valid, unique, local, and publication-honest'
   const assetWriter = currentRows.get('avassetwriter-custom-multitrack');
   assert.equal(assetWriter.implementation.state, 'partial');
   assert.deepEqual(assetWriter.observation.targets, [
-    'one mandatory H.264 video track and explicitly optional AAC-LC system-audio track',
+    'one mandatory H.264 video track and independently optional AAC-LC system-audio and microphone tracks',
   ]);
   assert.match(assetWriter.observation.completeness, /one common epoch.+exactly-once/iu);
   const writerDisposition = currentLedger.coverage
     .source_disposition_by_capability['avassetwriter-custom-multitrack'];
   assert.equal(writerDisposition.disposition, 'positive');
-  assert.match(writerDisposition.boundary_claim, /mandatory H\.264 video.+optional AAC-LC system audio.+common media epoch/iu);
+  assert.match(writerDisposition.boundary_claim, /mandatory H\.264 video.+optional AAC-LC system-audio and microphone tracks.+common media epoch/iu);
   const inputEvent = currentRows.get('global-input-event-observation');
   const baselineInputEvent = baselineRows.get('global-input-event-observation');
   const inputListenBinding = inputEvent.exposure.cli.bindings.find(({ form_id: id }) => id === 'listen-hotkey');
@@ -381,6 +381,7 @@ test('authority topology is schema-valid, unique, local, and publication-honest'
   );
   const microphone = currentRows.get('microphone-capture-adapter');
   assert.match(microphone.implementation.summary, /shared operation registry/u);
+  assert.ok(microphone.implementation.primitive_paths.includes('src/daemon/microphone-native-session.swift'));
   assert.equal(microphone.control.list.state, 'complete');
   assert.equal(microphone.control.bulk_owner_kill.state, 'complete');
   assert.equal(microphone.control.host_stop_all.state, 'complete');
