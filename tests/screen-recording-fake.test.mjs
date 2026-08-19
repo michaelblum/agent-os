@@ -254,6 +254,7 @@ struct ScreenRecordingOwnerHarness {
             "canonical_parameter_digest": String(repeating: "a", count: 64),
             "topology": topology(),
             "target": ["kind": "display", "display_ordinal": 1],
+            "geometry": ["mode": "fixed"],
             "duration_ms": 1_000,
             "frame_rate": 30,
             "max_pixel_count": 1_000_000,
@@ -1108,6 +1109,8 @@ final class FakeNativeSession: @unchecked Sendable {
     private var startCompletion: AOSDesktopPixelNativeCompletion?
     private var stopCompletion: AOSDesktopPixelNativeCompletion?
     private(set) var stopCount = 0
+    private(set) var geometryUpdateCount = 0
+    private(set) var lastGeometry: AOSScreenRecordingGeometry?
 
     init(files: FakeFiles) {
         let encoder = FakeEncoder(files: files)
@@ -1153,6 +1156,13 @@ final class FakeNativeSession: @unchecked Sendable {
                 stop: { [self] completion in
                     if tracks.microphone { _ = microphoneInput?.stop() }
                     lock.lock(); stopCount += 1; stopCompletion = completion; lock.unlock()
+                },
+                updateGeometry: { [self] geometry, completion in
+                    lock.lock()
+                    geometryUpdateCount += 1
+                    lastGeometry = geometry
+                    lock.unlock()
+                    completion(.success(()))
                 },
                 microphoneSession: tracks.microphone ? microphone : nil
             )
@@ -1386,17 +1396,55 @@ final class RecordingEnvironment {
             files: files.dependencies(),
             sessionFactory: selectedFactory,
             microphoneAuthorization: microphoneAuthorization.dependencies(),
-            startupTimeout: startupTimeout
+            startupTimeout: startupTimeout,
+            topologyObserver: Self.topology,
+            windowObserver: Self.windows
         )
         try registry.installRuntimeAdapters([microphoneAdapter, adapter])
     }
 
     func request(
         systemAudio: Bool = false,
-        microphone: Bool = false
+        microphone: Bool = false,
+        followed: Bool = false
     ) throws -> AOSScreenRecordingRequest {
+        let topology = Self.topology()
+        let target: [String: Any] = followed
+            ? [
+                "kind": "region", "display_ordinal": 1,
+                "global_bounds": ["x": 10, "y": 10, "width": 40, "height": 30],
+            ]
+            : ["kind": "display", "display_ordinal": 1]
+        let geometry: [String: Any] = followed
+            ? [
+                "mode": "caller_followed",
+                "binding": Self.binding(observation: 1, state: 1),
+                "update_interval_ms": 16,
+                "update_deadline_ms": 500,
+            ]
+            : ["mode": "fixed"]
+        return try AOSScreenRecordingRequest.validatingPublicValue([
+            "schema_version": "aos.screen-recording.request.v1",
+            "request_id": "recording-request",
+            "canonical_parameter_digest": String(repeating: "b", count: 64),
+            "topology": topology,
+            "target": target,
+            "geometry": geometry,
+            "duration_ms": 1_000, "frame_rate": 30,
+            "max_pixel_count": 1_000_000, "max_queue_frames": 3,
+            "max_output_bytes": 10_000,
+            "tracks": [
+                "video": true,
+                "system_audio": systemAudio,
+                "microphone": microphone,
+            ],
+            "codec": "h264", "container": "quicktime",
+        ])
+    }
+
+    static func topology() -> AOSDisplayTopologySnapshot {
         let bounds = AOSDisplayTopologyBounds(x: 0, y: 0, width: 100, height: 80)
-        let topology = AOSDisplayTopologySnapshot(
+        return AOSDisplayTopologySnapshot(
             identity: "topology", usesDisplayIDFallback: true,
             screensHaveSeparateSpaces: false,
             desktopWorldOriginNative: AOSDisplayTopologyPoint(x: 0, y: 0),
@@ -1409,22 +1457,29 @@ final class RecordingEnvironment {
                 visibleDesktopWorldBounds: bounds, scaleFactor: 2, rotation: 0
             )]
         )
-        return try AOSScreenRecordingRequest.validatingPublicValue([
-            "schema_version": "aos.screen-recording.request.v1",
-            "request_id": "recording-request",
-            "canonical_parameter_digest": String(repeating: "b", count: 64),
-            "topology": topology,
-            "target": ["kind": "display", "display_ordinal": 1],
-            "duration_ms": 1_000, "frame_rate": 30,
-            "max_pixel_count": 1_000_000, "max_queue_frames": 3,
-            "max_output_bytes": 10_000,
-            "tracks": [
-                "video": true,
-                "system_audio": systemAudio,
-                "microphone": microphone,
-            ],
-            "codec": "h264", "container": "quicktime",
-        ])
+    }
+
+    static func binding(observation: Int, state: Int) -> [String: Any] {
+        func identity(_ id: String, _ generation: Int) -> [String: Any] {
+            ["id": id, "generation": generation]
+        }
+        return [
+            "target": identity("target", 1),
+            "observation": identity("observation", observation),
+            "state": identity("state", state),
+            "session": identity("session", 1),
+            "navigation": identity("navigation", 1),
+            "frame": identity("frame", 1),
+            "source_window": ["window_id": 77, "owner_pid": 700],
+        ]
+    }
+
+    static func windows() -> [CaptureWindowFact] {
+        [CaptureWindowFact(
+            frame: CGRect(x: 0, y: 0, width: 100, height: 80),
+            owningApplication: CaptureApplicationFact(processID: 700),
+            windowID: 77
+        )]
     }
 
     func offeredArtifact() throws -> AOSOperationIdentity {
@@ -2431,6 +2486,76 @@ struct TerminalLifecycleCustodyHarness {
         }
         require(environment.native.stopCount == 1, "late failure stopped twice")
         require(!environment.broker.retainsAuthority, "retired broker stayed live")
+    }
+
+    static func productionAdapterFollowGeometry() async throws {
+        let environment = try RecordingEnvironment()
+        let connectionID = UUID()
+        let admission = try environment.adapter.start(
+            request: environment.request(followed: true),
+            connectionID: connectionID
+        )
+        require(admission.geometry.accepted.mode == .callerFollowed,
+                "follow admission lost geometry mode")
+        try await wait("follow native start missing") {
+            environment.native.startWasRequested()
+        }
+        let frameAccepted = try environment.native.publishFrame()
+        require(frameAccepted, "follow startup frame rejected")
+        environment.native.settleStart(.success(()))
+        try await wait("follow operation did not activate") {
+            operation(admission, in: environment).state == .active
+                && operation(admission, in: environment)
+                    .screenRecordingGeometry?.deadlineState == .armed
+        }
+        try await Task.sleep(nanoseconds: 20_000_000)
+        let update = try AOSScreenRecordingFollowUpdateRequest.validatingPublicValue([
+            "request_id": "follow-update-1",
+            "canonical_parameter_digest": String(repeating: "d", count: 64),
+            "selector": [
+                "operation_id": admission.operation.id,
+                "operation_generation": admission.operation.generation,
+            ],
+            "expected_geometry_generation": 1,
+            "topology": RecordingEnvironment.topology(),
+            "target": [
+                "kind": "region", "display_ordinal": 1,
+                "global_bounds": ["x": 20, "y": 10, "width": 40, "height": 30],
+            ],
+            "binding": RecordingEnvironment.binding(observation: 2, state: 2),
+        ])
+        var result: Result<AOSScreenRecordingGeometryState, AOSOperationCoreError>?
+        try environment.adapter.updateFollowGeometry(
+            request: update,
+            connectionID: connectionID
+        ) { result = $0 }
+        try await wait("follow update response missing") { result != nil }
+        guard case .success(let accepted)? = result else {
+            fatalError("follow update was not accepted")
+        }
+        require(environment.native.geometryUpdateCount == 1,
+                "adapter did not call the native crop seam exactly once")
+        require(environment.native.lastGeometry?.sourceRect.x == 20,
+                "native crop seam lost the new source rect")
+        require(accepted.accepted.geometryGeneration == 2,
+                "adapter projected a false geometry generation")
+        let record = operation(admission, in: environment)
+        let projected = AOSOperationPublicProjection.snapshot(
+            record,
+            state: environment.registry.snapshot()
+        )
+        require((projected["geometry"] as? [String: Any])?["geometry_generation"]
+                    as? UInt64 == 2,
+                "operation projection lost accepted geometry")
+        require(((projected["progress"] as? [String: Any])?["geometry"]
+                    as? [String: Any])?["geometry_generation"] as? UInt64 == 2,
+                "progress projection lost accepted geometry")
+        _ = environment.adapter.requestStop(operation: admission.operation, force: false)
+        try await wait("follow adapter stop missing") { environment.native.stopCount == 1 }
+        environment.native.settleStop(.success(()))
+        try await wait("follow adapter did not terminalize") {
+            operation(admission, in: environment).state == .terminal
+        }
     }
 
     static func productionAdapterAudioTracks() async throws {
@@ -3530,6 +3655,7 @@ struct TerminalLifecycleCustodyHarness {
         try await productionAdmissionResponses()
         try productionMultitrackCoordination()
         try await productionAdapterAudioTracks()
+        try await productionAdapterFollowGeometry()
         try await productionPreEpochCallbackTruth()
         try await productionLateFailureRetainsAuthority()
         try await productionStartupUncertaintyRetainsAuthority()
@@ -3684,6 +3810,7 @@ test('production lifecycle and custody owners close terminal fault phases with f
       path.join(root, 'src/daemon/microphone-authorization.swift'),
       path.join(root, 'src/daemon/microphone-native-session.swift'),
       path.join(root, 'src/daemon/screen-recording-geometry.swift'),
+      path.join(root, 'src/daemon/screen-recording-follow-geometry.swift'),
       path.join(root, 'src/daemon/screen-recording-encoder.swift'),
       path.join(root, 'src/daemon/screen-recording-operation-adapter.swift'),
       support,

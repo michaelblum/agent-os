@@ -31,6 +31,23 @@
             "properties": {
               "data": {
                 "required": ["schema_version"],
+                "properties": { "schema_version": { "const": "aos.screen-recording.follow-update-result.v1" } }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "https://github.com/michaelblum/agent-os/shared/schemas/aos-screen-recording-v1.schema.json#/$defs/follow_update_result"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "data": {
+                "required": ["schema_version"],
                 "properties": { "schema_version": { "const": "aos.artifact.custody-result.v1" } }
               }
             }

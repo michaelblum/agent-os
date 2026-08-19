@@ -843,7 +843,7 @@ enum AOSOperationPublicProjection {
             ) : NSNull()
         let startedAt: Any = operation.state == .prepared
             ? NSNull() : timestamp(operation.updatedAtNanoseconds)
-        return [
+        var value: [String: Any] = [
             "schema_version": "aos.operation.v1",
             "operation_id": operation.identity.id,
             "operation_generation": operation.identity.generation,
@@ -895,6 +895,10 @@ enum AOSOperationPublicProjection {
             "started_at": startedAt,
             "updated_at": timestamp(operation.updatedAtNanoseconds),
         ]
+        if let geometry = operation.screenRecordingGeometry {
+            value["geometry"] = aosScreenRecordingGeometryPublicValue(geometry)
+        }
+        return value
     }
 
     private static func progress(_ operation: AOSOperationRecord) -> [String: Any] {
@@ -906,6 +910,9 @@ enum AOSOperationPublicProjection {
         ]
         if let summary = operation.progress?.trackSummary {
             value["track_summary"] = aosScreenRecordingTrackSummaryValue(summary)
+        }
+        if let geometry = operation.screenRecordingGeometry {
+            value["geometry"] = aosScreenRecordingGeometryPublicValue(geometry)
         }
         return value
     }
@@ -929,7 +936,7 @@ enum AOSOperationPublicProjection {
         case .adapterFailed: trigger = "adapter_failure"; blame = "adapter"
         case nil: trigger = "start_rejected"; blame = "unknown"
         }
-        return [
+        var value: [String: Any] = [
             "outcome": (operation.outcome ?? .failed).rawValue,
             "trigger": trigger,
             "blame": blame,
@@ -940,6 +947,10 @@ enum AOSOperationPublicProjection {
             "track_summary": operation.progress?.trackSummary
                 .map(aosScreenRecordingTrackSummaryValue) ?? NSNull(),
         ]
+        if let geometry = operation.screenRecordingGeometry {
+            value["geometry"] = aosScreenRecordingGeometryPublicValue(geometry)
+        }
+        return value
     }
 
     private static func timestamp(_ nanoseconds: UInt64) -> String {

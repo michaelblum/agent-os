@@ -302,6 +302,25 @@ const microphoneTrackSummary = {
   },
 };
 
+const fixedGeometryTruth = {
+  mode: 'fixed',
+  geometry_generation: 1,
+  binding_digest: SHA_A,
+  source_rect: { x: 0, y: 0, width: 100, height: 80 },
+  pixel_width: 200,
+  pixel_height: 160,
+  update_interval_ms: null,
+  update_deadline_ms: null,
+  last_accepted_observation_generation: null,
+  last_accepted_state_generation: null,
+  pending_update: false,
+  next_deadline: {
+    state: 'not_applicable',
+    not_before_monotonic_ns: null,
+    deadline_monotonic_ns: null,
+  },
+};
+
 const artifactIdentity = {
   containment_root_digest: SHA_A,
   relative_locator_digest: SHA_B,
@@ -481,6 +500,7 @@ test('screen-recording operations require progress and terminal track truth plus
       adapter_registration_revision: 2,
     },
     capability_id: 'screen-recording.video',
+    geometry: fixedGeometryTruth,
     state: 'terminal',
     progress: {
       items: 1,
@@ -488,6 +508,7 @@ test('screen-recording operations require progress and terminal track truth plus
       duration_ms: 20,
       last_event_sequence: 1,
       track_summary: videoTrackSummary,
+      geometry: fixedGeometryTruth,
     },
     artifacts: [{ id: 'artifact-1', generation: 1 }],
     cleanup: zeroCleanup,
@@ -499,6 +520,7 @@ test('screen-recording operations require progress and terminal track truth plus
       completed_at: TIMESTAMP,
       failure_code: null,
       track_summary: videoTrackSummary,
+      geometry: fixedGeometryTruth,
     },
     started_at: TIMESTAMP,
   };
@@ -532,6 +554,8 @@ test('screen-recording operations require progress and terminal track truth plus
   delete withoutTerminalSummary.terminal.track_summary;
   const withoutTerminalFailure = structuredClone(failed);
   delete withoutTerminalFailure.terminal.failure_code;
+  const withoutGeometry = structuredClone(screenBase);
+  delete withoutGeometry.geometry;
   const microphoneSuccess = {
     ...screenBase,
     progress: { ...screenBase.progress, bytes: 200, track_summary: microphoneTrackSummary },
@@ -544,6 +568,7 @@ test('screen-recording operations require progress and terminal track truth plus
     target(OPERATION_ID, 'operation_snapshot', withoutProgressSummary, false, 'screen progress summary required'),
     target(OPERATION_ID, 'operation_snapshot', withoutTerminalSummary, false, 'screen terminal summary required'),
     target(OPERATION_ID, 'operation_snapshot', withoutTerminalFailure, false, 'screen terminal failure required'),
+    target(OPERATION_ID, 'operation_snapshot', withoutGeometry, false, 'screen geometry required'),
     target(OPERATION_ID, 'operation_snapshot', { ...screenBase, artifacts: [] }, false, 'screen success artifact required'),
     target(OPERATION_ID, 'operation_snapshot', {
       ...screenBase,

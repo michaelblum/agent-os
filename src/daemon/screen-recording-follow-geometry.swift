@@ -2,124 +2,6 @@ import CoreGraphics
 import CryptoKit
 import Foundation
 
-enum AOSScreenRecordingGeometryMode: String, Codable {
-    case fixed
-    case callerFollowed = "caller_followed"
-}
-
-struct AOSScreenRecordingBindingIdentity: Codable, Equatable {
-    let id: String
-    let generation: UInt64
-
-    static func validatingPublicValue(_ value: Any?) throws -> Self {
-        guard let object = value as? [String: Any],
-              Set(object.keys) == ["id", "generation"],
-              let id = aosOperationWireIdentifier(object["id"]),
-              let generationValue = object["generation"],
-              let generation = aosExactJSONInteger(
-                generationValue,
-                minimum: 1,
-                maximum: Int(aosMaximumExactJSONInteger)
-              ) else {
-            throw AOSOperationCoreError.invalidRecord("screen_recording_follow_binding")
-        }
-        return Self(id: id, generation: UInt64(generation))
-    }
-}
-
-struct AOSScreenRecordingFollowBinding: Codable, Equatable {
-    let target: AOSScreenRecordingBindingIdentity
-    let observation: AOSScreenRecordingBindingIdentity
-    let state: AOSScreenRecordingBindingIdentity
-    let session: AOSScreenRecordingBindingIdentity
-    let navigation: AOSScreenRecordingBindingIdentity
-    let frame: AOSScreenRecordingBindingIdentity
-    let sourceWindowID: Int
-    let sourceOwnerPID: Int32
-
-    static func validatingPublicValue(_ value: Any?) throws -> Self {
-        guard let object = value as? [String: Any],
-              Set(object.keys) == [
-                "target", "observation", "state", "session", "navigation", "frame",
-                "source_window",
-              ],
-              let source = object["source_window"] as? [String: Any],
-              Set(source.keys) == ["window_id", "owner_pid"],
-              let windowIDValue = source["window_id"],
-              let ownerPIDValue = source["owner_pid"],
-              let windowID = aosExactJSONInteger(
-                windowIDValue, minimum: 1, maximum: Int(Int32.max)
-              ),
-              let ownerPID = aosExactJSONInteger(
-                ownerPIDValue, minimum: 1, maximum: Int(Int32.max)
-              ) else {
-            throw AOSOperationCoreError.invalidRecord("screen_recording_follow_binding")
-        }
-        return Self(
-            target: try .validatingPublicValue(object["target"]),
-            observation: try .validatingPublicValue(object["observation"]),
-            state: try .validatingPublicValue(object["state"]),
-            session: try .validatingPublicValue(object["session"]),
-            navigation: try .validatingPublicValue(object["navigation"]),
-            frame: try .validatingPublicValue(object["frame"]),
-            sourceWindowID: windowID,
-            sourceOwnerPID: Int32(ownerPID)
-        )
-    }
-}
-
-struct AOSScreenRecordingGeometryConfiguration: Codable, Equatable {
-    static let minimumUpdateIntervalMilliseconds: UInt64 = 16
-    static let maximumUpdateIntervalMilliseconds: UInt64 = 10_000
-    static let maximumUpdateDeadlineMilliseconds: UInt64 = 60_000
-
-    let mode: AOSScreenRecordingGeometryMode
-    let followBinding: AOSScreenRecordingFollowBinding?
-    let updateIntervalMilliseconds: UInt64?
-    let updateDeadlineMilliseconds: UInt64?
-
-    static func validatingPublicValue(
-        _ value: [String: Any],
-        target: AOSScreenRecordingTarget
-    ) throws -> Self {
-        guard let modeRaw = value["mode"] as? String,
-              let mode = AOSScreenRecordingGeometryMode(rawValue: modeRaw) else {
-            throw AOSOperationCoreError.invalidRecord("screen_recording_geometry_mode")
-        }
-        switch mode {
-        case .fixed:
-            guard Set(value.keys) == ["mode"] else {
-                throw AOSOperationCoreError.invalidRecord("screen_recording_geometry")
-            }
-            return Self(
-                mode: .fixed,
-                followBinding: nil,
-                updateIntervalMilliseconds: nil,
-                updateDeadlineMilliseconds: nil
-            )
-        case .callerFollowed:
-            guard target.kind == .region,
-                  Set(value.keys) == [
-                    "mode", "binding", "update_interval_ms", "update_deadline_ms",
-                  ],
-                  let interval = AOSScreenRecordingRequest.uint64(value["update_interval_ms"]),
-                  let deadline = AOSScreenRecordingRequest.uint64(value["update_deadline_ms"]),
-                  (minimumUpdateIntervalMilliseconds...maximumUpdateIntervalMilliseconds)
-                    .contains(interval),
-                  interval <= deadline,
-                  deadline <= maximumUpdateDeadlineMilliseconds else {
-                throw AOSOperationCoreError.invalidRecord("screen_recording_follow_geometry")
-            }
-            return Self(
-                mode: .callerFollowed,
-                followBinding: try .validatingPublicValue(value["binding"]),
-                updateIntervalMilliseconds: interval,
-                updateDeadlineMilliseconds: deadline
-            )
-        }
-    }
-}
-
 struct AOSScreenRecordingFollowUpdateRequest: Equatable {
     let requestID: String
     let canonicalParameterDigest: String
@@ -293,8 +175,8 @@ extension AOSScreenRecordingGeometryValidator {
             topology: current.admittedTopology,
             target: update.target,
             sourceRect: region,
-            width: width,
-            height: height,
+            width: current.pixelWidth,
+            height: current.pixelHeight,
             followBinding: update.binding
         )
         var material = Data("aos:screen-recording-binding:v1\n".utf8)
@@ -308,9 +190,9 @@ extension AOSScreenRecordingGeometryValidator {
             admittedTopology: current.admittedTopology,
             target: update.target,
             sourceRect: region,
-            pixelWidth: width,
-            pixelHeight: height,
-            pixelCount: UInt64(product.partialValue),
+            pixelWidth: current.pixelWidth,
+            pixelHeight: current.pixelHeight,
+            pixelCount: current.pixelCount,
             bindingDigest: digest,
             followBinding: update.binding,
             updateIntervalMilliseconds: current.updateIntervalMilliseconds,
@@ -355,6 +237,20 @@ func aosScreenRecordingGeometryPublicValue(
             "not_before_monotonic_ns": notBefore,
             "deadline_monotonic_ns": nextDeadline,
         ],
+    ]
+}
+
+func aosScreenRecordingFollowUpdatePublicValue(
+    operation: AOSOperationIdentity,
+    geometry: AOSScreenRecordingGeometryState
+) -> [String: Any] {
+    [
+        "schema_version": "aos.screen-recording.follow-update-result.v1",
+        "operation": [
+            "operation_id": operation.id,
+            "operation_generation": operation.generation,
+        ],
+        "geometry": aosScreenRecordingGeometryPublicValue(geometry),
     ]
 }
 

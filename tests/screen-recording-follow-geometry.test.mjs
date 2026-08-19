@@ -379,3 +379,17 @@ print("follow-geometry: fixed-tracks=4 admission=1 native-winner=1 stale-reject=
   assert.match(output, /native-winner=1/u)
   assert.match(output, /deadline=1/u)
 })
+
+test('production adapter executes the injected native update seam and projectors', () => {
+  const childEnv = Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => !key.startsWith('NODE_TEST_')),
+  )
+  const output = execFileSync(process.execPath, [
+    '--test',
+    '--test-reporter=tap',
+    '--test-name-pattern=production lifecycle and custody owners close terminal fault phases with fake dependencies',
+    'tests/screen-recording-fake.test.mjs',
+  ], { cwd: repoRoot, env: childEnv, encoding: 'utf8' })
+  assert.match(output, /# pass 1/u)
+  assert.match(output, /# fail 0/u)
+})

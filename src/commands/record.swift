@@ -9,9 +9,13 @@ private let screenRecordingDefaults: [String: UInt64] = [
 ]
 
 func recordCommand(args: [String]) {
-    guard args.first == "screen", args.last == "--json" else {
+    guard args.last == "--json" else {
         recordUsageError()
     }
+    if args.first == "screen-follow-update" {
+        recordScreenFollowUpdate(Array(args.dropFirst().dropLast()))
+    }
+    guard args.first == "screen" else { recordUsageError() }
     let flags = parseScreenRecordingFlags(Array(args.dropFirst().dropLast()))
     let topology = observeDisplayTopologySnapshot()
     let target = screenRecordingTarget(flags: flags, topology: topology)
@@ -51,6 +55,7 @@ func recordCommand(args: [String]) {
         "schema_version": AOSScreenRecordingRequest.schemaVersion,
         "topology": (try? aosDisplayTopologyWireValue(topology)) ?? [:],
         "target": target,
+        "geometry": screenRecordingGeometryValue(flags: flags),
         "duration_ms": duration,
         "frame_rate": frameRate,
         "max_pixel_count": maxPixels,
@@ -64,9 +69,58 @@ func recordCommand(args: [String]) {
         "codec": AOSScreenRecordingRequest.codec,
         "container": AOSScreenRecordingRequest.container,
     ]
-    var data = parameters
-    data["request_id"] = requestID
-    data["canonical_parameter_digest"] = screenRecordingParameterDigest(parameters)
+    let data = operationRequestData(
+        action: "record_screen",
+        requestID: requestID,
+        parameters: parameters
+    )
+    sendScreenRecordingRequest(
+        action: "record_screen",
+        data: data,
+        requestID: requestID
+    )
+}
+
+private func recordScreenFollowUpdate(_ args: [String]) -> Never {
+    let flags = parseScreenRecordingFollowFlags(args)
+    guard let selector = operationIdentityFlag(flags["--operation"]),
+          let expected = uint64Flag(flags, "--expected-geometry-generation"),
+          let rawRegion = flags["--region"] else {
+        recordUsageError()
+    }
+    let topology = observeDisplayTopologySnapshot()
+    let target = screenRecordingTarget(
+        flags: ["--region": rawRegion, "--display": flags["--display"] ?? "main"],
+        topology: topology
+    )
+    let requestID = UUID().uuidString.lowercased()
+    let parameters: [String: Any] = [
+        "selector": [
+            "operation_id": selector.id,
+            "operation_generation": selector.generation,
+        ],
+        "expected_geometry_generation": expected,
+        "topology": (try? aosDisplayTopologyWireValue(topology)) ?? [:],
+        "target": target,
+        "binding": screenRecordingFollowBindingValue(flags: flags),
+    ]
+    let data = operationRequestData(
+        action: "record_screen_follow_update",
+        requestID: requestID,
+        parameters: parameters
+    )
+    sendScreenRecordingRequest(
+        action: "record_screen_follow_update",
+        data: data,
+        requestID: requestID
+    )
+}
+
+private func sendScreenRecordingRequest(
+    action: String,
+    data: [String: Any],
+    requestID: String
+) -> Never {
     let socketPath = aosSocketPath(for: aosCurrentRuntimeMode())
     let session = DaemonSession(socketPath: socketPath)
     guard session.connectWithAutoStart(binaryPath: CommandLine.arguments[0], timeoutMs: 1_000) else {
@@ -76,7 +130,7 @@ func recordCommand(args: [String]) {
     session.sendOnly([
         "v": 1,
         "service": "operation",
-        "action": "record_screen",
+        "action": action,
         "data": data,
         "ref": requestID,
     ])
@@ -93,6 +147,7 @@ func recordCommand(args: [String]) {
     FileHandle.standardOutput.write(encoded)
     FileHandle.standardOutput.write(Data("\n".utf8))
     if response["status"] as? String == "error" || response["error"] != nil { exit(1) }
+    exit(0)
 }
 
 private func parseScreenRecordingFlags(_ args: [String]) -> [String: String] {
@@ -100,6 +155,10 @@ private func parseScreenRecordingFlags(_ args: [String]) -> [String: String] {
         "--display", "--window-id", "--region", "--duration-ms", "--frame-rate",
         "--max-pixel-count", "--max-queue-frames", "--max-output-bytes",
         "--system-audio", "--microphone",
+        "--geometry-mode", "--binding-target", "--binding-observation",
+        "--binding-state", "--binding-session", "--binding-navigation",
+        "--binding-frame", "--source-window-id", "--source-owner-pid",
+        "--update-interval-ms", "--update-deadline-ms",
     ]
     var values: [String: String] = [:]
     var index = 0
@@ -122,6 +181,106 @@ private func parseScreenRecordingFlags(_ args: [String]) -> [String: String] {
         recordUsageError()
     }
     return values
+}
+
+private func parseScreenRecordingFollowFlags(_ args: [String]) -> [String: String] {
+    let allowed: Set<String> = [
+        "--operation", "--expected-geometry-generation", "--display", "--region",
+        "--binding-target", "--binding-observation", "--binding-state",
+        "--binding-session", "--binding-navigation", "--binding-frame",
+        "--source-window-id", "--source-owner-pid",
+    ]
+    var values: [String: String] = [:]
+    var index = 0
+    while index < args.count {
+        let flag = args[index]
+        guard allowed.contains(flag), values[flag] == nil,
+              index + 1 < args.count, !args[index + 1].hasPrefix("--") else {
+            recordUsageError()
+        }
+        values[flag] = args[index + 1]
+        index += 2
+    }
+    guard values["--operation"] != nil,
+          values["--expected-geometry-generation"] != nil,
+          values["--region"] != nil else {
+        recordUsageError()
+    }
+    return values
+}
+
+private func screenRecordingGeometryValue(flags: [String: String]) -> [String: Any] {
+    switch flags["--geometry-mode"] ?? "fixed" {
+    case "fixed":
+        let followFlags = flags.keys.filter {
+            $0.hasPrefix("--binding-") || $0.hasPrefix("--source-")
+                || $0.hasPrefix("--update-")
+        }
+        guard followFlags.isEmpty else { recordUsageError() }
+        return ["mode": "fixed"]
+    case "caller_followed":
+        guard flags["--region"] != nil,
+              let interval = uint64Flag(flags, "--update-interval-ms"),
+              let deadline = uint64Flag(flags, "--update-deadline-ms") else {
+            recordUsageError()
+        }
+        return [
+            "mode": "caller_followed",
+            "binding": screenRecordingFollowBindingValue(flags: flags),
+            "update_interval_ms": interval,
+            "update_deadline_ms": deadline,
+        ]
+    default:
+        recordUsageError()
+    }
+}
+
+private func screenRecordingFollowBindingValue(
+    flags: [String: String]
+) -> [String: Any] {
+    guard let target = bindingIdentityFlag(flags["--binding-target"]),
+          let observation = bindingIdentityFlag(flags["--binding-observation"]),
+          let state = bindingIdentityFlag(flags["--binding-state"]),
+          let session = bindingIdentityFlag(flags["--binding-session"]),
+          let navigation = bindingIdentityFlag(flags["--binding-navigation"]),
+          let frame = bindingIdentityFlag(flags["--binding-frame"]),
+          let sourceWindow = intFlag(flags["--source-window-id"]),
+          let sourceOwner = intFlag(flags["--source-owner-pid"]) else {
+        recordUsageError()
+    }
+    return [
+        "target": target,
+        "observation": observation,
+        "state": state,
+        "session": session,
+        "navigation": navigation,
+        "frame": frame,
+        "source_window": ["window_id": sourceWindow, "owner_pid": sourceOwner],
+    ]
+}
+
+private func bindingIdentityFlag(_ raw: String?) -> [String: Any]? {
+    guard let raw, let separator = raw.lastIndex(of: ":"),
+          separator != raw.startIndex,
+          let generation = UInt64(raw[raw.index(after: separator)...]),
+          generation > 0 else {
+        return nil
+    }
+    return ["id": String(raw[..<separator]), "generation": generation]
+}
+
+private func operationIdentityFlag(_ raw: String?) -> AOSOperationIdentity? {
+    guard let value = bindingIdentityFlag(raw),
+          let id = value["id"] as? String,
+          let generation = value["generation"] as? UInt64 else {
+        return nil
+    }
+    return AOSOperationIdentity(id: id, generation: generation)
+}
+
+private func intFlag(_ raw: String?) -> Int? {
+    guard let raw, let value = Int(raw), value > 0, String(value) == raw else { return nil }
+    return value
 }
 
 private func screenRecordingTarget(
@@ -211,25 +370,31 @@ private func boundsValue(_ value: CGRect) -> [String: Double] {
     ["x": value.origin.x, "y": value.origin.y, "width": value.width, "height": value.height]
 }
 
-private func screenRecordingParameterDigest(_ parameters: [String: Any]) -> String {
+private func operationRequestData(
+    action: String,
+    requestID: String,
+    parameters: [String: Any]
+) -> [String: Any] {
     guard JSONSerialization.isValidJSONObject(parameters),
-          let canonical = try? JSONSerialization.data(
-            withJSONObject: parameters,
-            options: [.sortedKeys, .withoutEscapingSlashes]
-          ) else { recordUsageError() }
+          (try? JSONSerialization.data(withJSONObject: parameters)) != nil else {
+        recordUsageError()
+    }
     var material = Data("aos:operation-request:v1\n".utf8)
-    let input: [String: Any] = ["action": "record_screen", "parameters": parameters]
+    let input: [String: Any] = ["action": action, "parameters": parameters]
     material.append(try! JSONSerialization.data(
         withJSONObject: input,
         options: [.sortedKeys, .withoutEscapingSlashes]
     ))
-    _ = canonical
-    return SHA256.hash(data: material).map { String(format: "%02x", $0) }.joined()
+    var data = parameters
+    data["request_id"] = requestID
+    data["canonical_parameter_digest"] = SHA256.hash(data: material)
+        .map { String(format: "%02x", $0) }.joined()
+    return data
 }
 
 private func recordUsageError() -> Never {
     exitError(
-        "__record screen requires --duration-ms 1...300000, one fixed display/window/region, optional --system-audio and --microphone, frame-rate 1...60, pixels 4...33177600, queue 1...8, bytes 1024...1073741824, and --json.",
+        "__record screen requires bounded media flags plus closed fixed/caller_followed geometry; __record screen-follow-update requires operation, expected generation, full region/binding flags, and --json.",
         code: "INVALID_ARG"
     )
 }
