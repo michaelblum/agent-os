@@ -1309,7 +1309,22 @@ private func aosScreenRecordingTerminalFailure(
     progress: AOSScreenRecordingEncoderProgress
 ) -> AOSOperationCoreError? {
     guard let failure else { return nil }
-    if let typed = failure as? AOSOperationCoreError { return typed }
+    if let typed = failure as? AOSOperationCoreError {
+        switch typed {
+        case .recordingStartupDeadlineExceeded,
+             .recordingNoFrames,
+             .recordingSystemAudioNoSamples,
+             .recordingSystemAudioFailed,
+             .recordingMicrophoneNoSamples,
+             .recordingMicrophoneFailed,
+             .recordingTimestampNonMonotonic,
+             .recordingBackpressureExceeded,
+             .recordingEncoderFailed:
+            break
+        default:
+            return typed
+        }
+    }
     return aosScreenRecordingSettledFailure(failure, summary: progress.trackSummary)
 }
 

@@ -1101,6 +1101,7 @@ final class FakeNativeSession: @unchecked Sendable {
     let microphoneBackend: FakeMicrophoneBackend
     let signal = AOSDesktopPixelStartupSignal()
     private var frameGate: AOSDesktopPixelFrameAdmissionGate?
+    private var failureSink: AOSScreenRecordingFailureSink?
     private var heldFrame: AOSDesktopPixelFrameAdmissionGate.Token?
     private let lock = NSLock()
     private var progress: AOSScreenRecordingProgressSink?
@@ -1124,7 +1125,11 @@ final class FakeNativeSession: @unchecked Sendable {
             encoder.configure(tracks)
             try encoder.markAvailable(.video)
             if tracks.systemAudio { try encoder.markAvailable(.systemAudio) }
-            lock.lock(); frameGate = gate; self.progress = progress; lock.unlock()
+            installFactoryDependencies(
+                gate: gate,
+                progress: progress,
+                failureSink: didFail
+            )
             let microphoneInput = tracks.microphone
                 ? AOSScreenRecordingMicrophoneInput(
                     session: microphone,
@@ -1152,6 +1157,18 @@ final class FakeNativeSession: @unchecked Sendable {
                 microphoneSession: tracks.microphone ? microphone : nil
             )
         }
+    }
+
+    private func installFactoryDependencies(
+        gate: AOSDesktopPixelFrameAdmissionGate,
+        progress: @escaping AOSScreenRecordingProgressSink,
+        failureSink: @escaping AOSScreenRecordingFailureSink
+    ) {
+        lock.lock()
+        frameGate = gate
+        self.progress = progress
+        self.failureSink = failureSink
+        lock.unlock()
     }
 
     func startWasRequested() -> Bool {
@@ -1198,6 +1215,11 @@ final class FakeNativeSession: @unchecked Sendable {
 
     func completeHeldFrame() {
         lock.lock(); let token = heldFrame; heldFrame = nil; lock.unlock(); token?.complete()
+    }
+
+    func injectCallbackFailure(_ error: Error) {
+        lock.lock(); let sink = failureSink; lock.unlock()
+        sink?(error)
     }
 }
 
@@ -2747,6 +2769,131 @@ struct TerminalLifecycleCustodyHarness {
                 "valid audio was falsely failed by missing mandatory video")
     }
 
+    static func productionPreEpochCallbackTruth() async throws {
+        struct CallbackCase {
+            let name: String
+            let publishVideo: Bool
+            let publishSystemAudio: Bool
+            let failures: [AOSOperationCoreError]
+            let terminal: AOSOperationCoreError
+            let videoFailure: String?
+            let systemAudioFailure: String?
+            let microphoneFailure: String?
+        }
+
+        let cases = [
+            CallbackCase(
+                name: "microphone_then_system_all_missing",
+                publishVideo: false,
+                publishSystemAudio: false,
+                failures: [.recordingMicrophoneFailed, .recordingSystemAudioFailed],
+                terminal: .recordingNoFrames,
+                videoFailure: AOSOperationCoreError.recordingNoFrames.code,
+                systemAudioFailure: AOSOperationCoreError.recordingSystemAudioNoSamples.code,
+                microphoneFailure: AOSOperationCoreError.recordingMicrophoneNoSamples.code
+            ),
+            CallbackCase(
+                name: "system_then_microphone_all_missing",
+                publishVideo: false,
+                publishSystemAudio: false,
+                failures: [.recordingSystemAudioFailed, .recordingMicrophoneFailed],
+                terminal: .recordingNoFrames,
+                videoFailure: AOSOperationCoreError.recordingNoFrames.code,
+                systemAudioFailure: AOSOperationCoreError.recordingSystemAudioNoSamples.code,
+                microphoneFailure: AOSOperationCoreError.recordingMicrophoneNoSamples.code
+            ),
+            CallbackCase(
+                name: "microphone_then_system_video_present",
+                publishVideo: true,
+                publishSystemAudio: false,
+                failures: [.recordingMicrophoneFailed, .recordingSystemAudioFailed],
+                terminal: .recordingSystemAudioNoSamples,
+                videoFailure: nil,
+                systemAudioFailure: AOSOperationCoreError.recordingSystemAudioNoSamples.code,
+                microphoneFailure: AOSOperationCoreError.recordingMicrophoneNoSamples.code
+            ),
+            CallbackCase(
+                name: "system_then_microphone_audio_present",
+                publishVideo: true,
+                publishSystemAudio: true,
+                failures: [.recordingSystemAudioFailed, .recordingMicrophoneFailed],
+                terminal: .recordingMicrophoneNoSamples,
+                videoFailure: nil,
+                systemAudioFailure: nil,
+                microphoneFailure: AOSOperationCoreError.recordingMicrophoneNoSamples.code
+            ),
+        ]
+        var projections: [[String: Any]] = []
+        for value in cases {
+            let environment = try RecordingEnvironment()
+            let admission = try environment.adapter.start(
+                request: environment.request(systemAudio: true, microphone: true),
+                connectionID: UUID()
+            )
+            try await wait("pre-epoch callback start missing") {
+                environment.native.startWasRequested()
+            }
+            if value.publishVideo {
+                let accepted = try environment.native.publishFrame()
+                require(accepted,
+                        "pre-epoch video callback was rejected")
+            }
+            if value.publishSystemAudio {
+                let accepted = try environment.native.publishAudio()
+                require(accepted,
+                        "pre-epoch system-audio callback was rejected")
+            }
+            require(!environment.native.encoder.progress.sessionStarted,
+                    "callback failure was injected after common-epoch settlement")
+            for failure in value.failures {
+                environment.native.injectCallbackFailure(failure)
+            }
+            environment.native.settleStart(.success(()))
+            try await wait("pre-epoch callback cleanup did not request retirement") {
+                environment.native.stopCount == 1
+            }
+            environment.native.settleStop(.success(()))
+            try await wait("pre-epoch callback failure did not terminalize") {
+                operation(admission, in: environment).state == .terminal
+            }
+            let state = environment.registry.snapshot()
+            let record = operation(admission, in: environment)
+            guard let summary = record.progress?.trackSummary else {
+                fatalError("pre-epoch callback terminal omitted track truth")
+            }
+            require(record.failureCode == value.terminal.code,
+                    "\(value.name) terminal precedence drifted to \(String(describing: record.failureCode))")
+            require(summary.video.failureCode == value.videoFailure,
+                    "\(value.name) video failure truth drifted")
+            require(summary.systemAudio.failureCode == value.systemAudioFailure,
+                    "\(value.name) system-audio failure truth drifted")
+            require(summary.microphone.failureCode == value.microphoneFailure,
+                    "\(value.name) microphone failure truth drifted")
+            let artifact = state.artifacts.first { $0.identity == admission.artifact }
+            require(artifact?.state == .removed,
+                    "\(value.name) failed artifact was not removed")
+            require(artifact?.trackSummary == summary,
+                    "\(value.name) artifact truth diverged from terminal progress")
+            let row = projectionRow(
+                phase: "pre_epoch_\(value.name)",
+                systemAudioSelected: true,
+                microphoneSelected: true,
+                operation: record,
+                state: state
+            )
+            let snapshot = row["snapshot"] as? [String: Any]
+            let terminal = snapshot?["terminal"] as? [String: Any]
+            let progress = snapshot?["progress"] as? [String: Any]
+            require(terminal?["failure_code"] as? String == value.terminal.code,
+                    "\(value.name) public terminal truth drifted")
+            require(progress?["track_summary"] is [String: Any],
+                    "\(value.name) public progress omitted track truth")
+            projections.append(row)
+        }
+        let data = try JSONSerialization.data(withJSONObject: projections, options: [.sortedKeys])
+        print("pre-epoch-callback-projections:\(String(data: data, encoding: .utf8)!)")
+    }
+
     static func productionStartupUncertaintyRetainsAuthority() async throws {
         let stopped = try RecordingEnvironment()
         let admission = try stopped.adapter.start(
@@ -3265,6 +3412,7 @@ struct TerminalLifecycleCustodyHarness {
         try await productionAdmissionResponses()
         try productionMultitrackCoordination()
         try await productionAdapterAudioTracks()
+        try await productionPreEpochCallbackTruth()
         try await productionLateFailureRetainsAuthority()
         try await productionStartupUncertaintyRetainsAuthority()
         try await productionRetirementAndFrameDrainAreAuthoritative()
@@ -3279,7 +3427,7 @@ struct TerminalLifecycleCustodyHarness {
         try await lateStartFailureAfterActiveEvidenceRequiresStop()
         await frameAdmissionClosesAtomically()
         try decoderAndTerminalTruthAreClosed()
-        print("terminal-lifecycle-custody-harness: atomic-admission=12 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 production-lifecycle=6 production-terminal=2 production-custody=10 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
+        print("terminal-lifecycle-custody-harness: atomic-admission=12 pre-epoch-callbacks=4 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 production-lifecycle=6 production-terminal=2 production-custody=10 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
     }
 }
 `
@@ -3427,7 +3575,7 @@ test('production lifecycle and custody owners close terminal fault phases with f
     assert.equal(compile.status, 0, compile.stderr || compile.stdout)
     const run = spawnSync(binary, [], { encoding: 'utf8', timeout: 5_000 })
     assert.equal(run.status, 0, `${run.stderr}\n${run.stdout}`)
-    assert.match(run.stdout, /atomic-admission=12 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1/u)
+    assert.match(run.stdout, /atomic-admission=12 pre-epoch-callbacks=4 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1/u)
     const projectionLine = run.stdout.split('\n').find((line) => (
       line.startsWith('atomic-initial-summary-projections:')
     ))
@@ -3439,6 +3587,19 @@ test('production lifecycle and custody owners close terminal fault phases with f
     assert.deepEqual(projections.map((value) => value.phase), [
       'prepared', 'cleanup', 'recovered', 'prepared', 'cleanup', 'recovered',
       'prepared', 'cleanup', 'recovered', 'prepared', 'cleanup', 'recovered',
+    ])
+    const callbackProjectionLine = run.stdout.split('\n').find((line) => (
+      line.startsWith('pre-epoch-callback-projections:')
+    ))
+    assert.ok(callbackProjectionLine, run.stdout)
+    const callbackProjections = JSON.parse(callbackProjectionLine.slice(
+      'pre-epoch-callback-projections:'.length,
+    ))
+    assert.deepEqual(callbackProjections.map((value) => value.phase), [
+      'pre_epoch_microphone_then_system_all_missing',
+      'pre_epoch_system_then_microphone_all_missing',
+      'pre_epoch_microphone_then_system_video_present',
+      'pre_epoch_system_then_microphone_audio_present',
     ])
     const admissionLine = run.stdout.split('\n').find((line) => (
       line.startsWith('production-admission-responses:')
@@ -3507,10 +3668,13 @@ admission_validator = Draft202012Validator(
 for response in rows['admissions']:
     errors = list(admission_validator.iter_errors(response))
     assert not errors, [error.message for error in errors]
-print('atomic-operation-schema: snapshots=12 list=12 inspect=12 admissions=4')
+print('atomic-operation-schema: snapshots=16 list=16 inspect=16 admissions=4')
 `, path.join(root, 'shared/schemas')], {
       encoding: 'utf8',
-      input: JSON.stringify({ projections, admissions: admissionResponses }),
+      input: JSON.stringify({
+        projections: [...projections, ...callbackProjections],
+        admissions: admissionResponses,
+      }),
       timeout: 20_000,
     })
     assert.equal(
@@ -3518,7 +3682,7 @@ print('atomic-operation-schema: snapshots=12 list=12 inspect=12 admissions=4')
       0,
       `${schemaValidation.stdout}\n${schemaValidation.stderr}`,
     )
-    assert.match(schemaValidation.stdout, /snapshots=12 list=12 inspect=12 admissions=4/u)
+    assert.match(schemaValidation.stdout, /snapshots=16 list=16 inspect=16 admissions=4/u)
 
     const [lifecycle, state, adapter, unified] = await Promise.all([
       readFile(path.join(root, 'src/daemon/desktop-pixel-stream-lifecycle.swift'), 'utf8'),

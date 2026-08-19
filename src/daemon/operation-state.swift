@@ -1133,6 +1133,12 @@ enum AOSOperationPublicProjection {
         let publishedCount = state.resourceClaims.filter {
             $0.transactionID == transaction.transactionID
         }.count
+        let recoveryDisposition: Any = switch transaction.state {
+        case .cleanupRequired, .recovering:
+            transaction.recoveryDisposition?.rawValue ?? NSNull()
+        default:
+            NSNull()
+        }
         return [
             "transaction_id": transaction.transactionID,
             "attempt_sequence": transaction.attemptSequence,
@@ -1149,7 +1155,7 @@ enum AOSOperationPublicProjection {
             "canonical_request_array": transaction.canonicalRequests.map(claimRequest),
             "claim_set_digest": transaction.claimSetDigest,
             "state": transaction.state.rawValue,
-            "recovery_disposition": transaction.recoveryDisposition?.rawValue ?? NSNull(),
+            "recovery_disposition": recoveryDisposition,
             "receipt": [
                 "outcome": publishedCount > 0 ? "committed" : "rejected",
                 "attempt_sequence": transaction.attemptSequence,
