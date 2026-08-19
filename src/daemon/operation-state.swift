@@ -642,6 +642,78 @@ struct AOSScreenRecordingTrackSummary: Codable, Equatable {
     }
 }
 
+func aosScreenRecordingTrackSummaryValue(
+    _ summary: AOSScreenRecordingTrackSummary
+) -> [String: Any] {
+    func track(_ value: AOSScreenRecordingTrackTruth) -> [String: Any] {
+        [
+            "selected": value.selected,
+            "admitted": value.admitted,
+            "available": value.available,
+            "first_sample_present": value.firstSamplePresent,
+            "sample_count": value.sampleCount,
+            "sample_byte_count": value.sampleByteCount,
+            "failure_code": value.failureCode ?? NSNull(),
+            "drained": value.drained,
+            "finalized": value.finalized,
+        ]
+    }
+    return [
+        "selected_tracks": summary.selectedTracks,
+        "finalized_tracks": summary.finalizedTracks,
+        "common_media_epoch_ns": summary.commonMediaEpochNanoseconds ?? NSNull(),
+        "video": track(summary.video),
+        "system_audio": track(summary.systemAudio),
+    ]
+}
+
+enum AOSOperationPublicProgressProjection {
+    static func progress(_ operation: AOSOperationRecord) -> [String: Any] {
+        var value: [String: Any] = [
+            "items": operation.progress?.frameCount ?? 0,
+            "bytes": operation.progress?.byteCount ?? 0,
+            "duration_ms": operation.progress?.elapsedMilliseconds ?? 0,
+            "last_event_sequence": operation.progress?.frameCount ?? 0,
+        ]
+        if let summary = operation.progress?.trackSummary {
+            value["track_summary"] = aosScreenRecordingTrackSummaryValue(summary)
+        }
+        return value
+    }
+
+    static func terminal(
+        _ operation: AOSOperationRecord,
+        completedAt: String
+    ) -> [String: Any] {
+        let trigger: String
+        let blame: String
+        switch operation.stopIntent {
+        case .complete: trigger = "adapter_complete"; blame = "adapter"
+        case .cancel: trigger = "caller_cancel"; blame = "caller"
+        case .kill: trigger = "kill_one"; blame = "aos_control_plane"
+        case .ownerKill: trigger = "owner_kill"; blame = "aos_control_plane"
+        case .hostStop: trigger = "host_stop_all"; blame = "host_shutdown"
+        case .deadline: trigger = "deadline"; blame = "adapter"
+        case .peerLost: trigger = "peer_lost"; blame = "caller"
+        case .transportLost: trigger = "transport_lost"; blame = "caller"
+        case .permissionRevoked: trigger = "permission_failure"; blame = "permission"
+        case .adapterFailed: trigger = "adapter_failure"; blame = "adapter"
+        case nil: trigger = "start_rejected"; blame = "unknown"
+        }
+        return [
+            "outcome": (operation.outcome ?? .failed).rawValue,
+            "trigger": trigger,
+            "blame": blame,
+            "duration_ms": (operation.updatedAtNanoseconds - operation.createdAtNanoseconds)
+                / 1_000_000,
+            "completed_at": completedAt,
+            "failure_code": operation.failureCode ?? NSNull(),
+            "track_summary": operation.progress?.trackSummary
+                .map(aosScreenRecordingTrackSummaryValue) ?? NSNull(),
+        ]
+    }
+}
+
 enum AOSArtifactPendingAction: String, Codable {
     case remove
 }

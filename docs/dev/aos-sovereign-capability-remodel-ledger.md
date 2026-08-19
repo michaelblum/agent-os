@@ -186,7 +186,11 @@ missing selected track, with mandatory-video terminal precedence when both are
 silent. Written-video frame count and total artifact bytes validate against the
 exact per-track summary independently, so ready audio can advance byte progress
 under video-input backpressure. Writer-global failure marks every selected
-track. Stop closes frame admission and
+track. The generic operation admission transaction persists recording identity,
+requested bounds, zero progress, and the exact request-selected initial track
+summary in one save before stream, artifact, claim, broker, native, writer, or
+file authority. Preparation failure and boot recovery retain that summary, and
+there is no later initial-summary backfill. Stop closes frame admission and
 drains only its pre-boundary set, and terminal success requires a nonzero frame
 count plus positive bytes on every selected finalized track and a finalized
 nonempty artifact with the exact selected-track media identity. Public screen

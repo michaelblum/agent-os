@@ -89,31 +89,6 @@ typealias AOSScreenRecordingSessionFactory = @Sendable (
     @escaping AOSScreenRecordingFailureSink
 ) async throws -> AOSScreenRecordingNativeSession
 
-func aosScreenRecordingTrackSummaryValue(
-    _ summary: AOSScreenRecordingTrackSummary
-) -> [String: Any] {
-    func track(_ value: AOSScreenRecordingTrackTruth) -> [String: Any] {
-        [
-            "selected": value.selected,
-            "admitted": value.admitted,
-            "available": value.available,
-            "first_sample_present": value.firstSamplePresent,
-            "sample_count": value.sampleCount,
-            "sample_byte_count": value.sampleByteCount,
-            "failure_code": value.failureCode ?? NSNull(),
-            "drained": value.drained,
-            "finalized": value.finalized,
-        ]
-    }
-    return [
-        "selected_tracks": summary.selectedTracks,
-        "finalized_tracks": summary.finalizedTracks,
-        "common_media_epoch_ns": summary.commonMediaEpochNanoseconds ?? NSNull(),
-        "video": track(summary.video),
-        "system_audio": track(summary.systemAudio),
-    ]
-}
-
 private func aosScreenRecordingReleaseDestinationIdentity(
     _ destination: URL,
     _ source: URL,
@@ -729,19 +704,27 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
               let declaration = initial.adapterRegistry.declaration(resourceKey: Self.resourceKey) else {
             throw AOSOperationCoreError.barrierClosed
         }
+        let initialTrackSummary = AOSScreenRecordingTrackSummary.initial(
+            systemAudioSelected: request.tracks.systemAudio
+        )
+        let initialProgress = AOSOperationProgress(
+            frameCount: 0,
+            byteCount: 0,
+            elapsedMilliseconds: 0,
+            droppedFrameCount: 0,
+            trackSummary: initialTrackSummary
+        )
         let operation = try registry.prepareOperation(
             ownerRoot: context.ownerRoot,
             attribution: context.attribution,
             capabilityID: Self.capabilityID,
             adapterRegistrationID: registration.id,
             adapterRegistrationRevision: registration.revision,
-            requestedBounds: request.requestedBounds
+            requestedBounds: request.requestedBounds,
+            initialProgress: initialProgress
         )
         do {
             let stream = try registry.prepareStream(parent: operation.identity)
-            let initialTrackSummary = AOSScreenRecordingTrackSummary.initial(
-                systemAudioSelected: request.tracks.systemAudio
-            )
             let artifact = try registry.prepareArtifact(
                 parent: operation.identity,
                 trackSummary: initialTrackSummary
@@ -786,15 +769,6 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
                   }) else {
                 throw AOSOperationCoreError.resourceDeclarationConflict
             }
-            var initialProgress = AOSOperationProgress(
-                frameCount: 0,
-                byteCount: 0,
-                elapsedMilliseconds: 0,
-                droppedFrameCount: 0,
-                trackSummary: initialTrackSummary
-            )
-            initialProgress.trackSummary = initialTrackSummary
-            _ = try registry.updateOperationProgress(operation.identity, initialProgress)
             _ = try registry.transitionOperation(operation.identity, to: .starting)
             _ = try registry.transitionStream(stream.identity, to: .starting)
             return AOSScreenRecordingClaimAdmission(

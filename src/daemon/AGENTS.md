@@ -195,8 +195,17 @@ audio samples, finishes both selected writer inputs and the writer exactly once,
 and requires positive-byte successful truth for every selected track plus a
 finalized, nonempty artifact with the exact video-only or H.264-plus-AAC media
 identity before success. Public screen-recording progress and terminal receipts
-require the exact track summary; success also requires artifact presence, while
-failure requires a typed terminal code. Stop, failure, and boot recovery must
+require the exact track summary. The adapter derives its closed initial
+selected-track summary from the decoded request and passes it as zero progress
+to the generic `prepareOperation` transaction, so operation identity, requested
+bounds, and selected-track truth become durable in one save before any stream,
+artifact, claim, broker, native, writer, or file authority. Later preparation
+never backfills that initial truth, and cleanup plus boot recovery preserve it.
+`operation-state.swift` owns the pure public progress/terminal projection for
+this durable truth; `UnifiedDaemon` delegates to it so the production-attached
+fake harness can execute the same projection without starting a daemon.
+Success also requires artifact presence, while failure requires a typed terminal
+code. Stop, failure, and boot recovery must
 settle stream authority, drain or cancel the writer, release the broker and
 operation claim, and remove any unoffered file before terminalizing.
 Offered artifacts support owner- and generation-bound reveal, remove, and

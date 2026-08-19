@@ -149,7 +149,8 @@ final class AOSOperationRegistry {
         capabilityID: String,
         adapterRegistrationID: String,
         adapterRegistrationRevision: UInt64,
-        requestedBounds: AOSOperationRequestedBounds? = nil
+        requestedBounds: AOSOperationRequestedBounds? = nil,
+        initialProgress: AOSOperationProgress? = nil
     ) throws -> AOSOperationRecord {
         let now = clock()
         return try mutateDurably { state in
@@ -162,6 +163,12 @@ final class AOSOperationRegistry {
                 revision: adapterRegistrationRevision
             ), registration.capabilityIDs.contains(capabilityID) else {
                 throw AOSOperationCoreError.adapterRegistryConflict
+            }
+            if let bounds = requestedBounds, let initialProgress {
+                guard initialProgress.byteCount <= bounds.maximumOutputBytes,
+                      initialProgress.elapsedMilliseconds <= bounds.durationMilliseconds else {
+                    throw AOSOperationCoreError.recordingBoundsExceeded
+                }
             }
             let record = AOSOperationRecord(
                 identity: AOSOperationIdentity(id: idFactory(), generation: state.allocateGeneration()),
@@ -177,7 +184,7 @@ final class AOSOperationRegistry {
                 failureCode: nil,
                 residualDigest: nil,
                 requestedBounds: requestedBounds,
-                progress: requestedBounds.map { _ in AOSOperationProgress(
+                progress: initialProgress ?? requestedBounds.map { _ in AOSOperationProgress(
                     frameCount: 0,
                     byteCount: 0,
                     elapsedMilliseconds: 0,

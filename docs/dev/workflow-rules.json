@@ -399,6 +399,9 @@
       "summary": "Fixed mandatory-video and optional-system-audio screen-recording producer, contract, custody, command, or proof changed.",
       "patterns": [
         "src/commands/record.swift",
+        "src/daemon/operation-registry.swift",
+        "src/daemon/operation-state.swift",
+        "src/daemon/unified.swift",
         "src/daemon/screen-recording-*.swift",
         "shared/schemas/aos-screen-recording-v1.schema.json",
         "manifests/commands/source/aos/42-screen-recording.json",
@@ -416,7 +419,7 @@
         {
           "id": "screen-recording-contract",
           "command": "bash tests/native-screen-recording-contract.sh",
-          "reason": "Validate mandatory-video and optional-system-audio bounds, one-budget common-epoch multitrack coordination, output-registration versus positive-byte sample truth, every-selected-track writer failure, fixed geometry, durable lifecycle, exact media/track-bound custody, source/help/schema convergence, and native compile without capture authority."
+          "reason": "Validate atomic initial selected-track admission before later preparation, preparation-fault and boot-recovery projection/schema truth, mandatory-video and optional-system-audio bounds, one-budget common-epoch multitrack coordination, output-registration versus positive-byte sample truth, every-selected-track writer failure, fixed geometry, durable lifecycle, exact media/track-bound custody, source/help/schema convergence, and native compile without capture authority."
         }
       ],
       "verification": [],

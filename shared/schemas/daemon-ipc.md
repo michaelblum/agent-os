@@ -191,7 +191,12 @@ producer-backed artifact fails closed instead of gaining custody behavior.
 `aos.screen-recording.request.v1` object before registry, claim, broker,
 ScreenCaptureKit, or file effects. It durably prepares one operation, stream,
 artifact, and exclusive `screen_capture_native_session` claim before native
-startup. Admission returns exact identities and a geometry-binding digest;
+startup. The operation's first durable save atomically binds its identity,
+requested bounds, zero progress, and the exact request-selected video-only or
+video-plus-system-audio summary before any stream, artifact, claim, broker,
+writer, file, or native authority. Cleanup and boot recovery preserve that
+summary; no later initial-summary backfill exists. Admission returns exact
+identities and a geometry-binding digest;
 progress and terminal operation events remain content-free. Video is mandatory;
 system audio is explicitly optional and omission remains exact video-only.
 Selected audio must be available and produce samples before success, and its

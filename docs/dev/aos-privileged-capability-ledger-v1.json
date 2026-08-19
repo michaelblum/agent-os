@@ -4492,7 +4492,7 @@
             },
             {
               "path": "tests/screen-recording-contract.test.mjs",
-              "claim": "Statically binds mandatory screen output, request-selected system-audio output on the same stream, one H.264 plus AAC-LC QuickTime writer, fixed geometry, generation-bound owner handoff, dual-track drain and terminal-truth calls, durable track-bound release ordering, and authored/generated command ownership.",
+              "claim": "Statically binds atomic operation identity/requested-bounds/zero-progress/initial selected-track-summary admission before later preparation, mandatory screen output, request-selected system-audio output on the same stream, one H.264 plus AAC-LC QuickTime writer, fixed geometry, generation-bound owner handoff, dual-track drain and terminal-truth calls, durable track-bound release ordering, and authored/generated command ownership.",
               "execution_class": "static",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -4502,7 +4502,7 @@
           "fake": [
             {
               "path": "tests/screen-recording-fake.test.mjs",
-              "claim": "Compiles and executes the production recording adapter, registry, in-memory durable store, lifecycle, sample admission, multitrack coordinator, terminal truth, custody coordinator, and boot recovery with fake clock, video/audio callbacks, writer inputs/file, native session, and broker dependencies. It covers both arrival orders, one common epoch, per-track monotonicity, bounded backpressure, selected/unselected truth, typed audio unavailability/no-sample/failure, callback loss, startup stop/task cancellation, late start failure after active evidence, retirement timeout/false settlement, dual-track stop/drain/finalize ordering, zero-frame/missing-artifact cleanup, release/remove admission races, release fault phases, restart recovery, topology drift, lossy selectors, and extra-key/type rejection.",
+              "claim": "Compiles and executes the production recording adapter, generic registry/in-memory durable store/recovery, public progress/terminal projector, lifecycle, sample admission, multitrack coordinator, terminal truth, and custody coordinator with fake clock, video/audio callbacks, writer inputs/file, native session, and broker dependencies. It injects a durable save fault after operation admission but before stream/artifact/claim handoff and proves both video-only and selected-audio prepared, cleanup, recovered terminal, list, and inspect projections retain the exact initial summary and validate against aos.operation.v1. It also covers both arrival orders, one common epoch, per-track monotonicity, bounded backpressure, selected/unselected truth, typed audio unavailability/no-sample/failure, callback loss, startup stop/task cancellation, late start failure after active evidence, retirement timeout/false settlement, dual-track stop/drain/finalize ordering, zero-frame/missing-artifact cleanup, release/remove admission races, release fault phases, restart recovery, topology drift, lossy selectors, and extra-key/type rejection.",
               "execution_class": "fake",
               "requires_owner_authority": false,
               "tcc_services": [],
@@ -5134,7 +5134,7 @@
             "tests/screen-recording-contract.test.mjs",
             "tests/screen-recording-fake.test.mjs"
           ],
-          "summary": "AOS owns one bounded AVAssetWriter QuickTime producer with mandatory H.264 video and explicitly optional AAC-LC system audio. One bounded either-arrival-order barrier selects the earliest media epoch within the remaining single startup budget; output-registration availability is distinct from positive-byte first-sample truth with positive count and bytes, and each selected track owns independent monotonicity, backpressure, failure, drain, and finalization truth. Shared-deadline settlement classifies every missing selected track with mandatory-video terminal precedence, and total artifact bytes may advance from ready audio independently of written-video frame progress. Writer-global failures mark every selected track. Microphone and general-purpose multitrack muxing remain absent."
+          "summary": "AOS owns one bounded AVAssetWriter QuickTime producer with mandatory H.264 video and explicitly optional AAC-LC system audio. The generic operation transaction atomically persists identity, requested bounds, zero progress, and the exact request-selected initial track summary before stream, artifact, claim, broker, writer, file, or native authority; cleanup and boot recovery preserve it without a later backfill. One bounded either-arrival-order barrier selects the earliest media epoch within the remaining single startup budget; output-registration availability is distinct from positive-byte first-sample truth with positive count and bytes, and each selected track owns independent monotonicity, backpressure, failure, drain, and finalization truth. Shared-deadline settlement classifies every missing selected track with mandatory-video terminal precedence, and total artifact bytes may advance from ready audio independently of written-video frame progress. Writer-global failures mark every selected track. Microphone and general-purpose multitrack muxing remain absent."
         },
         "exposure": {
           "cli": {
@@ -5185,7 +5185,7 @@
           ],
           "depth": "Not hierarchical.",
           "breadth": "One fixed recording with mandatory video and explicitly optional system audio; no microphone or arbitrary track set.",
-          "completeness": "Bounded pre-start buffering and per-track backpressure, either arrival order, one common epoch, output-registration availability, positive-count/byte first-sample and successful-track truth, independent admitted-track and written-video/global-byte progress, complete shared-deadline missing-track settlement with mandatory-video precedence, per-track monotonic append, writer-global failure on every selected track, exactly-once selected-input drain and writer finalization, exact selected-track media/file identity, and cleanup are current.",
+          "completeness": "Atomic initial identity/bounds/zero-progress/selected-track-summary admission before any later authority, preparation-fault and boot-recovery summary preservation, bounded pre-start buffering and per-track backpressure, either arrival order, one common epoch, output-registration availability, positive-count/byte first-sample and successful-track truth, independent admitted-track and written-video/global-byte progress, complete shared-deadline missing-track settlement with mandatory-video precedence, per-track monotonic append, writer-global failure on every selected track, exactly-once selected-input drain and writer finalization, exact selected-track media/file identity, and cleanup are current.",
           "frontier": "Microphone inputs, arbitrary track layouts/mixing, and live/native acceptance remain absent.",
           "state_identity": "Operation/stream/artifact generations, selected/finalized tracks, common media epoch, per-track truth, and exact device, inode, byte count, content digest, and media type."
         },
@@ -16888,7 +16888,7 @@
               "path": "src/daemon/screen-recording-operation-adapter.swift",
               "kind": "current"
             },
-            "responsibility": "Own one fixed ScreenCaptureKit stream with mandatory screen video and explicitly optional system audio under the operation plane, mark each selected track available only after successful output registration, spend one absolute deadline across native start and the remaining common-media barrier, classify every missing selected track with mandatory-video terminal precedence, and persist typed terminal truth; no microphone track is current."
+            "responsibility": "Own atomic initial identity/requested-bounds/zero-progress/selected-track-summary operation admission before stream/artifact/claim/broker/native/file authority, then one fixed ScreenCaptureKit stream with mandatory screen video and explicitly optional system audio under the operation plane; mark each selected track available only after successful output registration, spend one absolute deadline across native start and the remaining common-media barrier, classify every missing selected track with mandatory-video terminal precedence, and persist typed terminal truth. Cleanup and boot recovery preserve the admitted initial summary without a later backfill; no microphone track is current."
           },
           {
             "owner_id": "recording-encoder",
@@ -17062,7 +17062,7 @@
             },
             "execution_class": "static",
             "requires_owner_authority": false,
-            "claim": "Statically bind the warm-path capturesAudio=false baseline and recording-selected screen/audio outputs on one SCStream, one H.264 plus AAC-LC QuickTime writer, generation-bound owner handoff, dual-track drain, terminal truth, track-bound release ordering, bounds, cleanup, and command/help ownership."
+            "claim": "Statically bind atomic identity/requested-bounds/zero-progress/initial selected-track-summary admission before later preparation, the warm-path capturesAudio=false baseline and recording-selected screen/audio outputs on one SCStream, one H.264 plus AAC-LC QuickTime writer, generation-bound owner handoff, dual-track drain, terminal truth, track-bound release ordering, bounds, cleanup, and command/help ownership."
           }
         ],
         "fake": [
@@ -17073,7 +17073,7 @@
             },
             "execution_class": "fake",
             "requires_owner_authority": false,
-            "claim": "Execute the production adapter, registry/store/recovery, lifecycle, sample admission, multitrack coordinator, terminal truth, and custody owners with fake clock, video/audio callbacks, writer inputs/file, broker, and custody dependencies. Cover video-only and selected audio, both arrival orders, one common epoch, one absolute delayed-native-start/common-media budget, both-silent and single-missing-track settlement with mandatory-video precedence, per-track monotonicity, concurrency/backpressure, audio byte progress while written-video frames remain zero, later mandatory-video completion/failure, selected/unselected registration availability and positive-count/byte first-sample truth, zero-byte audio, typed unavailable/no-sample failures, writer-global start failure in both orders and post-start failure on every selected track, dual-track stop/drain/finalize, callback loss, cancellation/owner loss/timeout, offline recovery, zero-frame/missing-artifact failure, typed retain unavailability, custody fault phases, cleanup residuals, fixed geometry, bounds, progress persistence, custody binding, and extra-key/type rejection."
+            "claim": "Execute the production adapter, generic registry/store/recovery, public progress/terminal projector, lifecycle, sample admission, multitrack coordinator, terminal truth, and custody owners with an injected post-admission durable save fault, fake clock, video/audio callbacks, writer inputs/file, broker, and custody dependencies. Prove video-only and selected-audio prepared, cleanup, recovered terminal, list, and inspect projections retain the exact initial summary and validate against aos.operation.v1. Also cover both arrival orders, one common epoch, one absolute delayed-native-start/common-media budget, both-silent and single-missing-track settlement with mandatory-video precedence, per-track monotonicity, concurrency/backpressure, audio byte progress while written-video frames remain zero, later mandatory-video completion/failure, selected/unselected registration availability and positive-count/byte first-sample truth, zero-byte audio, typed unavailable/no-sample failures, writer-global start failure in both orders and post-start failure on every selected track, dual-track stop/drain/finalize, callback loss, cancellation/owner loss/timeout, offline recovery, zero-frame/missing-artifact failure, typed retain unavailability, custody fault phases, cleanup residuals, fixed geometry, bounds, progress persistence, custody binding, and extra-key/type rejection."
           }
         ],
         "native": [

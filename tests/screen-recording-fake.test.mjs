@@ -1038,6 +1038,35 @@ final class FakeNativeSession: @unchecked Sendable {
     }
 }
 
+final class AdmissionFaultStore: AOSOperationStateStore, @unchecked Sendable {
+    private let lock = NSLock()
+    private let failingSaveCall: Int
+    private var saveCallCount = 0
+    private var value: AOSOperationDurableState?
+    private(set) var savedStates: [AOSOperationDurableState] = []
+
+    init(failingSaveCall: Int) {
+        self.failingSaveCall = failingSaveCall
+    }
+
+    func load() throws -> AOSOperationDurableState? {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+
+    func save(_ state: AOSOperationDurableState) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        saveCallCount += 1
+        if saveCallCount == failingSaveCall {
+            throw AOSOperationCoreError.storeUnavailable
+        }
+        value = state
+        savedStates.append(state)
+    }
+}
+
 final class RecordingEnvironment {
     let adapter: AOSScreenRecordingOperationAdapter
     let broker = FakeBroker()
@@ -1049,10 +1078,10 @@ final class RecordingEnvironment {
         executableIdentityDigest: String(repeating: "a", count: 64)
     )
     let registry: AOSOperationRegistry
-    let store: AOSInMemoryOperationStateStore
+    let store: AOSOperationStateStore
 
     init(
-        store existingStore: AOSInMemoryOperationStateStore? = nil,
+        store existingStore: AOSOperationStateStore? = nil,
         files existingFiles: FakeFiles? = nil,
         sessionFailure: AOSOperationCoreError? = nil,
         startupTimeout: TimeInterval = aosDesktopPixelStreamRetirementTimeout
@@ -1346,6 +1375,139 @@ struct TerminalLifecycleCustodyHarness {
         environment.registry.snapshot().operations.first {
             $0.identity == admission.operation
         }!
+    }
+
+    static func projectionRow(
+        phase: String,
+        systemAudioSelected: Bool,
+        operation: AOSOperationRecord
+    ) -> [String: Any] {
+        let terminal: Any = operation.state == .terminal
+            ? AOSOperationPublicProgressProjection.terminal(
+                operation,
+                completedAt: "2026-08-18T12:00:00.000Z"
+            ) : NSNull()
+        return [
+            "phase": phase,
+            "system_audio_selected": systemAudioSelected,
+            "operation_id": operation.identity.id,
+            "operation_generation": operation.identity.generation,
+            "daemon_generation": operation.daemonGeneration,
+            "state": operation.state.rawValue,
+            "progress": AOSOperationPublicProgressProjection.progress(operation),
+            "terminal": terminal,
+            "requested_bounds": [
+                "max_duration_ms": operation.requestedBounds?.durationMilliseconds ?? 0,
+                "frame_rate": operation.requestedBounds?.frameRate ?? 0,
+                "max_pixel_count": operation.requestedBounds?.pixelCount ?? 0,
+                "max_queue_items": operation.requestedBounds?.queueFrames ?? 0,
+                "max_bytes": operation.requestedBounds?.maximumOutputBytes ?? 0,
+            ],
+        ]
+    }
+
+    static func productionAtomicInitialSummaryAdmission() throws {
+        var projections: [[String: Any]] = []
+        for systemAudioSelected in [false, true] {
+            let store = AdmissionFaultStore(failingSaveCall: 4)
+            let environment = try RecordingEnvironment(store: store)
+            do {
+                _ = try environment.adapter.start(
+                    request: environment.request(systemAudio: systemAudioSelected),
+                    connectionID: UUID()
+                )
+                fatalError("post-admission durable fault did not fail start")
+            } catch AOSOperationCoreError.storeUnavailable {
+            }
+
+            guard let preparedState = store.savedStates.first(where: {
+                $0.operations.count == 1
+                    && $0.operations[0].state == .prepared
+                    && $0.streams.isEmpty
+                    && $0.artifacts.isEmpty
+                    && $0.resourceTransactions.isEmpty
+                    && $0.resourceClaims.isEmpty
+            }) else {
+                fatalError("atomic prepared state was not durably observable")
+            }
+            let expectedSummary = AOSScreenRecordingTrackSummary.initial(
+                systemAudioSelected: systemAudioSelected
+            )
+            let prepared = preparedState.operations[0]
+            require(prepared.progress?.frameCount == 0
+                        && prepared.progress?.byteCount == 0
+                        && prepared.progress?.elapsedMilliseconds == 0
+                        && prepared.progress?.droppedFrameCount == 0,
+                    "atomic prepared state did not persist zero progress")
+            require(prepared.progress?.trackSummary == expectedSummary,
+                    "atomic prepared state lost exact selected-track truth")
+            projections.append(projectionRow(
+                phase: "prepared",
+                systemAudioSelected: systemAudioSelected,
+                operation: prepared
+            ))
+
+            let cleanupState = environment.registry.snapshot()
+            let cleanup = cleanupState.operations[0]
+            require(cleanup.state == .cleanupRequired,
+                    "post-admission durable fault did not enter cleanup")
+            require(cleanup.progress?.trackSummary == expectedSummary,
+                    "cleanup erased exact selected-track truth")
+            require(cleanupState.streams.isEmpty
+                        && cleanupState.artifacts.isEmpty
+                        && cleanupState.resourceTransactions.isEmpty
+                        && cleanupState.resourceClaims.isEmpty,
+                    "post-admission fault created later preparation authority")
+            require(!environment.broker.retainsAuthority,
+                    "post-admission fault acquired broker authority")
+            projections.append(projectionRow(
+                phase: "cleanup",
+                systemAudioSelected: systemAudioSelected,
+                operation: cleanup
+            ))
+
+            let recoveredRegistry = try AOSOperationRegistry(
+                store: store,
+                daemonGeneration: 8,
+                adapterRegistry: cleanupState.adapterRegistry,
+                clock: { environment.clock.now() },
+                idFactory: { "recovery-unused" }
+            )
+            let recovery = try AOSOperationRecovery.beginBootRecovery(
+                registry: recoveredRegistry,
+                newDaemonGeneration: 8,
+                claimTokenDigest: String(repeating: "d", count: 64)
+            )
+            let recovering = recoveredRegistry.snapshot().operations[0]
+            require(recovering.progress?.trackSummary == expectedSummary,
+                    "boot recovery changed selected-track truth")
+            _ = try AOSOperationRecovery.reconcile(
+                registry: recoveredRegistry,
+                recoveryGeneration: recovery.recoveryGeneration,
+                claimTokenDigest: String(repeating: "d", count: 64),
+                mechanicallyAbsentOperationIDs: [recovering.identity],
+                mechanicallyAbsentClaimIDs: [],
+                mechanicallyAbsentBrokerIDs: []
+            )
+            let recovered = recoveredRegistry.snapshot().operations[0]
+            require(recovered.state == .terminal,
+                    "boot recovery did not terminalize absent preparation")
+            require(recovered.progress?.trackSummary == expectedSummary,
+                    "recovered operation changed selected-track truth")
+            let recoveredTerminal = AOSOperationPublicProgressProjection.terminal(
+                recovered,
+                completedAt: "2026-08-18T12:00:00.000Z"
+            )
+            require(recoveredTerminal["track_summary"] is [String: Any],
+                    "terminal projection omitted selected-track truth")
+            projections.append(projectionRow(
+                phase: "recovered",
+                systemAudioSelected: systemAudioSelected,
+                operation: recovered
+            ))
+        }
+        let data = try JSONSerialization.data(withJSONObject: projections, options: [.sortedKeys])
+        print("atomic-initial-summary-projections:\(String(data: data, encoding: .utf8)!)")
     }
 
     static func requireWriterFailureTruth(
@@ -2115,7 +2277,9 @@ struct TerminalLifecycleCustodyHarness {
 
         let persistLinked = try RecordingEnvironment()
         let linkedArtifact = try persistLinked.offeredArtifact()
-        persistLinked.files.afterLink = { persistLinked.store.failNextSave = true }
+        persistLinked.files.afterLink = {
+            (persistLinked.store as! AOSInMemoryOperationStateStore).failNextSave = true
+        }
         do {
             _ = try persistLinked.adapter.releaseArtifact(
                 linkedArtifact, ownerRoot: persistLinked.owner,
@@ -2131,7 +2295,7 @@ struct TerminalLifecycleCustodyHarness {
         let persistReleased = try RecordingEnvironment()
         let releasedArtifact = try persistReleased.offeredArtifact()
         persistReleased.files.afterRemoveSource = {
-            persistReleased.store.failNextSave = true
+            (persistReleased.store as! AOSInMemoryOperationStateStore).failNextSave = true
         }
         _ = try persistReleased.adapter.releaseArtifact(
             releasedArtifact, ownerRoot: persistReleased.owner,
@@ -2413,6 +2577,7 @@ struct TerminalLifecycleCustodyHarness {
     }
 
     static func main() async throws {
+        try productionAtomicInitialSummaryAdmission()
         try productionMultitrackCoordination()
         try await productionAdapterAudioTracks()
         try await productionLateFailureRetainsAuthority()
@@ -2429,7 +2594,7 @@ struct TerminalLifecycleCustodyHarness {
         try await lateStartFailureAfterActiveEvidenceRequiresStop()
         await frameAdmissionClosesAtomically()
         try decoderAndTerminalTruthAreClosed()
-        print("terminal-lifecycle-custody-harness: multitrack=108 adapter-audio=50 production-lifecycle=6 production-terminal=2 production-custody=10 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
+        print("terminal-lifecycle-custody-harness: atomic-admission=6 multitrack=108 adapter-audio=50 production-lifecycle=6 production-terminal=2 production-custody=10 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
     }
 }
 `
@@ -2565,7 +2730,138 @@ test('production lifecycle and custody owners close terminal fault phases with f
     assert.equal(compile.status, 0, compile.stderr || compile.stdout)
     const run = spawnSync(binary, [], { encoding: 'utf8', timeout: 5_000 })
     assert.equal(run.status, 0, `${run.stderr}\n${run.stdout}`)
-    assert.match(run.stdout, /multitrack=108 adapter-audio=50 production-lifecycle=6 production-terminal=2 production-custody=10 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6/u)
+    assert.match(run.stdout, /atomic-admission=6 multitrack=108 adapter-audio=50 production-lifecycle=6 production-terminal=2 production-custody=10 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6/u)
+    const projectionLine = run.stdout.split('\n').find((line) => (
+      line.startsWith('atomic-initial-summary-projections:')
+    ))
+    assert.ok(projectionLine, run.stdout)
+    const projections = JSON.parse(projectionLine.slice(
+      'atomic-initial-summary-projections:'.length,
+    ))
+    assert.equal(projections.length, 6)
+    assert.deepEqual(projections.map((value) => value.phase), [
+      'prepared', 'cleanup', 'recovered', 'prepared', 'cleanup', 'recovered',
+    ])
+    const schemaValidation = spawnSync('python3', ['-c', String.raw`
+import json, os, sys
+from jsonschema import Draft202012Validator, FormatChecker, RefResolver
+
+schema_dir = sys.argv[1]
+schemas = []
+for name in os.listdir(schema_dir):
+    if not name.endswith('.schema.json'):
+        continue
+    with open(os.path.join(schema_dir, name), encoding='utf-8') as handle:
+        value = json.load(handle)
+    if '$id' in value:
+        schemas.append(value)
+store = {value['$id']: value for value in schemas}
+operation_id = next(key for key in store if key.endswith('/aos-operation-v1.schema.json'))
+timestamp = '2026-08-18T12:00:00.000Z'
+digest = 'a' * 64
+
+def validator(definition):
+    target = {
+        '$schema': 'https://json-schema.org/draft/2020-12/schema',
+        '$ref': operation_id + '#/$defs/' + definition,
+    }
+    return Draft202012Validator(
+        target,
+        resolver=RefResolver.from_schema(target, store=store),
+        format_checker=FormatChecker(),
+    )
+
+snapshots = []
+for row in json.load(sys.stdin):
+    terminal = row['terminal']
+    cleanup_result = {
+        'prepared': 'not_started',
+        'cleanup': 'recovery_active',
+        'recovered': 'zero_residuals',
+    }[row['phase']]
+    snapshot = {
+        'schema_version': 'aos.operation.v1',
+        'operation_id': row['operation_id'],
+        'operation_generation': row['operation_generation'],
+        'daemon_generation': row['daemon_generation'],
+        'adapter_registry_revision': 1,
+        'adapter_registration': {
+            'adapter_registration_id': 'screen-recording-adapter',
+            'adapter_registration_revision': 2,
+        },
+        'capability_id': 'screen-recording.video',
+        'status_indicator_class': 'neutral',
+        'state': row['state'],
+        'lineage': {
+            'schema_version': 'aos.operation-lineage.v1',
+            'operation_id': row['operation_id'],
+            'operation_generation': row['operation_generation'],
+            'owner_root': {
+                'capture_phase': 'local_socket_accept',
+                'resolver_outcome': 'conservative_immediate_peer_boundary',
+                'immediate_peer': {
+                    'audit_token': digest, 'effective_uid': 501,
+                    'pid': 100, 'pid_generation': 3,
+                },
+                'selected_boundary': {
+                    'effective_uid': 501, 'pid': 100, 'pid_generation': 3,
+                    'executable_identity_digest': digest,
+                    'executable_file_digest': digest,
+                },
+                'ancestor_edges': [], 'adapter_skip_proofs': [],
+                'captured_at': timestamp,
+            },
+            'parent_operation': None,
+            'mechanically_bound_scopes': [],
+            'asserted_attribution': {'task_id': 'recording-task'},
+        },
+        'requested_bounds': row['requested_bounds'],
+        'progress': row['progress'],
+        'claim_set_transactions': [], 'resource_claims': [],
+        'multiplex_brokers': [], 'streams': [], 'taps': [], 'artifacts': [],
+        'cleanup': {
+            'result': cleanup_result,
+            'residual': {'classification': 'none', 'count': 0, 'digest': digest},
+            'completed_at': timestamp if row['phase'] == 'recovered' else None,
+        },
+        'terminal': terminal,
+        'prepared_at': timestamp,
+        'started_at': None if row['phase'] == 'prepared' else timestamp,
+        'updated_at': timestamp,
+    }
+    errors = list(validator('operation_snapshot').iter_errors(snapshot))
+    assert not errors, (row['phase'], row['system_audio_selected'], [error.message for error in errors])
+    snapshots.append(snapshot)
+
+list_result = {
+    'schema_version': 'aos.operation.list-result.v1',
+    'operation': 'list', 'filters': {}, 'operations': snapshots,
+    'checked_at': timestamp,
+}
+inspect_results = [{
+    'schema_version': 'aos.operation.inspect-result.v1',
+    'operation': 'inspect',
+    'selector': {
+        'operation_id': snapshot['operation_id'],
+        'operation_generation': snapshot['operation_generation'],
+    },
+    'snapshot': snapshot,
+    'checked_at': timestamp,
+} for snapshot in snapshots]
+assert not list(validator('operation_list_result').iter_errors(list_result))
+assert all(not list(validator('operation_inspect_result').iter_errors(value)) for value in inspect_results)
+print('atomic-operation-schema: snapshots=6 list=1 inspect=6')
+`, path.join(root, 'shared/schemas')], {
+      encoding: 'utf8',
+      input: JSON.stringify(projections),
+      timeout: 20_000,
+    })
+    assert.equal(
+      schemaValidation.status,
+      0,
+      `${schemaValidation.stdout}\n${schemaValidation.stderr}`,
+    )
+    assert.match(schemaValidation.stdout, /snapshots=6 list=1 inspect=6/u)
 
     const [lifecycle, state, adapter, unified] = await Promise.all([
       readFile(path.join(root, 'src/daemon/desktop-pixel-stream-lifecycle.swift'), 'utf8'),

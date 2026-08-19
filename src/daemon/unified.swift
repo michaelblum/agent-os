@@ -4775,18 +4775,13 @@ class UnifiedDaemon {
         let completedAt: Any = terminalAllowed
             ? operationTimestamp(operation.updatedAtNanoseconds) : NSNull()
         let terminal: Any = terminalAllowed
-            ? operationTerminalFacts(operation) : NSNull()
+            ? AOSOperationPublicProgressProjection.terminal(
+                operation,
+                completedAt: operationTimestamp(operation.updatedAtNanoseconds)
+            ) : NSNull()
         let startedAt: Any = operation.state == .prepared
             ? NSNull() : operationTimestamp(operation.updatedAtNanoseconds)
-        var progress: [String: Any] = [
-            "items": operation.progress?.frameCount ?? 0,
-            "bytes": operation.progress?.byteCount ?? 0,
-            "duration_ms": operation.progress?.elapsedMilliseconds ?? 0,
-            "last_event_sequence": operation.progress?.frameCount ?? 0,
-        ]
-        if let summary = operation.progress?.trackSummary {
-            progress["track_summary"] = aosScreenRecordingTrackSummaryValue(summary)
-        }
+        let progress = AOSOperationPublicProgressProjection.progress(operation)
         return [
             "schema_version": "aos.operation.v1",
             "operation_id": operation.identity.id,
@@ -5106,35 +5101,6 @@ class UnifiedDaemon {
             "subscriber_set_revision": broker.subscriberSetRevision,
             "subscriber_set_digest": broker.subscriberSetDigest,
             "state": broker.state.rawValue,
-        ]
-    }
-
-    private func operationTerminalFacts(_ operation: AOSOperationRecord) -> [String: Any] {
-        let trigger: String
-        let blame: String
-        switch operation.stopIntent {
-        case .complete: trigger = "adapter_complete"; blame = "adapter"
-        case .cancel: trigger = "caller_cancel"; blame = "caller"
-        case .kill: trigger = "kill_one"; blame = "aos_control_plane"
-        case .ownerKill: trigger = "owner_kill"; blame = "aos_control_plane"
-        case .hostStop: trigger = "host_stop_all"; blame = "host_shutdown"
-        case .deadline: trigger = "deadline"; blame = "adapter"
-        case .peerLost: trigger = "peer_lost"; blame = "caller"
-        case .transportLost: trigger = "transport_lost"; blame = "caller"
-        case .permissionRevoked: trigger = "permission_failure"; blame = "permission"
-        case .adapterFailed: trigger = "adapter_failure"; blame = "adapter"
-        case nil: trigger = "start_rejected"; blame = "unknown"
-        }
-        return [
-            "outcome": (operation.outcome ?? .failed).rawValue,
-            "trigger": trigger,
-            "blame": blame,
-            "duration_ms": (operation.updatedAtNanoseconds - operation.createdAtNanoseconds)
-                / 1_000_000,
-            "completed_at": operationTimestamp(operation.updatedAtNanoseconds),
-            "failure_code": operation.failureCode ?? NSNull(),
-            "track_summary": operation.progress?.trackSummary
-                .map(aosScreenRecordingTrackSummaryValue) ?? NSNull(),
         ]
     }
 
