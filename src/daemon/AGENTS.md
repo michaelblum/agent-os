@@ -201,9 +201,10 @@ to the generic `prepareOperation` transaction, so operation identity, requested
 bounds, and selected-track truth become durable in one save before any stream,
 artifact, claim, broker, native, writer, or file authority. Later preparation
 never backfills that initial truth, and cleanup plus boot recovery preserve it.
-`operation-state.swift` owns the pure public progress/terminal projection for
-this durable truth; `UnifiedDaemon` delegates to it so the production-attached
-fake harness can execute the same projection without starting a daemon.
+`operation-state.swift` owns the exact public snapshot, list, and inspect
+projection, including progress and terminal truth; `UnifiedDaemon` delegates
+those complete responses to it so the production-attached fake harness executes
+the same projection without starting a daemon or synthesizing wire metadata.
 Success also requires artifact presence, while failure requires a typed terminal
 code. Stop, failure, and boot recovery must
 settle stream authority, drain or cancel the writer, release the broker and

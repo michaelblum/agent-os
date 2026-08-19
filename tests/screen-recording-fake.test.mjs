@@ -1380,29 +1380,35 @@ struct TerminalLifecycleCustodyHarness {
     static func projectionRow(
         phase: String,
         systemAudioSelected: Bool,
-        operation: AOSOperationRecord
+        operation: AOSOperationRecord,
+        state: AOSOperationDurableState
     ) -> [String: Any] {
-        let terminal: Any = operation.state == .terminal
-            ? AOSOperationPublicProgressProjection.terminal(
-                operation,
-                completedAt: "2026-08-18T12:00:00.000Z"
-            ) : NSNull()
+        let checkedAt = "2026-08-18T12:00:00.000Z"
+        let selector: [String: Any] = [
+            "operation_id": operation.identity.id,
+            "operation_generation": operation.identity.generation,
+        ]
+        let snapshot = AOSOperationPublicProjection.snapshot(operation, state: state)
+        let list = AOSOperationPublicProjection.list(
+            action: operation.state == .terminal ? "recent" : "list",
+            filters: [:],
+            operations: [operation],
+            state: state,
+            checkedAt: checkedAt
+        )
+        let inspect = AOSOperationPublicProjection.inspect(
+            action: "inspect",
+            selector: selector,
+            operation: operation,
+            state: state,
+            checkedAt: checkedAt
+        )
         return [
             "phase": phase,
             "system_audio_selected": systemAudioSelected,
-            "operation_id": operation.identity.id,
-            "operation_generation": operation.identity.generation,
-            "daemon_generation": operation.daemonGeneration,
-            "state": operation.state.rawValue,
-            "progress": AOSOperationPublicProgressProjection.progress(operation),
-            "terminal": terminal,
-            "requested_bounds": [
-                "max_duration_ms": operation.requestedBounds?.durationMilliseconds ?? 0,
-                "frame_rate": operation.requestedBounds?.frameRate ?? 0,
-                "max_pixel_count": operation.requestedBounds?.pixelCount ?? 0,
-                "max_queue_items": operation.requestedBounds?.queueFrames ?? 0,
-                "max_bytes": operation.requestedBounds?.maximumOutputBytes ?? 0,
-            ],
+            "snapshot": snapshot,
+            "list": list,
+            "inspect": inspect,
         ]
     }
 
@@ -1444,7 +1450,8 @@ struct TerminalLifecycleCustodyHarness {
             projections.append(projectionRow(
                 phase: "prepared",
                 systemAudioSelected: systemAudioSelected,
-                operation: prepared
+                operation: prepared,
+                state: preparedState
             ))
 
             let cleanupState = environment.registry.snapshot()
@@ -1463,7 +1470,8 @@ struct TerminalLifecycleCustodyHarness {
             projections.append(projectionRow(
                 phase: "cleanup",
                 systemAudioSelected: systemAudioSelected,
-                operation: cleanup
+                operation: cleanup,
+                state: cleanupState
             ))
 
             let recoveredRegistry = try AOSOperationRegistry(
@@ -1489,21 +1497,24 @@ struct TerminalLifecycleCustodyHarness {
                 mechanicallyAbsentClaimIDs: [],
                 mechanicallyAbsentBrokerIDs: []
             )
-            let recovered = recoveredRegistry.snapshot().operations[0]
+            let recoveredState = recoveredRegistry.snapshot()
+            let recovered = recoveredState.operations[0]
             require(recovered.state == .terminal,
                     "boot recovery did not terminalize absent preparation")
             require(recovered.progress?.trackSummary == expectedSummary,
                     "recovered operation changed selected-track truth")
-            let recoveredTerminal = AOSOperationPublicProgressProjection.terminal(
+            let recoveredSnapshot = AOSOperationPublicProjection.snapshot(
                 recovered,
-                completedAt: "2026-08-18T12:00:00.000Z"
+                state: recoveredState
             )
-            require(recoveredTerminal["track_summary"] is [String: Any],
+            let recoveredTerminal = recoveredSnapshot["terminal"] as? [String: Any]
+            require(recoveredTerminal?["track_summary"] is [String: Any],
                     "terminal projection omitted selected-track truth")
             projections.append(projectionRow(
                 phase: "recovered",
                 systemAudioSelected: systemAudioSelected,
-                operation: recovered
+                operation: recovered,
+                state: recoveredState
             ))
         }
         let data = try JSONSerialization.data(withJSONObject: projections, options: [.sortedKeys])
@@ -2757,8 +2768,6 @@ for name in os.listdir(schema_dir):
         schemas.append(value)
 store = {value['$id']: value for value in schemas}
 operation_id = next(key for key in store if key.endswith('/aos-operation-v1.schema.json'))
-timestamp = '2026-08-18T12:00:00.000Z'
-digest = 'a' * 64
 
 def validator(definition):
     target = {
@@ -2771,86 +2780,26 @@ def validator(definition):
         format_checker=FormatChecker(),
     )
 
-snapshots = []
-for row in json.load(sys.stdin):
-    terminal = row['terminal']
-    cleanup_result = {
-        'prepared': 'not_started',
-        'cleanup': 'recovery_active',
-        'recovered': 'zero_residuals',
-    }[row['phase']]
-    snapshot = {
-        'schema_version': 'aos.operation.v1',
-        'operation_id': row['operation_id'],
-        'operation_generation': row['operation_generation'],
-        'daemon_generation': row['daemon_generation'],
-        'adapter_registry_revision': 1,
-        'adapter_registration': {
-            'adapter_registration_id': 'screen-recording-adapter',
-            'adapter_registration_revision': 2,
-        },
-        'capability_id': 'screen-recording.video',
-        'status_indicator_class': 'neutral',
-        'state': row['state'],
-        'lineage': {
-            'schema_version': 'aos.operation-lineage.v1',
-            'operation_id': row['operation_id'],
-            'operation_generation': row['operation_generation'],
-            'owner_root': {
-                'capture_phase': 'local_socket_accept',
-                'resolver_outcome': 'conservative_immediate_peer_boundary',
-                'immediate_peer': {
-                    'audit_token': digest, 'effective_uid': 501,
-                    'pid': 100, 'pid_generation': 3,
-                },
-                'selected_boundary': {
-                    'effective_uid': 501, 'pid': 100, 'pid_generation': 3,
-                    'executable_identity_digest': digest,
-                    'executable_file_digest': digest,
-                },
-                'ancestor_edges': [], 'adapter_skip_proofs': [],
-                'captured_at': timestamp,
-            },
-            'parent_operation': None,
-            'mechanically_bound_scopes': [],
-            'asserted_attribution': {'task_id': 'recording-task'},
-        },
-        'requested_bounds': row['requested_bounds'],
-        'progress': row['progress'],
-        'claim_set_transactions': [], 'resource_claims': [],
-        'multiplex_brokers': [], 'streams': [], 'taps': [], 'artifacts': [],
-        'cleanup': {
-            'result': cleanup_result,
-            'residual': {'classification': 'none', 'count': 0, 'digest': digest},
-            'completed_at': timestamp if row['phase'] == 'recovered' else None,
-        },
-        'terminal': terminal,
-        'prepared_at': timestamp,
-        'started_at': None if row['phase'] == 'prepared' else timestamp,
-        'updated_at': timestamp,
-    }
-    errors = list(validator('operation_snapshot').iter_errors(snapshot))
-    assert not errors, (row['phase'], row['system_audio_selected'], [error.message for error in errors])
-    snapshots.append(snapshot)
-
-list_result = {
-    'schema_version': 'aos.operation.list-result.v1',
-    'operation': 'list', 'filters': {}, 'operations': snapshots,
-    'checked_at': timestamp,
-}
-inspect_results = [{
-    'schema_version': 'aos.operation.inspect-result.v1',
-    'operation': 'inspect',
-    'selector': {
-        'operation_id': snapshot['operation_id'],
-        'operation_generation': snapshot['operation_generation'],
-    },
-    'snapshot': snapshot,
-    'checked_at': timestamp,
-} for snapshot in snapshots]
-assert not list(validator('operation_list_result').iter_errors(list_result))
-assert all(not list(validator('operation_inspect_result').iter_errors(value)) for value in inspect_results)
-print('atomic-operation-schema: snapshots=6 list=1 inspect=6')
+rows = json.load(sys.stdin)
+for row in rows:
+    snapshot = row['snapshot']
+    list_result = row['list']
+    inspect_result = row['inspect']
+    snapshot_errors = list(validator('operation_snapshot').iter_errors(snapshot))
+    list_errors = list(validator('operation_list_result').iter_errors(list_result))
+    inspect_errors = list(validator('operation_inspect_result').iter_errors(inspect_result))
+    assert not snapshot_errors, (row['phase'], row['system_audio_selected'], [
+        error.message for error in snapshot_errors
+    ])
+    assert not list_errors, (row['phase'], row['system_audio_selected'], [
+        error.message for error in list_errors
+    ])
+    assert not inspect_errors, (row['phase'], row['system_audio_selected'], [
+        error.message for error in inspect_errors
+    ])
+    assert list_result['operations'] == [snapshot]
+    assert inspect_result['snapshot'] == snapshot
+print('atomic-operation-schema: snapshots=6 list=6 inspect=6')
 `, path.join(root, 'shared/schemas')], {
       encoding: 'utf8',
       input: JSON.stringify(projections),
@@ -2861,7 +2810,7 @@ print('atomic-operation-schema: snapshots=6 list=1 inspect=6')
       0,
       `${schemaValidation.stdout}\n${schemaValidation.stderr}`,
     )
-    assert.match(schemaValidation.stdout, /snapshots=6 list=1 inspect=6/u)
+    assert.match(schemaValidation.stdout, /snapshots=6 list=6 inspect=6/u)
 
     const [lifecycle, state, adapter, unified] = await Promise.all([
       readFile(path.join(root, 'src/daemon/desktop-pixel-stream-lifecycle.swift'), 'utf8'),

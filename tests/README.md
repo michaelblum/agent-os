@@ -114,9 +114,10 @@ inputs/file, native session, and broker dependencies. It covers both arrival
 orders, one common epoch, per-track monotonicity and truth, bounded backpressure,
 and an injected durable save fault after atomic operation admission but before
 stream/artifact/claim handoff. For both video-only and selected-audio requests,
-the harness executes the production progress/terminal projector and validates
-the prepared, cleanup-required, recovered terminal, list, and inspect shapes
-against `aos.operation.v1` without synthesizing or backfilling track truth. It
+the harness executes the exact production snapshot/list/inspect projector used
+by `UnifiedDaemon` and validates the prepared, cleanup-required, and recovered
+terminal responses against `aos.operation.v1` without synthesizing wire
+metadata or backfilling track truth. It
 also covers registration availability distinct from positive-byte first-sample truth,
 positive per-track sample counts and bytes, zero-byte rejection, writer-global
 failure on every selected track, typed selected-audio failures, both-silent
