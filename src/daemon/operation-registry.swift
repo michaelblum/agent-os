@@ -844,6 +844,32 @@ final class AOSOperationRegistry {
                 )
                 state.operations[operationIndex].screenRecordingGeometry = geometry
             }
+            if var progress = state.operations[operationIndex].progress,
+               let summary = progress.trackSummary {
+                func settled(_ value: AOSScreenRecordingTrackTruth)
+                    -> AOSScreenRecordingTrackTruth {
+                    AOSScreenRecordingTrackTruth(
+                        selected: value.selected,
+                        admitted: value.admitted,
+                        available: value.available,
+                        firstSamplePresent: value.firstSamplePresent,
+                        sampleCount: value.sampleCount,
+                        sampleByteCount: value.sampleByteCount,
+                        failureCode: value.failureCode,
+                        drained: value.selected ? true : value.drained,
+                        finalized: value.selected ? true : value.finalized
+                    )
+                }
+                progress.trackSummary = AOSScreenRecordingTrackSummary(
+                    selectedTracks: summary.selectedTracks,
+                    finalizedTracks: summary.selectedTracks,
+                    commonMediaEpochNanoseconds: summary.commonMediaEpochNanoseconds,
+                    video: settled(summary.video),
+                    systemAudio: settled(summary.systemAudio),
+                    microphone: settled(summary.microphone)
+                )
+                state.operations[operationIndex].progress = progress
+            }
             state.operations[operationIndex].state = .terminal
             state.operations[operationIndex].stopIntent = stopIntent
             state.operations[operationIndex].outcome = outcome

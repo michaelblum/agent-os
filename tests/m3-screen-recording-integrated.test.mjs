@@ -24,6 +24,7 @@ const productionSources = [
   'src/daemon/microphone-authorization.swift',
   'src/daemon/microphone-native-session.swift',
   'src/daemon/microphone-operation-adapter.swift',
+  'src/perceive/display-topology.swift',
   'src/daemon/screen-recording-geometry.swift',
   'src/daemon/screen-recording-follow-geometry.swift',
   'src/daemon/screen-recording-encoder.swift',
@@ -63,95 +64,6 @@ final class AOSDesktopPixelBroker {
     func releaseExclusiveProducer(_ lease: AOSDesktopPixelExclusiveProducerLease) -> Bool {
         false
     }
-}
-
-struct AOSDisplayTopologyBounds: Codable, Equatable {
-    let x: Double
-    let y: Double
-    let width: Double
-    let height: Double
-}
-
-struct AOSDisplayTopologyPoint: Codable, Equatable {
-    let x: Double
-    let y: Double
-}
-
-enum AOSDisplayTopologyMemberIdentity: Codable, Equatable {
-    case displayIDFallback(UInt32)
-}
-
-struct AOSDisplayTopologyDisplay: Codable, Equatable {
-    let runtimeDisplayID: UInt32
-    let ordinal: Int
-    let isMain: Bool
-    let memberIdentity: AOSDisplayTopologyMemberIdentity
-    let nativeBounds: AOSDisplayTopologyBounds
-    let nativeVisibleBounds: AOSDisplayTopologyBounds
-    let desktopWorldBounds: AOSDisplayTopologyBounds
-    let visibleDesktopWorldBounds: AOSDisplayTopologyBounds
-    let scaleFactor: Double
-    let rotation: Double
-}
-
-struct AOSDisplayTopologySnapshot: Codable, Equatable {
-    let identity: String
-    let usesDisplayIDFallback: Bool
-    let screensHaveSeparateSpaces: Bool
-    let desktopWorldOriginNative: AOSDisplayTopologyPoint
-    let nativeBounds: AOSDisplayTopologyBounds
-    let nativeVisibleBounds: AOSDisplayTopologyBounds
-    let desktopWorldBounds: AOSDisplayTopologyBounds
-    let visibleDesktopWorldBounds: AOSDisplayTopologyBounds
-    let displays: [AOSDisplayTopologyDisplay]
-}
-
-private func boundsValue(_ value: AOSDisplayTopologyBounds) -> [String: Any] {
-    ["x": value.x, "y": value.y, "width": value.width, "height": value.height]
-}
-
-func aosDisplayTopologyWireValue(_ snapshot: AOSDisplayTopologySnapshot) throws
-    -> [String: Any] {
-    [
-        "schema": "aos.display-topology.v1",
-        "identity": snapshot.identity,
-        "uses_display_id_fallback": snapshot.usesDisplayIDFallback,
-        "screens_have_separate_spaces": snapshot.screensHaveSeparateSpaces,
-        "desktop_world_origin_native": [
-            "x": snapshot.desktopWorldOriginNative.x,
-            "y": snapshot.desktopWorldOriginNative.y,
-        ],
-        "native_bounds": boundsValue(snapshot.nativeBounds),
-        "native_visible_bounds": boundsValue(snapshot.nativeVisibleBounds),
-        "desktop_world_bounds": boundsValue(snapshot.desktopWorldBounds),
-        "visible_desktop_world_bounds": boundsValue(snapshot.visibleDesktopWorldBounds),
-        "displays": snapshot.displays.map { display in
-            let member: [String: Any]
-            switch display.memberIdentity {
-            case .displayIDFallback(let value):
-                member = ["kind": "display_id_fallback", "display_id_fallback": value]
-            }
-            return [
-                "ordinal": display.ordinal,
-                "is_main": display.isMain,
-                "member_identity": member,
-                "native_bounds": boundsValue(display.nativeBounds),
-                "native_visible_bounds": boundsValue(display.nativeVisibleBounds),
-                "desktop_world_bounds": boundsValue(display.desktopWorldBounds),
-                "visible_desktop_world_bounds": boundsValue(display.visibleDesktopWorldBounds),
-                "scale_factor": display.scaleFactor,
-                "rotation": display.rotation,
-            ]
-        },
-    ]
-}
-
-func validateAOSDisplayTopologyWireValue(_ value: Any) throws
-    -> AOSDisplayTopologySnapshot {
-    guard let topology = value as? AOSDisplayTopologySnapshot else {
-        throw AOSOperationCoreError.invalidRecord("topology")
-    }
-    return topology
 }
 
 struct CaptureApplicationFact { let processID: Int32 }
@@ -252,13 +164,21 @@ final class FaultStore: AOSOperationStateStore, @unchecked Sendable {
     }
 
     private let lock = NSLock()
-    private var value: AOSOperationDurableState?
+    private let production: AOSFileOperationStateStore
     private var remaining: [Family: Int] = [:]
     private(set) var observed = Set<Family>()
     private(set) var saves = 0
 
+    init() throws {
+        let stateRoot = ProcessInfo.processInfo.environment["AOS_STATE_ROOT"]!
+        production = try AOSFileOperationStateStore(rootURL:
+            URL(fileURLWithPath: stateRoot, isDirectory: true)
+                .appendingPathComponent("m3e-\(UUID().uuidString.lowercased())", isDirectory: true)
+        )
+    }
+
     func load() throws -> AOSOperationDurableState? {
-        lock.lock(); defer { lock.unlock() }; return value
+        lock.lock(); defer { lock.unlock() }; return try production.load()
     }
 
     func arm(_ family: Family, count: Int = 1) {
@@ -273,15 +193,17 @@ final class FaultStore: AOSOperationStateStore, @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         saves += 1
-        if let family = classify(previous: value, candidate: state) {
+        if let family = classify(previous: try production.load(), candidate: state) {
             observed.insert(family)
             if let count = remaining[family], count > 0 {
                 remaining[family] = count - 1
                 throw AOSOperationCoreError.storeUnavailable
             }
         }
-        value = state
+        try production.save(state)
     }
+
+    func productionReadback() throws -> AOSOperationDurableState? { try production.load() }
 
     private func classify(
         previous: AOSOperationDurableState?,
@@ -822,13 +744,14 @@ final class Environment: @unchecked Sendable {
     let clock = HarnessClock()
 
     init(
-        store: FaultStore = FaultStore(),
+        store: FaultStore? = nil,
         prepared: @escaping (AOSOperationIdentity) -> Void = { _ in },
         preinstall: @escaping () -> Void = {},
         runtimeStart: @escaping () -> Void = {},
         stopAdmission: @escaping () -> Void = {}
     ) throws {
-        self.store = store
+        let durableStore = try store ?? FaultStore()
+        self.store = durableStore
         driver = SessionDriver(files: files)
         let microphoneRegistration = try AOSMicrophoneOperationAdapter.makeRegistration()
         let screenRegistration = try AOSScreenRecordingOperationAdapter.makeRegistration()
@@ -838,7 +761,7 @@ final class Environment: @unchecked Sendable {
         )
         var nextID = 0
         registry = try AOSOperationRegistry(
-            store: store,
+            store: durableStore,
             daemonGeneration: 7,
             adapterRegistry: registrations,
             clock: { [clock] in clock.now() },
@@ -958,7 +881,7 @@ final class Environment: @unchecked Sendable {
             "schema_version": "aos.screen-recording.request.v1",
             "request_id": "m3e-request",
             "canonical_parameter_digest": String(repeating: "b", count: 64),
-            "topology": Self.topology(),
+            "topology": try aosDisplayTopologyWireValue(Self.topology()),
             "target": target,
             "geometry": geometry,
             "duration_ms": duration,
@@ -994,7 +917,7 @@ final class Environment: @unchecked Sendable {
             ],
             "expected_geometry_generation": expected
                 ?? Int(operationGeometryGeneration(admission)),
-            "topology": topology ?? Self.topology(),
+            "topology": try aosDisplayTopologyWireValue(topology ?? Self.topology()),
             "target": [
                 "kind": "region", "display_ordinal": 1, "global_bounds": bounds,
             ],
@@ -1011,27 +934,22 @@ final class Environment: @unchecked Sendable {
 
     static func topology(scale: Double = 2) -> AOSDisplayTopologySnapshot {
         let bounds = AOSDisplayTopologyBounds(x: 0, y: 0, width: 100, height: 80)
-        return AOSDisplayTopologySnapshot(
-            identity: "m3e-topology",
-            usesDisplayIDFallback: true,
-            screensHaveSeparateSpaces: false,
-            desktopWorldOriginNative: AOSDisplayTopologyPoint(x: 0, y: 0),
-            nativeBounds: bounds,
-            nativeVisibleBounds: bounds,
-            desktopWorldBounds: bounds,
-            visibleDesktopWorldBounds: bounds,
-            displays: [AOSDisplayTopologyDisplay(
+        let built = try! buildAOSDisplayTopologySnapshot(
+            observation: [AOSDisplayTopologyObservationMember(
                 runtimeDisplayID: 1,
-                ordinal: 1,
+                displayUUID: nil,
+                label: "injected",
                 isMain: true,
-                memberIdentity: .displayIDFallback(1),
+                isMirrored: false,
                 nativeBounds: bounds,
                 nativeVisibleBounds: bounds,
-                desktopWorldBounds: bounds,
-                visibleDesktopWorldBounds: bounds,
                 scaleFactor: scale,
                 rotation: 0
-            )]
+            )],
+            screensHaveSeparateSpaces: false
+        )
+        return try! validateAOSDisplayTopologyWireValue(
+            try! aosDisplayTopologyWireValue(built)
         )
     }
 
@@ -1067,6 +985,10 @@ func responseEnvelope(_ data: [String: Any]) -> [String: Any] {
 func codableValue<T: Encodable>(_ value: T) -> [String: Any] {
     let data = try! JSONEncoder().encode(value)
     return try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+}
+
+func canonicalJSON(_ value: Any) -> Data {
+    try! JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
 }
 
 func projection(
@@ -1119,6 +1041,38 @@ struct IntegratedHarness {
         _ environment: Environment
     ) -> AOSOperationRecord {
         try! environment.registry.inspect(admission.operation)
+    }
+
+    static func requireZeroProgress(_ operation: AOSOperationRecord) {
+        let progress = operation.progress!
+        let summary = progress.trackSummary!
+        require(progress.frameCount == 0 && progress.byteCount == 0
+            && progress.elapsedMilliseconds == 0 && progress.droppedFrameCount == 0
+            && summary.selectedTracks == ["video"] && summary.finalizedTracks.isEmpty
+            && summary.commonMediaEpochNanoseconds == nil
+            && summary.video.selected && summary.video.admitted
+            && !summary.video.available && !summary.video.firstSamplePresent
+            && summary.video.sampleCount == 0 && summary.video.sampleByteCount == 0,
+            "initial selected-track truth was not exact zero progress")
+    }
+
+    static func requirePreAuthorityTerminal(
+        _ admission: AOSScreenRecordingAdmission,
+        _ environment: Environment
+    ) {
+        let state = environment.registry.snapshot()
+        let terminal = operation(admission, environment)
+        let summary = terminal.progress!.trackSummary!
+        require(terminal.state == .terminal
+            && terminal.screenRecordingGeometry?.deadlineState == .stopped
+            && !AOSOperationRegistry.hasNonterminalChildren(
+                in: state, operation: admission.operation
+            ) && !environment.broker.retainsAuthority
+            && !environment.driver.startWasRequested(),
+            "pre-authority control did not settle geometry, children, and authority")
+        require(summary.finalizedTracks == summary.selectedTracks
+            && summary.video.drained && summary.video.finalized,
+            "pre-authority control left selected tracks unsettled")
     }
 
     static func runMatrix() throws {
@@ -1184,6 +1138,15 @@ struct IntegratedHarness {
                 }
                 let terminal = operation(admission, environment)
                 let state = environment.registry.snapshot()
+                let stored = try environment.store.productionReadback()!
+                let storedTerminal = stored.operations.first {
+                    $0.identity == admission.operation
+                }!
+                require(stored.schema == state.schema
+                    && stored.daemonGeneration == state.daemonGeneration
+                    && canonicalJSON(projection(storedTerminal, state: stored).1)
+                        == canonicalJSON(projection(terminal, state: state).1),
+                        "production operation-store readback drifted")
                 require(terminal.outcome == .succeeded, "duration completion did not succeed")
                 require(terminal.progress?.trackSummary?.isSuccessful == true,
                         "selected tracks did not finalize")
@@ -1303,7 +1266,15 @@ struct IntegratedHarness {
                 } catch { startResult.write { $0 = .failure(error) } }
             }
             preparedBarrier.waitUntilEntered()
-            let identity = prepared.registry.snapshot().operations.last!.identity
+            let preparedState = prepared.registry.snapshot()
+            let identity = preparedState.operations.last!.identity
+            require(preparedState.operations.count == 1
+                && preparedState.streams.isEmpty && preparedState.artifacts.isEmpty
+                && preparedState.resourceTransactions.isEmpty
+                && preparedState.resourceClaims.isEmpty
+                && preparedState.resourceBrokers.isEmpty,
+                "prepared barrier published child authority")
+            requireZeroProgress(preparedState.operations[0])
             let stopResult = LockedBox<Result<AOSOperationControlReceipt, Error>?>(nil)
             DispatchQueue.global().async {
                 do {
@@ -1328,6 +1299,7 @@ struct IntegratedHarness {
                 && !prepared.broker.retainsAuthority
                 && !prepared.driver.startWasRequested(),
                 "prepared interleaving resumed after stop")
+            requirePreAuthorityTerminal(preparedAdmission, prepared)
 
             let installBarrier = Barrier()
             let preinstall = try Environment(preinstall: { installBarrier.block() })
@@ -1345,7 +1317,16 @@ struct IntegratedHarness {
                 } catch { installStart.write { $0 = .failure(error) } }
             }
             installBarrier.waitUntilEntered()
-            let installing = preinstall.registry.snapshot().operations.last!.identity
+            let installingState = preinstall.registry.snapshot()
+            let installing = installingState.operations.last!.identity
+            require(installingState.operations.count == 1
+                && installingState.streams.count == 1
+                && installingState.artifacts.count == 1
+                && installingState.resourceTransactions.count == 1
+                && installingState.resourceClaims.count == 1
+                && installingState.resourceBrokers.isEmpty,
+                "pre-install child cardinality drifted")
+            requireZeroProgress(installingState.operations[0])
             let installReceipt = try issue(action, preinstall, installing)
             require(!preinstall.broker.retainsAuthority
                 && !preinstall.driver.startWasRequested(),
@@ -1359,6 +1340,7 @@ struct IntegratedHarness {
                 && installReceipt.action == action
                 && !preinstall.driver.startWasRequested(),
                 "pre-install stop resumed native start")
+            requirePreAuthorityTerminal(installAdmission, preinstall)
         }
 
         for pair in [(AOSOrdinaryControlAction.cancel, AOSOrdinaryControlAction.kill),
@@ -1531,7 +1513,7 @@ struct IntegratedHarness {
             == AOSOperationCoreError.recordingFollowTimeout.code,
             "deadline timeout lost exact terminal code")
 
-        let store = FaultStore()
+        let store = try FaultStore()
         let prior = try Environment(store: store)
         let priorActive = try activate(
             prior, followed: true, duration: 10_000, deadline: 5_000
@@ -1549,6 +1531,18 @@ struct IntegratedHarness {
                     .screenRecordingGeometry?.pendingUpdate != nil
         }
         require(pending.read() == nil, "held native update completed early")
+        let livePrior = operation(priorActive.0, prior)
+        let storedPrior = try store.productionReadback()!
+        let persistedPrior = storedPrior.operations.first {
+            $0.identity == priorActive.0.operation
+        }!
+        require(persistedPrior.state == livePrior.state
+            && persistedPrior.progress == livePrior.progress
+            && persistedPrior.screenRecordingGeometry?.accepted.bindingDigest
+                == livePrior.screenRecordingGeometry?.accepted.bindingDigest
+            && persistedPrior.screenRecordingGeometry?.pendingUpdate?.requestID
+                == livePrior.screenRecordingGeometry?.pendingUpdate?.requestID,
+                "restart fixture was not read back from the production store")
         let restarted = try Environment(store: store)
         let token = String(repeating: "9", count: 64)
         let recovery = try AOSOperationRecovery.beginBootRecovery(
@@ -1671,7 +1665,7 @@ struct IntegratedHarness {
             $0.identity == racingAdmission.artifact
         }?.state == .released, "release CAS did not preserve winner")
 
-        let store = FaultStore()
+        let store = try FaultStore()
         let recovery = try Environment(store: store)
         let recoveryAdmission = try completedArtifact(recovery)
         recovery.files.faults = [.removeSource, .removeDestination]
@@ -1713,7 +1707,7 @@ struct IntegratedHarness {
                 == .removed,
             "custody recovery did not reach zero residuals")
 
-        let custodyFaultStore = FaultStore()
+        let custodyFaultStore = try FaultStore()
         let custodyFault = try Environment(store: custodyFaultStore)
         let custodyFaultAdmission = try completedArtifact(custodyFault)
         custodyFaultStore.arm(.artifactCustody)
@@ -1732,7 +1726,7 @@ struct IntegratedHarness {
 
     static func runStoreFaults() throws {
         for family in [FaultStore.Family.admission, .childPreparation, .activation] {
-            let store = FaultStore()
+            let store = try FaultStore()
             let environment = try Environment(store: store)
             store.arm(family)
             do {
@@ -1755,7 +1749,7 @@ struct IntegratedHarness {
             append("faults", family.rawValue)
         }
 
-        let progressStore = FaultStore()
+        let progressStore = try FaultStore()
         let progress = try Environment(store: progressStore)
         let progressAdmission = try progress.screenAdapter.start(
             request: progress.request(
@@ -1777,7 +1771,7 @@ struct IntegratedHarness {
         require(progressStore.saw(.trackProgress), "track progress fault was not reached")
         append("faults", FaultStore.Family.trackProgress.rawValue)
 
-        let pendingStore = FaultStore()
+        let pendingStore = try FaultStore()
         let pending = try Environment(store: pendingStore)
         let pendingActive = try activate(pending, followed: true)
         Thread.sleep(forTimeInterval: 0.02)
@@ -1795,7 +1789,7 @@ struct IntegratedHarness {
         _ = try pending.cancel(pendingActive.0.operation)
         append("faults", FaultStore.Family.followPending.rawValue)
 
-        let commitStore = FaultStore()
+        let commitStore = try FaultStore()
         let commit = try Environment(store: commitStore)
         let commitActive = try activate(commit, followed: true)
         Thread.sleep(forTimeInterval: 0.02)
@@ -1817,7 +1811,7 @@ struct IntegratedHarness {
 
         for family in [FaultStore.Family.followStopped,
                        .terminalOutcome, .terminalCleanup] {
-            let store = FaultStore()
+            let store = try FaultStore()
             let environment = try Environment(store: store)
             let active = try activate(environment, followed: family == .followStopped)
             store.arm(family)
@@ -1829,7 +1823,7 @@ struct IntegratedHarness {
             append("faults", family.rawValue)
         }
 
-        let consecutiveStore = FaultStore()
+        let consecutiveStore = try FaultStore()
         let consecutive = try Environment(store: consecutiveStore)
         let consecutiveActive = try activate(
             consecutive, followed: false, duration: 10_000
@@ -1984,6 +1978,8 @@ test('integrated proof source closure remains production-owned and offline', asy
     assert.match(self, new RegExp(path.basename(source).replaceAll('.', '\\.')), source)
   }
   assert.match(unified, /AOSAdapterRegistrySnapshot\.make\(\s*revision: 2/su)
+  assert.doesNotMatch(self, /^struct AOSDisplayTopology(?:Bounds|Point|Display|Snapshot)/mu)
+  assert.doesNotMatch(self, /^func (?:aosDisplayTopologyWireValue|validateAOSDisplayTopologyWireValue)/mu)
   assert.doesNotMatch(self, /execFileSync\([^\n]*\.\/aos|spawnSync\([^\n]*\.\/aos/u)
   assert.doesNotMatch(wrapper, /\.\/aos|build\.sh|daemon|ScreenCaptureKit|AVAssetWriter/u)
 })
