@@ -730,29 +730,31 @@ final class AOSOperationRegistry {
         }
     }
 
-    /// Preparation runs before any screen, microphone, broker, writer, or file
-    /// authority exists. Close its exact durable children in one mutation when
-    /// a later preparation save fails after the operation became listable.
-    func terminalizeScreenRecordingPreparationFailure(
+    /// Preparation and pending-runtime stop run before any screen, microphone,
+    /// broker, writer, or file authority exists. Close their exact durable
+    /// children and stopped geometry in one mutation.
+    func terminalizeScreenRecordingBeforeAuthority(
         _ identity: AOSOperationIdentity,
         adapterRegistrationID: String,
         adapterRegistrationRevision: UInt64,
-        failureCode: String
+        stopIntent: AOSStopIntent,
+        outcome: AOSOperationOutcome,
+        failureCode: String?
     ) throws -> AOSOperationRecord {
         let now = clock()
         return try mutateDurably { state in
             guard let operationIndex = state.operations.firstIndex(where: {
                 $0.identity == identity
-            }), [.prepared, .starting].contains(
+            }), [.prepared, .starting, .stopping, .cleanupRequired, .recovering].contains(
                 state.operations[operationIndex].state
             ),
             state.operations[operationIndex].adapterRegistrationID
                 == adapterRegistrationID,
             state.operations[operationIndex].adapterRegistrationRevision
                 == adapterRegistrationRevision,
-            state.operations[operationIndex].stopIntent == nil,
-            state.operations[operationIndex].outcome == nil,
-            !failureCode.isEmpty else {
+            state.operations[operationIndex].stopIntent.map({ $0 == stopIntent }) ?? true,
+            state.operations[operationIndex].outcome.map({ $0 == outcome }) ?? true,
+            failureCode.map({ !$0.isEmpty }) ?? true else {
                 throw AOSOperationCoreError.invalidTransition
             }
 
@@ -843,8 +845,8 @@ final class AOSOperationRegistry {
                 state.operations[operationIndex].screenRecordingGeometry = geometry
             }
             state.operations[operationIndex].state = .terminal
-            state.operations[operationIndex].stopIntent = .adapterFailed
-            state.operations[operationIndex].outcome = .failed
+            state.operations[operationIndex].stopIntent = stopIntent
+            state.operations[operationIndex].outcome = outcome
             state.operations[operationIndex].failureCode = failureCode
             state.operations[operationIndex].residualDigest = nil
             state.operations[operationIndex].updatedAtNanoseconds = now

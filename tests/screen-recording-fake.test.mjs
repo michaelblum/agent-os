@@ -1237,13 +1237,17 @@ final class FakeNativeSession: @unchecked Sendable {
 
 final class AdmissionFaultStore: AOSOperationStateStore, @unchecked Sendable {
     private let lock = NSLock()
-    private let failingSaveCall: Int
+    private let failingSaveCalls: Set<Int>
     private var saveCallCount = 0
     private var value: AOSOperationDurableState?
     private(set) var savedStates: [AOSOperationDurableState] = []
 
     init(failingSaveCall: Int) {
-        self.failingSaveCall = failingSaveCall
+        failingSaveCalls = [failingSaveCall]
+    }
+
+    init(failingSaveCalls: Set<Int>) {
+        self.failingSaveCalls = failingSaveCalls
     }
 
     func load() throws -> AOSOperationDurableState? {
@@ -1256,11 +1260,39 @@ final class AdmissionFaultStore: AOSOperationStateStore, @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         saveCallCount += 1
-        if saveCallCount == failingSaveCall {
+        if failingSaveCalls.contains(saveCallCount) {
             throw AOSOperationCoreError.storeUnavailable
         }
         value = state
         savedStates.append(state)
+    }
+}
+
+final class StopGeometryFaultStore: AOSOperationStateStore, @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: AOSOperationDurableState?
+    private(set) var geometryFailureCount = 0
+
+    func load() throws -> AOSOperationDurableState? {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+
+    func save(_ state: AOSOperationDurableState) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        if geometryFailureCount == 0,
+           state.operations.contains(where: { candidate in
+               candidate.screenRecordingGeometry?.deadlineState == .stopped
+                   && value?.operations.first(where: {
+                       $0.identity == candidate.identity
+                   })?.screenRecordingGeometry?.deadlineState != .stopped
+           }) {
+            geometryFailureCount += 1
+            throw AOSOperationCoreError.storeUnavailable
+        }
+        value = state
     }
 }
 
@@ -2204,6 +2236,39 @@ struct TerminalLifecycleCustodyHarness {
                 state: terminalState
             ))
         }
+        do {
+            let store = AdmissionFaultStore(failingSaveCalls: [4, 5])
+            let environment = try RecordingEnvironment(store: store)
+            do {
+                _ = try environment.adapter.start(
+                    request: environment.request(followed: true),
+                    connectionID: UUID()
+                )
+                fatalError("consecutive preparation/cleanup faults did not fail start")
+            } catch AOSOperationCoreError.storeUnavailable {
+            }
+            let state = environment.registry.snapshot()
+            guard let operation = state.operations.first else {
+                fatalError("consecutive preparation/cleanup faults lost operation")
+            }
+            require(operation.state == .terminal
+                        && operation.stopIntent == .adapterFailed
+                        && operation.outcome == .failed
+                        && operation.failureCode
+                            == AOSOperationCoreError.storeUnavailable.code
+                        && operation.screenRecordingGeometry?.deadlineState == .stopped
+                        && !AOSOperationRegistry.hasNonterminalChildren(
+                            in: state,
+                            operation: operation.identity
+                        ),
+                    "consecutive preparation/cleanup faults lost exact settlement")
+            require(!environment.native.startWasRequested()
+                        && environment.native.stopCount == 0
+                        && environment.broker.acquireCount == 0
+                        && environment.broker.releaseCount == 0
+                        && !environment.broker.retainsAuthority,
+                    "consecutive preparation/cleanup faults acquired authority")
+        }
         let data = try JSONSerialization.data(withJSONObject: projections, options: [.sortedKeys])
         print("atomic-initial-summary-projections:\(String(data: data, encoding: .utf8)!)")
     }
@@ -3086,6 +3151,120 @@ struct TerminalLifecycleCustodyHarness {
             requireRejected(
                 testCase.opposite, environment, operationIdentity, phase
             )
+        }
+
+        do {
+            let testCase = cases[0]
+            let phase = "waiting-stop-preparation-failure"
+            let store = AdmissionFaultStore(failingSaveCall: 4)
+            let barrier = PreparedPublicationBarrier()
+            let environment = try RecordingEnvironment(
+                store: store,
+                preparedPublicationObserver: barrier.observePublication,
+                stopAdmissionObserver: barrier.observeStopAdmission
+            )
+            let startTask = Task.detached {
+                try environment.adapter.start(
+                    request: environment.request(followed: true),
+                    connectionID: UUID()
+                )
+            }
+            guard let operationIdentity = barrier.waitForPublication() else {
+                fatalError("\(phase) durable publication missing")
+            }
+            let stopTask = Task.detached {
+                defer { barrier.markStopCompleted() }
+                return try issue(testCase.action, environment, operationIdentity)
+            }
+            require(barrier.waitForStopAdmission(),
+                    "\(phase) public stop did not reach the adapter")
+            barrier.releasePublication()
+            do {
+                _ = try await startTask.value
+                fatalError("\(phase) preparation fault did not fail start")
+            } catch AOSOperationCoreError.storeUnavailable {
+            }
+            let receipt = try await stopTask.value
+            requireReceipt(receipt, testCase, operationIdentity, environment, phase)
+            let state = environment.registry.snapshot()
+            let stopped = try environment.registry.inspect(operationIdentity)
+            require(stopped.state == .terminal
+                        && stopped.stopIntent == testCase.intent
+                        && stopped.outcome == testCase.outcome
+                        && stopped.failureCode == nil
+                        && stopped.screenRecordingGeometry?.deadlineState == .stopped
+                        && !AOSOperationRegistry.hasNonterminalChildren(
+                            in: state,
+                            operation: operationIdentity
+                        ),
+                    "\(phase) lost exact public terminal truth")
+            require(state.streams.isEmpty
+                        && state.artifacts.isEmpty
+                        && state.resourceTransactions.isEmpty
+                        && state.resourceClaims.isEmpty
+                        && !environment.native.startWasRequested()
+                        && environment.native.stopCount == 0
+                        && environment.broker.acquireCount == 0
+                        && environment.broker.releaseCount == 0
+                        && !environment.broker.retainsAuthority,
+                    "\(phase) created a later child or authority effect")
+            let replay = try issue(testCase.action, environment, operationIdentity)
+            require(replay == receipt, "\(phase) replay drifted")
+            requireRejected(testCase.opposite, environment, operationIdentity, phase)
+        }
+
+        do {
+            let testCase = cases[0]
+            let phase = "post-admission-geometry-save-failure"
+            let store = StopGeometryFaultStore()
+            let barrier = RuntimeInstallationBarrier()
+            let environment = try RecordingEnvironment(
+                store: store,
+                runtimeInstallationObserver: barrier.observe,
+                runtimeStartObserver: barrier.observeRuntimeStart
+            )
+            let startTask = Task.detached {
+                try environment.adapter.start(
+                    request: environment.request(followed: true),
+                    connectionID: UUID()
+                )
+            }
+            require(barrier.waitForInstallation(), "\(phase) boundary missing")
+            guard let operationIdentity = environment.registry.snapshot().operations.first(
+                where: { $0.state == .starting }
+            )?.identity else {
+                fatalError("\(phase) starting operation missing")
+            }
+            let receipt = try issue(testCase.action, environment, operationIdentity)
+            requireReceipt(receipt, testCase, operationIdentity, environment, phase)
+            let state = environment.registry.snapshot()
+            let stopped = try environment.registry.inspect(operationIdentity)
+            require(store.geometryFailureCount == 1
+                        && stopped.state == .terminal
+                        && stopped.stopIntent == testCase.intent
+                        && stopped.outcome == testCase.outcome
+                        && stopped.failureCode == nil
+                        && stopped.screenRecordingGeometry?.deadlineState == .stopped
+                        && !AOSOperationRegistry.hasNonterminalChildren(
+                            in: state,
+                            operation: operationIdentity
+                        ),
+                    "\(phase) suppressed stopped-geometry persistence failure")
+            require(!environment.native.startWasRequested()
+                        && environment.native.stopCount == 0
+                        && barrier.observedRuntimeStartCount() == 0
+                        && environment.broker.acquireCount == 0
+                        && environment.broker.releaseCount == 0
+                        && !environment.broker.retainsAuthority,
+                    "\(phase) created a later authority effect")
+            barrier.releaseInstallation()
+            let admission = try await startTask.value
+            require(admission.operation == operationIdentity
+                        && !environment.native.startWasRequested(),
+                    "\(phase) resumed native handoff after stop")
+            let replay = try issue(testCase.action, environment, operationIdentity)
+            require(replay == receipt, "\(phase) replay drifted")
+            requireRejected(testCase.opposite, environment, operationIdentity, phase)
         }
 
         do {
@@ -4491,7 +4670,7 @@ struct TerminalLifecycleCustodyHarness {
         try await lateStartFailureAfterActiveEvidenceRequiresStop()
         await frameAdmissionClosesAtomically()
         try decoderAndTerminalTruthAreClosed()
-        print("terminal-lifecycle-custody-harness: atomic-admission=22 pre-epoch-callbacks=4 pre-native-encoder=1 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 prepared-publication-public-stop=2 blocked-stop-store=1 pre-install-public-stop=2 production-lifecycle=6 production-terminal=2 production-custody=10 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
+        print("terminal-lifecycle-custody-harness: atomic-admission=22 consecutive-preparation-cleanup-fault=1 pre-epoch-callbacks=4 pre-native-encoder=1 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 prepared-publication-public-stop=2 waiting-stop-preparation-failure=1 post-admission-geometry-save-failure=1 blocked-stop-store=1 pre-install-public-stop=2 production-lifecycle=6 production-terminal=2 production-custody=10 lifecycle=6 frame=6 decoder=8 terminal=2 cleanup=6")
     }
 }
 `
@@ -4642,7 +4821,7 @@ test('production lifecycle and custody owners close terminal fault phases with f
     assert.equal(compile.status, 0, compile.stderr || compile.stdout)
     const run = spawnSync(binary, [], { encoding: 'utf8', timeout: 5_000 })
     assert.equal(run.status, 0, `${run.stderr}\n${run.stdout}`)
-    assert.match(run.stdout, /atomic-admission=22 pre-epoch-callbacks=4 pre-native-encoder=1 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 prepared-publication-public-stop=2 blocked-stop-store=1 pre-install-public-stop=2/u)
+    assert.match(run.stdout, /atomic-admission=22 consecutive-preparation-cleanup-fault=1 pre-epoch-callbacks=4 pre-native-encoder=1 microphone-claim-set=1 standalone-conflict=1 three-track-orders=6 microphone-backpressure=1 multitrack=three-track adapter-microphone=1 prepared-publication-public-stop=2 waiting-stop-preparation-failure=1 post-admission-geometry-save-failure=1 blocked-stop-store=1 pre-install-public-stop=2/u)
     const projectionLine = run.stdout.split('\n').find((line) => (
       line.startsWith('atomic-initial-summary-projections:')
     ))

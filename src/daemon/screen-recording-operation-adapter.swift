@@ -469,8 +469,9 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         let context = try contextResolver(connectionID)
         lock.lock()
         let claimAdmission: AOSScreenRecordingClaimAdmission
+        let pendingRuntime: AOSScreenRecordingPendingRuntime
         do {
-            claimAdmission = try prepare(
+            (claimAdmission, pendingRuntime) = try prepare(
                 request: request,
                 geometry: geometry,
                 context: context
@@ -479,13 +480,6 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
             lock.unlock()
             throw error
         }
-        let pendingRuntime = AOSScreenRecordingPendingRuntime(
-            adapter: self,
-            admission: claimAdmission,
-            registration: registration,
-            request: request
-        )
-        runtimes[claimAdmission.publicAdmission.operation] = pendingRuntime
         do {
             _ = try registry.transitionOperation(
                 claimAdmission.publicAdmission.operation,
@@ -497,22 +491,25 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
             )
             lock.unlock()
         } catch let preparationError {
-            runtimes.removeValue(forKey: claimAdmission.publicAdmission.operation)
             let failureCode = (preparationError as? AOSOperationCoreError)?.code
                 ?? AOSOperationCoreError.recordingCleanupRequired.code
-            do {
-                _ = try registry.terminalizeScreenRecordingPreparationFailure(
-                    claimAdmission.publicAdmission.operation,
-                    adapterRegistrationID: registration.id,
-                    adapterRegistrationRevision: registration.revision,
-                    failureCode: failureCode
-                )
-            } catch {
+            let stopWaiting = hasStopAdmissionInFlight(
+                claimAdmission.publicAdmission.operation
+            )
+            if !stopWaiting,
+               terminalizeBeforeAuthorityWithBoundedRetry(
+                   claimAdmission.publicAdmission.operation,
+                   stopIntent: .adapterFailed,
+                   outcome: .failed,
+                   failureCode: failureCode
+               ) != nil {
+                runtimes.removeValue(forKey: claimAdmission.publicAdmission.operation)
                 lock.unlock()
-                throw AOSOperationCoreError.recordingCleanupRequired
+                throw preparationError
             }
             lock.unlock()
-            throw preparationError
+            throw stopWaiting
+                ? preparationError : AOSOperationCoreError.recordingCleanupRequired
         }
         guard waitForStopAdmissions(
             operation: claimAdmission.publicAdmission.operation,
@@ -630,6 +627,14 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
             }
         }
         return true
+    }
+
+    private func hasStopAdmissionInFlight(
+        _ operation: AOSOperationIdentity
+    ) -> Bool {
+        stopAdmissionCondition.lock()
+        defer { stopAdmissionCondition.unlock() }
+        return (stopAdmissionsInFlight[operation] ?? 0) > 0
     }
 
     func emitGeometryEvent(
@@ -901,36 +906,59 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
     }
 
     fileprivate func pendingRuntimeDidStop(
-        _ admission: AOSScreenRecordingClaimAdmission,
-        request: AOSScreenRecordingRequest,
-        intent: AOSStopIntent
-    ) {
-        if let stopped = try? registry.stopScreenRecordingFollowGeometry(
-            admission.publicAdmission.operation
-        ) {
+        operation: AOSOperationIdentity,
+        intent: AOSStopIntent,
+        outcome: AOSOperationOutcome
+    ) -> Bool {
+        guard let terminal = terminalizeBeforeAuthorityWithBoundedRetry(
+            operation,
+            stopIntent: intent,
+            outcome: outcome,
+            failureCode: nil
+        ) else {
+            markCleanupRequired(operation)
+            reconcileHostBarrier()
+            return false
+        }
+        if let stopped = terminal.screenRecordingGeometry {
             emitGeometryEvent(
-                operation: admission.publicAdmission.operation,
+                operation: operation,
                 geometry: stopped
             )
         }
-        runtimeDidFinish(
-            admission,
-            intent: intent,
-            artifactIdentity: nil,
-            progress: AOSScreenRecordingEncoderProgress(
-                frameCount: 0,
-                byteCount: 0,
-                trackSummary: .initial(
-                    systemAudioSelected: request.tracks.systemAudio,
-                    microphoneSelected: request.tracks.microphone
-                ),
-                sessionStarted: false
-            ),
-            elapsedMilliseconds: 0,
-            requestedBounds: request.requestedBounds,
-            authorityAbsent: true,
-            failure: nil
-        )
+        lock.lock()
+        runtimes.removeValue(forKey: operation)
+        lock.unlock()
+        reconcileHostBarrier()
+        return true
+    }
+
+    private func terminalizeBeforeAuthorityWithBoundedRetry(
+        _ operation: AOSOperationIdentity,
+        stopIntent: AOSStopIntent,
+        outcome: AOSOperationOutcome,
+        failureCode: String?,
+        maximumAttempts: Int = 3
+    ) -> AOSOperationRecord? {
+        guard maximumAttempts > 0 else { return nil }
+        for _ in 0..<maximumAttempts {
+            do {
+                return try registry.terminalizeScreenRecordingBeforeAuthority(
+                    operation,
+                    adapterRegistrationID: registration.id,
+                    adapterRegistrationRevision: registration.revision,
+                    stopIntent: stopIntent,
+                    outcome: outcome,
+                    failureCode: failureCode
+                )
+            } catch let error as AOSOperationCoreError
+                where error == .storeUnavailable {
+                continue
+            } catch {
+                return nil
+            }
+        }
+        return nil
     }
 
     fileprivate func runtimeDidFinish(
@@ -943,10 +971,13 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         authorityAbsent: Bool,
         failure: Error?
     ) {
+        var terminalCleanupDurable = false
         defer {
-            lock.lock()
-            runtimes.removeValue(forKey: admission.publicAdmission.operation)
-            lock.unlock()
+            if terminalCleanupDurable {
+                lock.lock()
+                runtimes.removeValue(forKey: admission.publicAdmission.operation)
+                lock.unlock()
+            }
             reconcileHostBarrier()
         }
         do {
@@ -971,19 +1002,30 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
                     custodyDigest: artifactIdentity.contentDigest
                 )
             } else {
-                _ = try? registry.updateArtifact(
-                    publicAdmission.artifact,
-                    state: .removing,
-                    trackSummary: progress.trackSummary,
-                    pendingAction: .remove
-                )
+                guard let artifact = registry.snapshot().artifacts.first(where: {
+                    $0.identity == publicAdmission.artifact
+                }) else {
+                    throw AOSOperationCoreError.recordingCleanupRequired
+                }
+                if artifact.state == .transient {
+                    _ = try registry.updateArtifact(
+                        publicAdmission.artifact,
+                        state: .removing,
+                        trackSummary: progress.trackSummary,
+                        pendingAction: .remove
+                    )
+                } else if ![.removing, .removed].contains(artifact.state) {
+                    throw AOSOperationCoreError.recordingCleanupRequired
+                }
                 let artifactURL = self.artifactURL(publicAdmission.artifact)
                 do {
                     try files.remove(artifactURL, true)
                 } catch {
                     throw AOSOperationCoreError.recordingCleanupRequired
                 }
-                _ = try registry.updateArtifact(publicAdmission.artifact, state: .removed)
+                if artifact.state != .removed {
+                    _ = try registry.updateArtifact(publicAdmission.artifact, state: .removed)
+                }
             }
             let currentStream = registry.snapshot().streams.first {
                 $0.identity == publicAdmission.stream
@@ -1039,6 +1081,7 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
                 outcome: outcome,
                 failureCode: failureCode
             )
+            terminalCleanupDurable = true
         } catch {
             markCleanupRequired(admission.publicAdmission.operation)
         }
@@ -1055,7 +1098,10 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
         request: AOSScreenRecordingRequest,
         geometry: AOSScreenRecordingGeometry,
         context: AOSScreenRecordingOperationContext
-    ) throws -> AOSScreenRecordingClaimAdmission {
+    ) throws -> (
+        AOSScreenRecordingClaimAdmission,
+        AOSScreenRecordingPendingRuntime
+    ) {
         let initial = registry.snapshot()
         guard initial.barrier.state == .open,
               initial.adapterRegistry.registration(
@@ -1109,6 +1155,12 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
             screenRecordingGeometry: .initial(geometry)
         )
         preparedPublicationObserver(operation.identity)
+        let pendingRuntime = AOSScreenRecordingPendingRuntime(
+            adapter: self,
+            operation: operation.identity,
+            registration: registration
+        )
+        runtimes[operation.identity] = pendingRuntime
         do {
             let stream = try registry.prepareStream(parent: operation.identity)
             let artifact = try registry.prepareArtifact(
@@ -1167,7 +1219,7 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
                   Set(claims.map(\.resourceKey)) == expectedResources else {
                 throw AOSOperationCoreError.resourceDeclarationConflict
             }
-            return AOSScreenRecordingClaimAdmission(
+            let admission = AOSScreenRecordingClaimAdmission(
                 publicAdmission: AOSScreenRecordingAdmission(
                     operation: operation.identity,
                     stream: stream.identity,
@@ -1184,20 +1236,22 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
                     )
                 }
             )
+            return (admission, pendingRuntime)
         } catch {
             let failureCode = (error as? AOSOperationCoreError)?.code
                 ?? AOSOperationCoreError.recordingCleanupRequired.code
-            do {
-                _ = try registry.terminalizeScreenRecordingPreparationFailure(
-                    operation.identity,
-                    adapterRegistrationID: registration.id,
-                    adapterRegistrationRevision: registration.revision,
-                    failureCode: failureCode
-                )
-            } catch {
-                throw AOSOperationCoreError.recordingCleanupRequired
+            let stopWaiting = hasStopAdmissionInFlight(operation.identity)
+            if !stopWaiting,
+               terminalizeBeforeAuthorityWithBoundedRetry(
+                   operation.identity,
+                   stopIntent: .adapterFailed,
+                   outcome: .failed,
+                   failureCode: failureCode
+               ) != nil {
+                runtimes.removeValue(forKey: operation.identity)
+                throw error
             }
-            throw error
+            throw stopWaiting ? error : AOSOperationCoreError.recordingCleanupRequired
         }
     }
 
@@ -1209,14 +1263,28 @@ final class AOSScreenRecordingOperationAdapter: AOSOperationControlAdapter {
             throw AOSOperationCoreError.recordingCleanupRequired
         }
         for claim in claims.sorted(by: { $0.resourceKey > $1.resourceKey }) {
-            let state = registry.snapshot().resourceClaims.first {
+            guard let claimRecord = registry.snapshot().resourceClaims.first(where: {
                 $0.claimID == claim.claimID
-            }?.state
-            if state == .active {
+            }) else {
+                throw AOSOperationCoreError.recordingCleanupRequired
+            }
+            if claimRecord.state == .terminal { continue }
+            if claimRecord.state == .active {
                 _ = try AOSOperationResourceClaim.beginExclusiveRelease(
                     registry: registry,
                     binding: claim
                 )
+            }
+            if [.cleanupRequired, .recovering].contains(claimRecord.state) {
+                let recovered = try AOSOperationResourceClaim.recover(
+                    registry: registry,
+                    binding: claim,
+                    exactResourceAbsence: true
+                )
+                guard recovered.state == .terminal else {
+                    throw AOSOperationCoreError.recordingCleanupRequired
+                }
+                continue
             }
             let released = try AOSOperationResourceClaim.finishExclusiveRelease(
                 registry: registry,
@@ -1320,23 +1388,20 @@ private final class AOSScreenRecordingPendingRuntime:
     @unchecked Sendable
 {
     private weak var adapter: AOSScreenRecordingOperationAdapter?
-    private let admission: AOSScreenRecordingClaimAdmission
     private let lock = NSLock()
+    private let operation: AOSOperationIdentity
     private let registration: AOSOperationAdapterRegistration
-    private let request: AOSScreenRecordingRequest
     private var runtime: AOSScreenRecordingRuntimeControlling?
     private var stopAdmitted = false
 
     init(
         adapter: AOSScreenRecordingOperationAdapter,
-        admission: AOSScreenRecordingClaimAdmission,
-        registration: AOSOperationAdapterRegistration,
-        request: AOSScreenRecordingRequest
+        operation: AOSOperationIdentity,
+        registration: AOSOperationAdapterRegistration
     ) {
         self.adapter = adapter
-        self.admission = admission
+        self.operation = operation
         self.registration = registration
-        self.request = request
     }
 
     func installAndStart(
@@ -1385,31 +1450,26 @@ private final class AOSScreenRecordingPendingRuntime:
             lock.unlock()
             return AOSAdapterStopResult(disposition: .absent, residualDigest: nil)
         }
-        guard let intent = record.stopIntent else {
+        guard let intent = record.stopIntent,
+              let outcome = record.outcome else {
             lock.unlock()
             return AOSAdapterStopResult(
                 disposition: .residual,
                 residualDigest: nil
             )
         }
-        if stopAdmitted {
-            lock.unlock()
-            return AOSAdapterStopResult(
-                disposition: .alreadyStopping,
-                residualDigest: nil
-            )
-        }
         stopAdmitted = true
         lock.unlock()
-        adapter?.pendingRuntimeDidStop(
-            admission,
-            request: request,
-            intent: intent
-        )
+        let settled = adapter?.pendingRuntimeDidStop(
+            operation: operation,
+            intent: intent,
+            outcome: outcome
+        ) ?? false
         return AOSAdapterStopResult(
-            disposition: admissionResult.wasAlreadyAdmitted
-                ? .alreadyStopping : .accepted,
-            residualDigest: nil
+            disposition: settled
+                ? (admissionResult.wasAlreadyAdmitted ? .alreadyStopping : .accepted)
+                : .residual,
+            residualDigest: settled ? nil : residualDigest()
         )
     }
 
