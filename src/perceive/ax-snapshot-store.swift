@@ -259,7 +259,13 @@ public struct AOSAXPageRequest: Codable, Equatable, Sendable {
         projectionDigest: String,
         pageSize: Int
     ) throws {
-        guard (1...AOSAXObservationLimits.schemaMaxPageSize).contains(pageSize) else {
+        guard AOSAXContractAdmission.pageRequest(
+            token: token,
+            stateID: expectedStateID,
+            requestDigest: requestDigest,
+            projectionDigest: projectionDigest,
+            pageSize: pageSize
+        ) else {
             throw AOSAXObservationError.invalidBounds
         }
         self.schemaVersion = "aos.ax-observation.v1"
@@ -269,6 +275,25 @@ public struct AOSAXPageRequest: Codable, Equatable, Sendable {
         self.requestDigest = requestDigest
         self.projectionDigest = projectionDigest
         self.pageSize = pageSize
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard try container.decode(String.self, forKey: .schemaVersion) == "aos.ax-observation.v1",
+              try container.decode(String.self, forKey: .kind) == "page_request" else {
+            throw AOSAXObservationError.invalidRoot
+        }
+        try self.init(
+            token: container.decode(String.self, forKey: .token),
+            expectedStateID: container.decode(String.self, forKey: .expectedStateID),
+            requestDigest: container.decode(String.self, forKey: .requestDigest),
+            projectionDigest: container.decode(String.self, forKey: .projectionDigest),
+            pageSize: container.decode(Int.self, forKey: .pageSize)
+        )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, kind, token, expectedStateID, requestDigest, projectionDigest, pageSize
     }
 }
 
@@ -469,7 +494,8 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
 
     public func beginObservation(_ request: AOSAXObservationRequest) throws -> AOSAXObservationAdmission {
         let limits = configuration.observationLimits
-        guard request.bounds.maxDepth <= limits.maxDepth,
+        guard AOSAXContractAdmission.request(request),
+              request.bounds.maxDepth <= limits.maxDepth,
               request.bounds.maxVisited <= limits.maxVisited,
               request.bounds.maxEmitted <= limits.maxEmitted,
               request.bounds.maxEmitted <= request.bounds.maxVisited,
@@ -619,7 +645,7 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
                     ? try makeTokenLocked(snapshot: snapshot, nextPosition: end, pageSize: pageSize)
                     : nil
             } catch {
-                removeSnapshotLocked(snapshot.stateID, reason: .retentionLimit)
+                rollbackSnapshotLocked(snapshot.stateID)
                 throw error
             }
             return AOSAXObservationResponse(
@@ -641,6 +667,21 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
         lock.withLock {
             let now = monotonicClock()
             expireLocked(now: now)
+            guard AOSAXContractAdmission.pageToken(publicToken) else {
+                return .init(error: .init(kind: .tokenTampered, detail: "token shape is invalid"))
+            }
+            guard AOSAXContractAdmission.identifier(expectedStateID) else {
+                return .init(error: .init(kind: .stateMismatch, detail: "expected state identity is invalid"))
+            }
+            guard AOSAXContractAdmission.digest(requestDigest) else {
+                return .init(error: .init(kind: .requestDigestMismatch, detail: "request digest shape is invalid"))
+            }
+            guard AOSAXContractAdmission.digest(projectionDigest) else {
+                return .init(error: .init(kind: .projectionDigestMismatch, detail: "projection digest shape is invalid"))
+            }
+            guard (1...configuration.observationLimits.maxPageSize).contains(pageSize) else {
+                return .init(error: .init(kind: .pageSizeMismatch, detail: "page size is outside the admitted bound"))
+            }
             guard let lookupID = Self.lookupID(from: publicToken) else {
                 return .init(error: .init(kind: .tokenTampered, detail: "token shape is invalid"))
             }
@@ -725,17 +766,16 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
         pageSize: Int
     ) throws -> String {
         let retention = configuration.retention
-        while tokens.count >= retention.maxPageTokens, let oldest = tokenOrder.first {
-            removeTokenLocked(oldest, reason: .evicted)
-        }
         for _ in 0..<retention.identityAttempts {
             let identity = tokenFactory()
             guard Self.validIdentity(identity.lookupID),
-                  identity.publicToken.hasPrefix(identity.lookupID + "."),
-                  identity.publicToken.count > identity.lookupID.count + 1,
+                  Self.lookupID(from: identity.publicToken) == identity.lookupID,
                   tokens[identity.lookupID] == nil,
                   tokenTombstones[identity.lookupID] == nil else {
                 continue
+            }
+            while tokens.count >= retention.maxPageTokens, let oldest = tokenOrder.first {
+                removeTokenLocked(oldest, reason: .evicted)
             }
             sequence &+= 1
             tokens[identity.lookupID] = TokenEntry(
@@ -781,6 +821,18 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
         let relatedTokens = tokenOrder.filter { tokens[$0]?.stateID == stateID }
         for tokenID in relatedTokens {
             removeTokenLocked(tokenID, reason: reason)
+        }
+    }
+
+    private func rollbackSnapshotLocked(_ stateID: String) {
+        guard let entry = snapshots.removeValue(forKey: stateID) else { return }
+        snapshotOrder.removeAll { $0 == stateID }
+        retainedRefCount -= entry.snapshot.handlesByRef.count
+        retainedValueCost -= entry.snapshot.retainedValueCost
+        let relatedTokens = tokenOrder.filter { tokens[$0]?.stateID == stateID }
+        for tokenID in relatedTokens {
+            tokens.removeValue(forKey: tokenID)
+            tokenOrder.removeAll { $0 == tokenID }
         }
     }
 
@@ -848,9 +900,12 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
     }
 
     private static func lookupID(from publicToken: String) -> String? {
-        guard publicToken.utf8.count <= 512,
-              let separator = publicToken.firstIndex(of: ".") else { return nil }
+        guard AOSAXContractAdmission.pageToken(publicToken),
+              let separator = publicToken.firstIndex(of: "."),
+              separator != publicToken.startIndex else { return nil }
         let lookupID = String(publicToken[..<separator])
+        let authenticator = publicToken[publicToken.index(after: separator)...]
+        guard !authenticator.isEmpty, !authenticator.contains(".") else { return nil }
         return validIdentity(lookupID) ? lookupID : nil
     }
 

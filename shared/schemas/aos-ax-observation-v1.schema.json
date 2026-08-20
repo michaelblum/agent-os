@@ -19,6 +19,12 @@
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
     },
+    "page_token": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 512,
+      "pattern": "^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+    },
     "nonnegative_integer": {
       "type": "integer",
       "minimum": 0
@@ -34,7 +40,7 @@
       "properties": {
         "kind": { "enum": ["unsupported", "unavailable", "platform_error"] },
         "code": { "$ref": "#/$defs/identifier" },
-        "detail": { "type": "string", "maxLength": 2048 }
+        "detail": { "type": "string", "minLength": 1, "maxLength": 2048 }
       }
     },
     "process_generation": {
@@ -274,7 +280,7 @@
       "properties": {
         "schema_version": { "const": "aos.ax-observation.v1" },
         "kind": { "const": "page_request" },
-        "token": { "type": "string", "minLength": 3, "maxLength": 512 },
+        "token": { "$ref": "#/$defs/page_token" },
         "expected_state_id": { "$ref": "#/$defs/identifier" },
         "request_digest": { "$ref": "#/$defs/digest" },
         "projection_digest": { "$ref": "#/$defs/digest" },
@@ -728,7 +734,7 @@
           "maxItems": 4096,
           "items": { "$ref": "#/$defs/node" }
         },
-        "next_page_token": { "type": "string", "minLength": 3, "maxLength": 512 },
+        "next_page_token": { "$ref": "#/$defs/page_token" },
         "next_position": { "$ref": "#/$defs/positive_integer" },
         "retention": { "$ref": "#/$defs/retention" }
       }
@@ -789,7 +795,7 @@
               "maxItems": 4096,
               "items": { "$ref": "#/$defs/node" }
             },
-            "next_page_token": { "type": "string", "minLength": 3, "maxLength": 512 },
+            "next_page_token": { "$ref": "#/$defs/page_token" },
             "next_position": { "$ref": "#/$defs/positive_integer" },
             "snapshot_outcome": { "enum": ["complete", "truncated", "unsupported", "unavailable"] },
             "accounting": { "$ref": "#/$defs/accounting" },

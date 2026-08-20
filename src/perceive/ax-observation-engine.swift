@@ -48,10 +48,26 @@ public struct AOSAXProcessGeneration: Codable, Hashable, Sendable {
     public let startTimeSeconds: UInt64
     public let startTimeMicroseconds: UInt32
 
-    public init(pid: Int32, startTimeSeconds: UInt64, startTimeMicroseconds: UInt32) {
+    public init(pid: Int32, startTimeSeconds: UInt64, startTimeMicroseconds: UInt32) throws {
+        guard pid > 0, startTimeMicroseconds <= 999_999 else {
+            throw AOSAXObservationError.invalidRoot
+        }
         self.pid = pid
         self.startTimeSeconds = startTimeSeconds
         self.startTimeMicroseconds = startTimeMicroseconds
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            pid: container.decode(Int32.self, forKey: .pid),
+            startTimeSeconds: container.decode(UInt64.self, forKey: .startTimeSeconds),
+            startTimeMicroseconds: container.decode(UInt32.self, forKey: .startTimeMicroseconds)
+        )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case pid, startTimeSeconds, startTimeMicroseconds
     }
 }
 
@@ -443,18 +459,8 @@ public struct AOSAXObservationRequest: Codable, Equatable, Sendable {
         projection: AOSAXProjectionSelection = .init(),
         pageSize: Int
     ) throws {
-        guard (1...AOSAXObservationLimits.schemaMaxPageSize).contains(pageSize),
-              pageSize <= bounds.maxEmitted,
-              filters.count <= AOSAXObservationLimits.schemaMaxFilters,
-              filters.reduce(0, { $0 + $1.rawAttributeOutcomes.count }) <= AOSAXObservationLimits.schemaMaxArrayItems else {
-            throw AOSAXObservationError.invalidBounds
-        }
-        if case .displayComposite(let identity, let applications) = root {
-            guard !identity.isEmpty,
-                  !applications.isEmpty,
-                  applications.count <= AOSAXObservationLimits.schemaMaxCompositeApplications else {
-                throw AOSAXObservationError.invalidRoot
-            }
+        guard AOSAXContractAdmission.request(root: root, bounds: bounds, filters: filters, pageSize: pageSize) else {
+            throw AOSAXObservationError.invalidRoot
         }
         self.schemaVersion = "aos.ax-observation.v1"
         self.kind = "request"
@@ -463,6 +469,104 @@ public struct AOSAXObservationRequest: Codable, Equatable, Sendable {
         self.filters = filters
         self.projection = projection
         self.pageSize = pageSize
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard try container.decode(String.self, forKey: .schemaVersion) == "aos.ax-observation.v1",
+              try container.decode(String.self, forKey: .kind) == "request" else {
+            throw AOSAXObservationError.invalidRoot
+        }
+        try self.init(
+            root: container.decode(AOSAXObservationRoot.self, forKey: .root),
+            bounds: container.decode(AOSAXObservationBounds.self, forKey: .bounds),
+            filters: container.decode([AOSAXObservationFilter].self, forKey: .filters),
+            projection: container.decode(AOSAXProjectionSelection.self, forKey: .projection),
+            pageSize: container.decode(Int.self, forKey: .pageSize)
+        )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, kind, root, bounds, filters, projection, pageSize
+    }
+}
+
+enum AOSAXContractAdmission {
+    static func identifier(_ value: String) -> Bool {
+        !value.isEmpty && value.count <= 512
+    }
+
+    static func generation(_ value: AOSAXProcessGeneration) -> Bool {
+        value.pid > 0 && value.startTimeMicroseconds <= 999_999
+    }
+
+    static func platformError(_ value: AOSAXPlatformError) -> Bool {
+        identifier(value.code) && !value.detail.isEmpty && value.detail.count <= 2_048
+    }
+
+    static func facts(_ value: AOSAXElementFacts) -> Bool {
+        guard let frame = value.frame else { return true }
+        return frame.x.isFinite && frame.y.isFinite && frame.width.isFinite && frame.height.isFinite
+    }
+
+    static func pageToken(_ value: String) -> Bool {
+        let parts = value.split(separator: ".", omittingEmptySubsequences: false)
+        return parts.count == 2 && !parts[0].isEmpty && !parts[1].isEmpty &&
+            value.utf8.count <= 512 && value.utf8.count >= 3 && value.unicodeScalars.allSatisfy {
+            (48...57).contains($0.value) || (65...90).contains($0.value) ||
+                (97...122).contains($0.value) || $0 == "-" || $0 == "_" || $0 == "."
+        }
+    }
+
+    static func digest(_ value: String) -> Bool {
+        value.utf8.count == 64 && value.unicodeScalars.allSatisfy {
+            (48...57).contains($0.value) || (97...102).contains($0.value)
+        }
+    }
+
+    static func request(_ value: AOSAXObservationRequest) -> Bool {
+        value.schemaVersion == "aos.ax-observation.v1" && value.kind == "request" &&
+            request(root: value.root, bounds: value.bounds, filters: value.filters, pageSize: value.pageSize)
+    }
+
+    static func pageRequest(token: String, stateID: String, requestDigest: String, projectionDigest: String, pageSize: Int) -> Bool {
+        pageToken(token) && identifier(stateID) && digest(requestDigest) && digest(projectionDigest) &&
+            (1...AOSAXObservationLimits.schemaMaxPageSize).contains(pageSize)
+    }
+
+    static func request(
+        root: AOSAXObservationRoot,
+        bounds: AOSAXObservationBounds,
+        filters: [AOSAXObservationFilter],
+        pageSize: Int
+    ) -> Bool {
+        let outcomeCount = filters.reduce(into: 0) { total, filter in
+            let next = total.addingReportingOverflow(filter.rawAttributeOutcomes.count)
+            total = next.overflow ? Int.max : next.partialValue
+        }
+        guard (1...AOSAXObservationLimits.schemaMaxDepth).contains(bounds.maxDepth),
+              (1...AOSAXObservationLimits.schemaMaxVisited).contains(bounds.maxVisited),
+              (1...AOSAXObservationLimits.schemaMaxEmitted).contains(bounds.maxEmitted),
+              bounds.maxEmitted <= bounds.maxVisited,
+              (1...AOSAXObservationLimits.schemaMaxDeadlineNanoseconds).contains(bounds.deadlineNanoseconds),
+              (1...AOSAXObservationLimits.schemaMaxArrayDepth).contains(bounds.maxArrayDepth),
+              (1...AOSAXObservationLimits.schemaMaxArrayItems).contains(bounds.maxArrayItems),
+              (1...AOSAXObservationLimits.schemaMaxValueCost).contains(bounds.maxValueCost),
+              (1...AOSAXObservationLimits.schemaMaxPageSize).contains(pageSize), pageSize <= bounds.maxEmitted,
+              filters.count <= AOSAXObservationLimits.schemaMaxFilters,
+              filters.allSatisfy({ $0.rawAttributeOutcomes.allSatisfy { identifier($0.name) } }),
+              outcomeCount <= AOSAXObservationLimits.schemaMaxArrayItems else {
+            return false
+        }
+        switch root {
+        case .systemWide: return true
+        case .application(let generation), .window(let generation, _): return self.generation(generation)
+        case .element(let stateID, let ref): return identifier(stateID) && identifier(ref)
+        case .displayComposite(let topology, let applications):
+            return identifier(topology) && !applications.isEmpty &&
+                applications.count <= AOSAXObservationLimits.schemaMaxCompositeApplications &&
+                applications.allSatisfy(generation)
+        }
     }
 }
 
@@ -839,12 +943,23 @@ public struct AOSAXObservationResponse: Codable, Equatable, Sendable {
 
 private struct AOSAXQueueEntry<Handle: Hashable & Sendable> {
     let handle: AOSAXRetainedHandle<Handle>
-    let ref: String
     let parentRef: String?
     let incomingRelationship: String?
     let childPosition: Int?
     let depth: Int
     let constituentID: String?
+}
+
+private struct AOSAXVisitEntry<Handle: Hashable & Sendable> {
+    let queued: AOSAXQueueEntry<Handle>
+    let ref: String
+
+    var handle: AOSAXRetainedHandle<Handle> { queued.handle }
+    var parentRef: String? { queued.parentRef }
+    var incomingRelationship: String? { queued.incomingRelationship }
+    var childPosition: Int? { queued.childPosition }
+    var depth: Int { queued.depth }
+    var constituentID: String? { queued.constituentID }
 }
 
 private struct AOSAXGenerationBinding {
@@ -917,6 +1032,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
         var cycleEdges = 0
         var duplicateEdges = 0
         var valueCost = 0
+        var valueCostByConstituent: [String?: Int] = [:]
         var remainingRelationshipItems = 0
         var nodes: [AOSAXNodeProjection] = []
         var frontier: [AOSAXFrontierEntry] = []
@@ -926,8 +1042,12 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             store.monotonicNow() >= deadline
         }
 
-        func classified(_ error: AOSAXPlatformError, as kind: AOSAXPlatformErrorKind) -> AOSAXPlatformError {
-            error.classified(as: kind)
+        func classified(_ error: AOSAXPlatformError, as kind: AOSAXPlatformErrorKind) throws -> AOSAXPlatformError {
+            let exact = error.classified(as: kind)
+            guard AOSAXContractAdmission.platformError(exact) else {
+                throw AOSAXObservationError.invalidRoot
+            }
+            return exact
         }
 
         func stopKind(for kind: AOSAXPlatformErrorKind) -> AOSAXStopKind {
@@ -960,7 +1080,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                     relationshipName: entry.incomingRelationship,
                     childPosition: entry.childPosition,
                     depth: entry.depth,
-                    ref: entry.ref,
+                    ref: nil,
                     constituentID: entry.constituentID,
                     reason: reason
                 ))
@@ -1004,19 +1124,16 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             guard discoveredHandles.count < request.bounds.maxVisited else {
                 throw AOSAXObservationError.retentionLimit
             }
-            let admitted = try admitRef(handle, constituentID: constituentID)
+            let box = try retainedBox(handle)
             discoveredHandles.insert(handle)
             queue.append(.init(
-                handle: admitted.1,
-                ref: admitted.0,
+                handle: box,
                 parentRef: nil,
                 incomingRelationship: nil,
                 childPosition: nil,
                 depth: 0,
                 constituentID: constituentID
             ))
-            ancestorJumps[admitted.0] = []
-            depthsByRef[admitted.0] = 0
         }
 
         func recordParent(childRef: String, parentRef: String, depth: Int) {
@@ -1050,10 +1167,12 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             return cursor == candidateRef
         }
 
-        func generationCheck(_ generation: AOSAXProcessGeneration) -> AOSAXGenerationCheck {
+        func generationCheck(_ generation: AOSAXProcessGeneration) throws -> AOSAXGenerationCheck {
+            guard AOSAXContractAdmission.generation(generation) else { throw AOSAXObservationError.invalidRoot }
             guard !deadlineReached() else { return .deadline }
             switch generationObserver.observeGeneration(pid: generation.pid) {
             case .value(let actual):
+                guard AOSAXContractAdmission.generation(actual) else { throw AOSAXObservationError.invalidRoot }
                 guard actual == generation else {
                     return .mismatched(.init(
                         kind: .unavailable,
@@ -1063,7 +1182,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                 }
                 return .matched
             case .unavailable(let error):
-                return .unavailable(classified(error, as: .unavailable))
+                return .unavailable(try classified(error, as: .unavailable))
             }
         }
 
@@ -1086,7 +1205,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             constituentID: String?,
             resolve: () -> AOSAXPlatformResult<Provider.Handle>
         ) throws -> AOSAXCompositeConstituentResult? {
-            switch generationCheck(generation) {
+            switch try generationCheck(generation) {
             case .matched:
                 break
             case .mismatched(let error):
@@ -1121,19 +1240,19 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                 return providerRootFailure(
                     generation: generation,
                     constituentID: constituentID,
-                    error: classified(error, as: .unsupported)
+                    error: try classified(error, as: .unsupported)
                 )
             case .unavailable(let error):
                 return providerRootFailure(
                     generation: generation,
                     constituentID: constituentID,
-                    error: classified(error, as: .unavailable)
+                    error: try classified(error, as: .unavailable)
                 )
             case .platformError(let error):
                 return providerRootFailure(
                     generation: generation,
                     constituentID: constituentID,
-                    error: classified(error, as: .platformError)
+                    error: try classified(error, as: .platformError)
                 )
             }
         }
@@ -1151,15 +1270,15 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             switch provider.systemWideRoot(deadlineNanoseconds: deadline) {
             case .value(let handle): try enqueueRoot(handle, constituentID: nil)
             case .unsupported(let error):
-                let exact = classified(error, as: .unsupported)
+                let exact = try classified(error, as: .unsupported)
                 forcedOutcome = .unsupported
                 stopCondition = .init(kind: .platformUnsupported, detail: exact.code, error: exact)
             case .unavailable(let error):
-                let exact = classified(error, as: .unavailable)
+                let exact = try classified(error, as: .unavailable)
                 forcedOutcome = .unavailable
                 stopCondition = .init(kind: .platformUnavailable, detail: exact.code, error: exact)
             case .platformError(let error):
-                let exact = classified(error, as: .platformError)
+                let exact = try classified(error, as: .platformError)
                 forcedOutcome = .unavailable
                 stopCondition = .init(kind: .platformError, detail: exact.code, error: exact)
             }
@@ -1251,7 +1370,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             max(0, admission.effectiveLimits.observationLimits.maxFrontier - queue.count)
         )
 
-        func stopAtDeadline(expanding entry: AOSAXQueueEntry<Provider.Handle>?) {
+        func stopAtDeadline(expanding entry: AOSAXVisitEntry<Provider.Handle>?) {
             stopCondition = .init(kind: .deadline, detail: "monotonic observation deadline reached")
             if let entry {
                 frontier.append(.init(
@@ -1272,7 +1391,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             _ relationships: [AOSAXPlatformRelationship<Provider.Handle>],
             relationshipIndex: Int,
             childPosition: Int,
-            entry: AOSAXQueueEntry<Provider.Handle>,
+            entry: AOSAXVisitEntry<Provider.Handle>,
             reason: AOSAXFrontierReason
         ) {
             for index in relationshipIndex..<relationships.count {
@@ -1294,12 +1413,12 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
 
         func readNames(
             _ body: () -> AOSAXPlatformResult<[String]>
-        ) -> ([String], AOSAXProviderReadOutcome) {
+        ) throws -> ([String], AOSAXProviderReadOutcome) {
             guard !deadlineReached() else { return ([], .init(kind: .deadlineExceeded)) }
             switch body() {
             case .value(let names):
                 guard names.count <= request.bounds.maxArrayItems,
-                      names.allSatisfy({ !$0.isEmpty && $0.utf8.count <= 512 }) else {
+                      names.allSatisfy({ AOSAXContractAdmission.identifier($0) }) else {
                     let error = AOSAXPlatformError(
                         kind: .platformError,
                         code: "AX_PROVIDER_RESULT_BOUND_EXCEEDED",
@@ -1309,13 +1428,13 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                 }
                 return (names.sorted(by: AOSAXValueCodec<Provider.Handle>.unicodeScalarLess), .init(kind: .value))
             case .unsupported(let error):
-                let exact = classified(error, as: .unsupported)
+                let exact = try classified(error, as: .unsupported)
                 return ([], .init(kind: .unsupported, error: exact))
             case .unavailable(let error):
-                let exact = classified(error, as: .unavailable)
+                let exact = try classified(error, as: .unavailable)
                 return ([], .init(kind: .unavailable, error: exact))
             case .platformError(let error):
-                let exact = classified(error, as: .platformError)
+                let exact = try classified(error, as: .platformError)
                 return ([], .init(kind: .platformError, error: exact))
             }
         }
@@ -1331,8 +1450,15 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                 break
             }
 
-            let entry = queue[queueIndex]
+            let queued = queue[queueIndex]
             queueIndex += 1
+            let entry = AOSAXVisitEntry(queued: queued, ref: try assignedRef(queued.handle.value, constituentID: queued.constituentID))
+            if entry.parentRef == nil {
+                ancestorJumps[entry.ref] = []
+                depthsByRef[entry.ref] = 0
+            } else {
+                recordParent(childRef: entry.ref, parentRef: entry.parentRef!, depth: entry.depth)
+            }
             visited += 1
             visitedHandles.insert(entry.handle.value)
 
@@ -1343,23 +1469,25 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             }
             let facts: AOSAXElementFacts
             switch provider.facts(for: entry.handle.value, deadlineNanoseconds: deadline) {
-            case .value(let value): facts = value
+            case .value(let value):
+                guard AOSAXContractAdmission.facts(value) else { throw AOSAXObservationError.invalidRoot }
+                facts = value
             case .unsupported(let error):
-                let exact = classified(error, as: .unsupported)
+                let exact = try classified(error, as: .unsupported)
                 recordProviderStop(exact)
                 frontier.append(.init(parentRef: entry.parentRef, relationshipName: entry.incomingRelationship, childPosition: entry.childPosition, depth: entry.depth, ref: entry.ref, constituentID: entry.constituentID, reason: .platformUnsupported))
                 appendRemainingQueue(reason: .platformUnsupported)
                 traversalStopped = true
                 continue
             case .unavailable(let error):
-                let exact = classified(error, as: .unavailable)
+                let exact = try classified(error, as: .unavailable)
                 recordProviderStop(exact)
                 frontier.append(.init(parentRef: entry.parentRef, relationshipName: entry.incomingRelationship, childPosition: entry.childPosition, depth: entry.depth, ref: entry.ref, constituentID: entry.constituentID, reason: .platformUnavailable))
                 appendRemainingQueue(reason: .platformUnavailable)
                 traversalStopped = true
                 continue
             case .platformError(let error):
-                let exact = classified(error, as: .platformError)
+                let exact = try classified(error, as: .platformError)
                 recordProviderStop(exact)
                 frontier.append(.init(parentRef: entry.parentRef, relationshipName: entry.incomingRelationship, childPosition: entry.childPosition, depth: entry.depth, ref: entry.ref, constituentID: entry.constituentID, reason: .platformError))
                 appendRemainingQueue(reason: .platformError)
@@ -1369,7 +1497,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
 
             let needsAttributeNames = request.projection.attributes || request.projection.settableFacts
             var attributeNameRead: ([String], AOSAXProviderReadOutcome)? = needsAttributeNames
-                ? readNames { provider.attributeNames(for: entry.handle.value, deadlineNanoseconds: deadline) }
+                ? try readNames { provider.attributeNames(for: entry.handle.value, deadlineNanoseconds: deadline) }
                 : nil
             var readNamesSet = Set<String>()
             for filter in request.filters {
@@ -1389,6 +1517,20 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             internalAttributes.reserveCapacity(namesToRead.count)
             var valueBoundHit = false
             var retentionBoundHit = false
+            var transactionRefs: [Provider.Handle: String] = [:]
+            var transactionBoxes = Set<Provider.Handle>()
+            func rollbackValueRefs() {
+                for (handle, ref) in transactionRefs where refsByHandle[handle] == ref {
+                    refsByHandle.removeValue(forKey: handle)
+                    usedRefIDs.remove(ref)
+                    refConstituent.removeValue(forKey: ref)
+                }
+                for handle in transactionBoxes where refsByHandle[handle] == nil && !discoveredHandles.contains(handle) {
+                    boxesByHandle.removeValue(forKey: handle)?.releaseOnce()
+                }
+                transactionRefs.removeAll(keepingCapacity: true)
+                transactionBoxes.removeAll(keepingCapacity: true)
+            }
             let codec = AOSAXValueCodec<Provider.Handle>(
                 bounds: try AOSAXValueCodecBounds(
                     maxArrayDepth: request.bounds.maxArrayDepth,
@@ -1396,7 +1538,12 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                     maxAggregateCost: request.bounds.maxValueCost
                 ),
                 resolveElementRef: { handle in
-                    try admitRef(handle, constituentID: entry.constituentID).0
+                    let hadRef = refsByHandle[handle] != nil
+                    let hadBox = boxesByHandle[handle] != nil
+                    let admitted = try admitRef(handle, constituentID: entry.constituentID)
+                    if !hadRef { transactionRefs[handle] = admitted.0 }
+                    if !hadBox { transactionBoxes.insert(handle) }
+                    return admitted.0
                 }
             )
             for name in namesToRead {
@@ -1410,15 +1557,25 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                 case .unsupported:
                     internalAttributes.append(.init(name: name, outcome: .unsupported))
                 case .unavailable(let error):
-                    internalAttributes.append(.init(name: name, outcome: .platformError, error: classified(error, as: .unavailable)))
+                    internalAttributes.append(.init(name: name, outcome: .platformError, error: try classified(error, as: .unavailable)))
                 case .platformError(let error):
-                    internalAttributes.append(.init(name: name, outcome: .platformError, error: classified(error, as: .platformError)))
+                    internalAttributes.append(.init(name: name, outcome: .platformError, error: try classified(error, as: .platformError)))
                 case .value(let platformValue):
-                    let encoded = try codec.encode(platformValue, consumed: valueCost)
+                    transactionRefs.removeAll(keepingCapacity: true)
+                    transactionBoxes.removeAll(keepingCapacity: true)
+                    let encoded: AOSAXValueEncoding
+                    do {
+                        encoded = try codec.encode(platformValue, consumed: valueCost)
+                    } catch {
+                        rollbackValueRefs()
+                        throw error
+                    }
                     if let value = encoded.value {
                         valueCost += encoded.cost
+                        valueCostByConstituent[entry.constituentID, default: 0] += encoded.cost
                         internalAttributes.append(.init(name: name, outcome: .value, value: value))
                     } else {
+                        rollbackValueRefs()
                         let outcome: AOSAXAttributeOutcomeKind
                         let detail: String
                         switch encoded.limit {
@@ -1460,18 +1617,18 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                     case .value(false): settableFacts?.append(.init(name: name, outcome: .notSettable))
                     case .unsupported: settableFacts?.append(.init(name: name, outcome: .unsupported))
                     case .unavailable(let error):
-                        settableFacts?.append(.init(name: name, outcome: .platformError, error: classified(error, as: .unavailable)))
+                        settableFacts?.append(.init(name: name, outcome: .platformError, error: try classified(error, as: .unavailable)))
                     case .platformError(let error):
-                        settableFacts?.append(.init(name: name, outcome: .platformError, error: classified(error, as: .platformError)))
+                        settableFacts?.append(.init(name: name, outcome: .platformError, error: try classified(error, as: .platformError)))
                     }
                 }
             }
 
             let parameterizedRead: ([String], AOSAXProviderReadOutcome)? = request.projection.parameterizedAttributeNames
-                ? readNames { provider.parameterizedAttributeNames(for: entry.handle.value, deadlineNanoseconds: deadline) }
+                ? try readNames { provider.parameterizedAttributeNames(for: entry.handle.value, deadlineNanoseconds: deadline) }
                 : nil
             let actionRead: ([String], AOSAXProviderReadOutcome)? = request.projection.supportedActionNames
-                ? readNames { provider.supportedActionNames(for: entry.handle.value, deadlineNanoseconds: deadline) }
+                ? try readNames { provider.supportedActionNames(for: entry.handle.value, deadlineNanoseconds: deadline) }
                 : nil
 
             if deadlineReached() {
@@ -1517,12 +1674,12 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                         partial = next.overflow ? Int.max : next.partialValue
                     }
                     let validFrontier = batch.frontier.count <= request.bounds.maxArrayItems && batch.frontier.allSatisfy {
-                        !$0.name.isEmpty && $0.name.utf8.count <= 512 && $0.nextChildPosition >= 0 && $0.remainingCount > 0
+                        AOSAXContractAdmission.identifier($0.name) && $0.nextChildPosition >= 0 && $0.remainingCount > 0
                     }
                     let namedCost = batch.relationships.count.addingReportingOverflow(total)
                     guard !namedCost.overflow,
                           batch.relationships.count <= request.bounds.maxArrayItems,
-                          batch.relationships.allSatisfy({ !$0.name.isEmpty && $0.name.utf8.count <= 512 }),
+                          batch.relationships.allSatisfy({ AOSAXContractAdmission.identifier($0.name) }),
                           namedCost.partialValue <= relationshipAdmission,
                           validFrontier else {
                         let error = AOSAXPlatformError(kind: .platformError, code: "AX_PROVIDER_RESULT_BOUND_EXCEEDED", detail: "relationship provider violated the admitted bounded batch")
@@ -1540,17 +1697,17 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                     }
                     relationshipRead = .init(kind: .value)
                 case .unsupported(let error):
-                    let exact = classified(error, as: .unsupported)
+                    let exact = try classified(error, as: .unsupported)
                     relationshipRead = .init(kind: .unsupported, error: exact)
                     recordProviderStop(exact)
                     frontier.append(.init(parentRef: entry.ref, relationshipName: nil, childPosition: nil, depth: entry.depth + 1, ref: nil, constituentID: entry.constituentID, reason: .platformUnsupported))
                 case .unavailable(let error):
-                    let exact = classified(error, as: .unavailable)
+                    let exact = try classified(error, as: .unavailable)
                     relationshipRead = .init(kind: .unavailable, error: exact)
                     recordProviderStop(exact)
                     frontier.append(.init(parentRef: entry.ref, relationshipName: nil, childPosition: nil, depth: entry.depth + 1, ref: nil, constituentID: entry.constituentID, reason: .platformUnavailable))
                 case .platformError(let error):
-                    let exact = classified(error, as: .platformError)
+                    let exact = try classified(error, as: .platformError)
                     relationshipRead = .init(kind: .platformError, error: exact)
                     recordProviderStop(exact)
                     frontier.append(.init(parentRef: entry.ref, relationshipName: nil, childPosition: nil, depth: entry.depth + 1, ref: nil, constituentID: entry.constituentID, reason: .platformError))
@@ -1595,12 +1752,10 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                         traversalStopped = true
                         break relationshipLoop
                     }
-                    let admitted = try admitRef(child, constituentID: entry.constituentID)
+                    let box = try retainedBox(child)
                     discoveredHandles.insert(child)
-                    recordParent(childRef: admitted.0, parentRef: entry.ref, depth: entry.depth + 1)
                     queue.append(.init(
-                        handle: admitted.1,
-                        ref: admitted.0,
+                        handle: box,
                         parentRef: entry.ref,
                         incomingRelationship: relationship.name,
                         childPosition: position,
@@ -1664,36 +1819,33 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
 
         }
 
-        var invalidConstituents = Set<String?>()
-        var invalidReasons: [String?: AOSAXFrontierReason] = [:]
+        var generationFailures: [(id: String?, reason: AOSAXFrontierReason, stop: AOSAXStopCondition, error: AOSAXPlatformError)] = []
         for binding in generationBindings {
-            switch generationCheck(binding.generation) {
+            switch try generationCheck(binding.generation) {
             case .matched:
                 continue
             case .mismatched(let error):
-                invalidConstituents.insert(binding.constituentID)
-                invalidReasons[binding.constituentID] = .generationMismatch
-                stopCondition = .init(kind: .generationMismatch, detail: error.code, error: error)
+                generationFailures.append((binding.constituentID, .generationMismatch, .init(kind: .generationMismatch, detail: error.code, error: error), error))
             case .unavailable(let error):
-                invalidConstituents.insert(binding.constituentID)
-                invalidReasons[binding.constituentID] = .platformUnavailable
-                stopCondition = .init(kind: .platformUnavailable, detail: error.code, error: error)
+                generationFailures.append((binding.constituentID, .platformUnavailable, .init(kind: .platformUnavailable, detail: error.code, error: error), error))
             case .deadline:
-                invalidConstituents.insert(binding.constituentID)
-                invalidReasons[binding.constituentID] = .deadline
-                stopCondition = .init(kind: .deadline, detail: "deadline prevented the required pre-commit generation sample")
+                let error = AOSAXPlatformError(kind: .unavailable, code: "AX_DEADLINE_EXCEEDED", detail: "deadline prevented the required pre-commit generation sample")
+                generationFailures.append((binding.constituentID, .deadline, .init(kind: .deadline, detail: error.detail, error: error), error))
             }
         }
+        let invalidConstituents = Set(generationFailures.map(\.id))
         if !invalidConstituents.isEmpty {
             forcedOutcome = .unavailable
+            stopCondition = generationFailures[0].stop
             nodes.removeAll { invalidConstituents.contains($0.constituentID) }
             frontier.removeAll { invalidConstituents.contains($0.constituentID) }
-            for constituentID in invalidConstituents {
-                frontier.append(.init(parentRef: nil, relationshipName: nil, childPosition: nil, depth: 0, ref: nil, constituentID: constituentID, reason: invalidReasons[constituentID] ?? .generationMismatch))
+            for failure in generationFailures {
+                frontier.append(.init(parentRef: nil, relationshipName: nil, childPosition: nil, depth: 0, ref: nil, constituentID: failure.id, reason: failure.reason))
+                valueCost -= valueCostByConstituent[failure.id, default: 0]
             }
             constituents = constituents.map { item in
-                guard invalidConstituents.contains(item.id) else { return item }
-                return .init(id: item.id, generation: item.generation, outcome: .unavailable, error: stopCondition.error)
+                guard let failure = generationFailures.first(where: { $0.id == item.id }) else { return item }
+                return .init(id: item.id, generation: item.generation, outcome: .unavailable, error: failure.error)
             }
         }
 

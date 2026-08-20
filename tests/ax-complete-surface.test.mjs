@@ -46,30 +46,39 @@ final class IdentityFactory: @unchecked Sendable {
 
 final class FakeGenerationObserver: @unchecked Sendable, AOSAXProcessGenerationObserving {
     private let lock = NSLock()
+    let clock: FakeClock
     var generations: [Int32: AOSAXProcessGeneration]
     var changeAfterFirst: Set<Int32> = []
+    var unavailableAfterFirst: Set<Int32> = []
+    var advanceAfterFinal: [Int32: UInt64] = [:]
     private var counts: [Int32: Int] = [:]
 
-    init(_ generations: [Int32: AOSAXProcessGeneration]) {
+    init(_ generations: [Int32: AOSAXProcessGeneration], clock: FakeClock) {
         self.generations = generations
+        self.clock = clock
     }
 
     func observeGeneration(pid: Int32) -> AOSAXGenerationObservation {
-        lock.held {
+        let result: (Int, AOSAXGenerationObservation) = lock.held {
             let count = (counts[pid] ?? 0) + 1
             counts[pid] = count
             guard let generation = generations[pid] else {
-                return .unavailable(.init(code: "AX_PROCESS_MISSING", detail: "fake process is absent"))
+                return (count, .unavailable(.init(code: "AX_PROCESS_MISSING", detail: "fake process is absent")))
+            }
+            if unavailableAfterFirst.contains(pid), count > 1 {
+                return (count, .unavailable(.init(code: "AX_FINAL_UNAVAILABLE_\(pid)", detail: "fake final generation is unavailable")))
             }
             if changeAfterFirst.contains(pid), count > 1 {
-                return .value(.init(
+                return (count, .value(try! .init(
                     pid: generation.pid,
                     startTimeSeconds: generation.startTimeSeconds + 1,
                     startTimeMicroseconds: generation.startTimeMicroseconds
-                ))
+                )))
             }
-            return .value(generation)
+            return (count, .value(generation))
         }
+        if result.0 > 1, let advance = advanceAfterFinal[pid] { clock.advance(advance) }
+        return result.1
     }
 }
 
@@ -84,6 +93,8 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
     var parameterizedUnsupported = false
     var actionUnavailable = false
     var relationshipPlatformError = false
+    var rootError: AOSAXPlatformError?
+    var rollbackAttribute = false
     var forbiddenAtOrAfter: UInt64?
     private var calls = 0
     private var retains = 0
@@ -108,6 +119,7 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
 
     func systemWideRoot(deadlineNanoseconds: UInt64) -> AOSAXPlatformResult<Int> {
         called()
+        if let rootError { return .platformError(rootError) }
         if systemUnsupported {
             return .unsupported(.init(code: "AX_SYSTEM_UNSUPPORTED", detail: "fake unsupported root"))
         }
@@ -125,6 +137,7 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
         switch generation.pid {
         case 100: return .value(2)
         case 200: return .value(6)
+        case 300: return .value(9)
         default: return .unavailable(.init(code: "AX_APPLICATION_MISSING", detail: "fake missing app"))
         }
     }
@@ -205,6 +218,7 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
 
     func attributeNames(for handle: Int, deadlineNanoseconds: UInt64) -> AOSAXPlatformResult<[String]> {
         called()
+        if rollbackAttribute { return .value(["RollbackArray"]) }
         if handle != 1 { return .value(["Title", "NoValue", "Unsupported", "Error"]) }
         return .value([
             "URL", "Unsigned", "String", "Size", "Signed", "Rect", "Range", "Point",
@@ -220,6 +234,7 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
     ) -> AOSAXAttributeRead<Int> {
         called()
         switch name {
+        case "RollbackArray": return .value(.array([.element(99), .unknownType("late failure")]))
         case "Boolean": return .value(.boolean(true))
         case "Signed": return .value(.signedInteger(-4))
         case "Unsigned": return .value(.unsignedInteger(4))
@@ -310,13 +325,15 @@ final class Harness: @unchecked Sendable {
         maxTombstones: Int = 256,
         maxBorrows: Int = 64,
         clockStart: UInt64 = 1_000,
-        invalidTokenIdentities: Bool = false
+        invalidTokenIdentities: Bool = false,
+        tokenIdentity: AOSAXPageTokenIdentity? = nil
     ) {
         clock = FakeClock(clockStart)
-        let gen100 = AOSAXProcessGeneration(pid: 100, startTimeSeconds: 10, startTimeMicroseconds: 1)
-        let gen200 = AOSAXProcessGeneration(pid: 200, startTimeSeconds: 20, startTimeMicroseconds: 2)
+        let gen100 = try! AOSAXProcessGeneration(pid: 100, startTimeSeconds: 10, startTimeMicroseconds: 1)
+        let gen200 = try! AOSAXProcessGeneration(pid: 200, startTimeSeconds: 20, startTimeMicroseconds: 2)
+        let gen300 = try! AOSAXProcessGeneration(pid: 300, startTimeSeconds: 30, startTimeMicroseconds: 3)
         provider = FakeProvider(clock: clock)
-        generations = FakeGenerationObserver([100: gen100, 200: gen200])
+        generations = FakeGenerationObserver([100: gen100, 200: gen200, 300: gen300], clock: clock)
         retention = try! AOSAXRetentionConfiguration(
             snapshotTTLNanoseconds: ttl,
             maxSnapshots: maxSnapshots,
@@ -343,6 +360,7 @@ final class Harness: @unchecked Sendable {
             monotonicClock: { [clock] in clock.read() },
             wallClock: { Date(timeIntervalSince1970: 1_700_000_000) },
             tokenFactory: { [ids] in
+                if let tokenIdentity { return tokenIdentity }
                 if invalidTokenIdentities {
                     return .init(lookupID: "invalid.lookup", publicToken: "invalid")
                 }
@@ -516,8 +534,9 @@ func run() {
     precondition(primary.store.activeBorrows() == 0)
     emit(element)
 
-    let gen100 = AOSAXProcessGeneration(pid: 100, startTimeSeconds: 10, startTimeMicroseconds: 1)
-    let gen200 = AOSAXProcessGeneration(pid: 200, startTimeSeconds: 20, startTimeMicroseconds: 2)
+    let gen100 = try! AOSAXProcessGeneration(pid: 100, startTimeSeconds: 10, startTimeMicroseconds: 1)
+    let gen200 = try! AOSAXProcessGeneration(pid: 200, startTimeSeconds: 20, startTimeMicroseconds: 2)
+    let gen300 = try! AOSAXProcessGeneration(pid: 300, startTimeSeconds: 30, startTimeMicroseconds: 3)
     let application = try! primary.engine.observe(request(.application(gen100), pageSize: 8))
     precondition(application.outcome == .complete)
     emit(application)
@@ -526,7 +545,7 @@ func run() {
     emit(window)
     let composite = try! primary.engine.observe(request(.displayComposite(
         topologyIdentity: "topology-1",
-        applications: [gen100, .init(pid: 999, startTimeSeconds: 99, startTimeMicroseconds: 9), gen200]
+        applications: [gen100, try! .init(pid: 999, startTimeSeconds: 99, startTimeMicroseconds: 9), gen200]
     ), pageSize: 16))
     precondition(composite.outcome == .unavailable)
     precondition(composite.constituents.count == 3)
@@ -544,6 +563,25 @@ func run() {
     precondition(mismatch.retention.retainedRefCount == 0)
     emit(mismatch)
 
+    let settlementHarness = Harness()
+    settlementHarness.generations.changeAfterFirst = [100]
+    settlementHarness.generations.unavailableAfterFirst = [200]
+    settlementHarness.generations.advanceAfterFinal = [200: 1_000]
+    let settlement = try! settlementHarness.engine.observe(request(.displayComposite(
+        topologyIdentity: "topology-settlement",
+        applications: [gen100, gen200, gen300]
+    ), pageSize: 16))
+    precondition(settlement.nodes.isEmpty && settlement.accounting.retainedValueCost == 0)
+    precondition(settlement.retention.retainedRefCount == 0)
+    precondition(settlement.constituents.compactMap { $0.error?.code } == [
+        "AX_PROCESS_GENERATION_MISMATCH", "AX_FINAL_UNAVAILABLE_200", "AX_DEADLINE_EXCEEDED",
+    ])
+    precondition(settlement.frontier.map(\.reason) == [.generationMismatch, .platformUnavailable, .deadline])
+    precondition(settlement.frontier.compactMap(\.constituentID) == [
+        "application-0-pid-100", "application-1-pid-200", "application-2-pid-300",
+    ])
+    emit(settlement)
+
     let unsupportedHarness = Harness()
     unsupportedHarness.provider.systemUnsupported = true
     let unsupported = try! unsupportedHarness.engine.observe(request(.systemWide, pageSize: 8))
@@ -551,7 +589,7 @@ func run() {
     precondition(unsupported.stopCondition.error?.kind == .unsupported)
     emit(unsupported)
     let unavailable = try! unsupportedHarness.engine.observe(request(
-        .application(.init(pid: 999, startTimeSeconds: 99, startTimeMicroseconds: 9)),
+        .application(try! .init(pid: 999, startTimeSeconds: 99, startTimeMicroseconds: 9)),
         pageSize: 8
     ))
     precondition(unavailable.outcome == .unavailable)
@@ -606,11 +644,12 @@ func run() {
     precondition(depthBound.outcome == .truncated)
     precondition(depthBound.frontier.contains(where: { $0.reason == .depthBound }))
     emit(depthBound)
-    let visitBound = try! primary.engine.observe(request(.systemWide, bounds: bounds(visited: 1), pageSize: 1))
+    let visitBound = try! primary.engine.observe(request(.systemWide, bounds: bounds(visited: 1), projection: factsOnly, pageSize: 1))
     precondition(visitBound.outcome == .truncated)
     precondition(visitBound.stopCondition.kind == .visitedBound)
     precondition(visitBound.frontier.map(\.relationshipName).compactMap { $0 } == ["AChildren", "ZChildren"])
     precondition(visitBound.frontier.map(\.remainingCount).compactMap { $0 } == [2, 2])
+    precondition(visitBound.frontier.allSatisfy { $0.ref == nil } && visitBound.retention.retainedRefCount == 1)
     emit(visitBound)
     let emitBound = try! primary.engine.observe(request(.systemWide, bounds: bounds(emitted: 1), pageSize: 1))
     precondition(emitBound.outcome == .truncated)
@@ -645,6 +684,25 @@ func run() {
     precondition(valueBound.stopCondition.kind == .valueCostBound)
     precondition(valueBound.nodes[0].relationshipRead.kind == .notAttempted)
     emit(valueBound)
+
+    let rollbackHarness = Harness()
+    rollbackHarness.provider.rollbackAttribute = true
+    let attributesOnly = AOSAXProjectionSelection(
+        attributes: true,
+        parameterizedAttributeNames: false,
+        settableFacts: false,
+        supportedActionNames: false,
+        relationshipNames: false
+    )
+    let rollback = try! rollbackHarness.engine.observe(request(
+        .systemWide,
+        bounds: bounds(visited: 1),
+        projection: attributesOnly,
+        pageSize: 1
+    ))
+    precondition(attribute("RollbackArray", in: rollback.nodes[0]).outcome == .unrepresentableType)
+    precondition(rollback.retention.retainedRefCount == 1)
+    precondition(rollbackHarness.provider.retainCount() - rollbackHarness.provider.releaseCount() == 1)
 
     let deadlineHarness = Harness()
     deadlineHarness.provider.advancePerCall = 1
@@ -772,6 +830,76 @@ func run() {
     precondition(tokenCollisionHarness.store.retainedCounts().snapshots == 0)
     precondition(tokenCollisionHarness.provider.retainCount() == tokenCollisionHarness.provider.releaseCount())
 
+    for identity in [
+        AOSAXPageTokenIdentity(lookupID: "token", publicToken: "token." + String(repeating: "x", count: 507)),
+        AOSAXPageTokenIdentity(lookupID: "token", publicToken: "token.é"),
+    ] {
+        let invalidTokenHarness = Harness(tokenIdentity: identity)
+        do {
+            _ = try invalidTokenHarness.engine.observe(request(.systemWide, pageSize: 1))
+            preconditionFailure("non-public token shape must fail closed")
+        } catch { precondition(error as? AOSAXObservationError == .identityExhausted) }
+        let counts = invalidTokenHarness.store.retainedCounts()
+        precondition(counts.snapshots == 0 && counts.tokens == 0)
+        precondition(invalidTokenHarness.provider.retainCount() == invalidTokenHarness.provider.releaseCount())
+    }
+
+    do {
+        _ = try AOSAXProcessGeneration(pid: 0, startTimeSeconds: 0, startTimeMicroseconds: 0)
+        preconditionFailure("zero pid must be rejected")
+    } catch { precondition(error as? AOSAXObservationError == .invalidRoot) }
+    do {
+        _ = try AOSAXObservationRequest(
+            root: .displayComposite(topologyIdentity: String(repeating: "t", count: 513), applications: [gen100]),
+            bounds: bounds(),
+            pageSize: 1
+        )
+        preconditionFailure("oversized topology identity must be rejected")
+    } catch { precondition(error as? AOSAXObservationError == .invalidRoot) }
+    do {
+        _ = try AOSAXObservationRequest(
+            root: .element(stateID: String(repeating: "s", count: 513), ref: "ref"),
+            bounds: bounds(),
+            pageSize: 1
+        )
+        preconditionFailure("oversized Observation Ref identity must be rejected")
+    } catch { precondition(error as? AOSAXObservationError == .invalidRoot) }
+    let encodedRequest = try! AOSAXObservationJSON.encode(request(.application(gen100), pageSize: 1))
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    precondition((try? decoder.decode(AOSAXObservationRequest.self, from: encodedRequest)) != nil)
+    let invalidJSON = String(data: encodedRequest, encoding: .utf8)!
+        .replacingOccurrences(of: "\"start_time_microseconds\":1", with: "\"start_time_microseconds\":1000000")
+    precondition(invalidJSON.contains("\"start_time_microseconds\":1000000"))
+    do {
+        _ = try decoder.decode(AOSAXObservationRequest.self, from: Data(invalidJSON.utf8))
+        preconditionFailure("decoded microsecond overflow must be rejected")
+    } catch {}
+    do {
+        _ = try AOSAXPageRequest(
+            token: "token.é",
+            expectedStateID: "state",
+            requestDigest: String(repeating: "0", count: 64),
+            projectionDigest: String(repeating: "0", count: 64),
+            pageSize: 1
+        )
+        preconditionFailure("page request token shape must be rejected")
+    } catch {}
+    for providerError in [
+        AOSAXPlatformError(code: "", detail: "missing code"),
+        AOSAXPlatformError(code: String(repeating: "x", count: 513), detail: "oversized code"),
+        AOSAXPlatformError(code: "AX_EMPTY_DETAIL", detail: ""),
+        AOSAXPlatformError(code: "AX_OVERSIZED", detail: String(repeating: "x", count: 2_049)),
+    ] {
+        let invalidProviderHarness = Harness()
+        invalidProviderHarness.provider.rootError = providerError
+        do {
+            _ = try invalidProviderHarness.engine.observe(request(.systemWide, pageSize: 1))
+            preconditionFailure("invalid provider error must be rejected")
+        } catch { precondition(error as? AOSAXObservationError == .invalidRoot) }
+        precondition(invalidProviderHarness.store.retainedCounts().snapshots == 0)
+    }
+
     let overflowHarness = Harness(ttl: 10, clockStart: UInt64.max - 5)
     do {
         _ = try overflowHarness.engine.observe(request(.systemWide, bounds: bounds(deadline: 1), pageSize: 8))
@@ -809,6 +937,7 @@ func run() {
 
     _ = primary.store.removeAll()
     _ = mismatchHarness.store.removeAll()
+    _ = settlementHarness.store.removeAll()
     _ = unsupportedHarness.store.removeAll()
     _ = deadlineHarness.store.removeAll()
     _ = evictionHarness.store.removeAll()
@@ -818,6 +947,7 @@ func run() {
     _ = errorHarness.store.removeAll()
     _ = refCapacityHarness.store.removeAll()
     _ = valueCapacityHarness.store.removeAll()
+    _ = rollbackHarness.store.removeAll()
     precondition(primary.provider.retainCount() == primary.provider.releaseCount())
 }
 
