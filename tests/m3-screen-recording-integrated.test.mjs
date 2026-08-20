@@ -860,6 +860,10 @@ final class Environment: @unchecked Sendable {
         try control.kill(context: context(), operation: operation)
     }
 
+    func killOwner(_ filter: AOSOperationFilter = .init()) throws -> AOSOperationControlReceipt {
+        try control.killOwner(context: context(), filter: filter)
+    }
+
     func requestValue(
         systemAudio: Bool,
         microphone: Bool,
@@ -1502,6 +1506,46 @@ struct IntegratedHarness {
                 installAdmission, receipt: installReceipt, environment: preinstall
             )
         }
+
+        let ownerControl = try Environment()
+        let ownerAdmission = try activate(ownerControl, followed: true).0
+        let ownerReceipt = try ownerControl.killOwner(
+            AOSOperationFilter(taskID: "m3e-screen")
+        )
+        wait("kill-owner control did not terminalize") {
+            operation(ownerAdmission, ownerControl).state == .terminal
+        }
+        let ownerTerminal = operation(ownerAdmission, ownerControl)
+        require(ownerReceipt.action == .killOwner
+            && ownerReceipt.selectedOperations == [ownerAdmission.operation]
+            && ownerReceipt.selectedOperationCount == 1
+            && ownerReceipt.stopIntent == .ownerKill
+            && ownerReceipt.terminalOutcome == .killed
+            && ownerTerminal.stopIntent == .ownerKill
+            && ownerTerminal.outcome == .killed,
+            "kill-owner control lost selected owner or terminal truth")
+        let ownerState = ownerControl.registry.snapshot()
+        require(ownerTerminal.screenRecordingGeometry?.deadlineState == .stopped
+            && !AOSOperationRegistry.hasNonterminalChildren(
+                in: ownerState, operation: ownerAdmission.operation
+            )
+            && !ownerControl.broker.retainsAuthority,
+            "kill-owner control left geometry, children, or authority")
+        let projectedOwnerControl = AOSOperationPublicProjection.control(
+            action: ownerReceipt.action.rawValue,
+            selectedOperations: ownerReceipt.selectedOperations,
+            selectedOperationCount: ownerReceipt.selectedOperationCount,
+            selectedOperationDigest: ownerReceipt.selectedOperationDigest,
+            completedAt: "2026-08-19T00:00:00.000Z",
+            inspect: { try? ownerControl.registry.inspect($0) }
+        )
+        append("controls", projectedOwnerControl)
+        append("responses", responseEnvelope(projectedOwnerControl))
+        append("requests", daemonRequest("kill_owner", data: [
+            "request_id": "control-kill-owner",
+            "canonical_parameter_digest": String(repeating: "e", count: 64),
+            "filters": ["task_id": "m3e-screen"],
+        ]))
 
         for pair in [(AOSOrdinaryControlAction.cancel, AOSOrdinaryControlAction.kill),
                      (AOSOrdinaryControlAction.kill, AOSOrdinaryControlAction.cancel)] {
@@ -2182,9 +2226,13 @@ test('complete landed M3 recording executes as one production-attached offline s
     assert.equal(evidence.lists.length, 12)
     assert.equal(evidence.inspects.length, 12)
     assert.ok(evidence.events.length >= 8)
-    assert.equal(evidence.responses.length, 44)
-    assert.equal(evidence.requests.length, 10)
-    assert.equal(evidence.controls.length, 6)
+    assert.equal(evidence.responses.length, 45)
+    assert.equal(evidence.requests.length, 11)
+    assert.equal(evidence.controls.length, 7)
+    assert.deepEqual(
+      [...new Set(evidence.controls.map(({ operation }) => operation))].sort(),
+      ['cancel', 'kill', 'kill_owner'],
+    )
     assert.equal(evidence.failed_lists.length, 1)
     assert.equal(evidence.failed_inspects.length, 1)
     const validate = spawnSync('python3', ['-c', String.raw`
@@ -2223,12 +2271,12 @@ for validator, values in checks:
     for value in values:
         errors=list(validator.iter_errors(value))
         assert not errors,[error.message for error in errors]
-print('m3e-schemas: requests=10 admissions=8 follow=1 list=13 inspect=13 controls=6 custody=3 responses=44')
+print('m3e-schemas: requests=11 admissions=8 follow=1 list=13 inspect=13 controls=7 custody=3 responses=45')
 `, path.join(repoRoot, 'shared/schemas')], {
       encoding: 'utf8', input: JSON.stringify(evidence), timeout: 20_000,
     })
     assert.equal(validate.status, 0, `${validate.stdout}\n${validate.stderr}`)
-    assert.match(validate.stdout, /m3e-schemas: requests=10 admissions=8 follow=1 list=13 inspect=13 controls=6 custody=3 responses=44/u)
+    assert.match(validate.stdout, /m3e-schemas: requests=11 admissions=8 follow=1 list=13 inspect=13 controls=7 custody=3 responses=45/u)
   } finally {
     await rm(buildRoot, { recursive: true, force: true })
   }
