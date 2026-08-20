@@ -1911,7 +1911,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                 _ refs: inout [Provider.Handle: String],
                 _ boxes: inout Set<Provider.Handle>
             ) {
-                for (handle, ref) in refs where refsByHandle[handle] == ref && !discoveredHandles.contains(handle) {
+                for (handle, ref) in refs where refsByHandle[handle] == ref && !visitedHandles.contains(handle) {
                     refsByHandle.removeValue(forKey: handle)
                     usedRefIDs.remove(ref)
                     refConstituent.removeValue(forKey: ref)

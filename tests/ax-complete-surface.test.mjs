@@ -95,6 +95,7 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
     var relationshipPlatformError = false
     var rootError: AOSAXPlatformError?
     var rollbackAttribute = false
+    var queuedValueRefAttribute = false
     var frontierStress = false
     var oversizedFacts = false
     var advanceAfterAttribute: [String: UInt64] = [:]
@@ -190,6 +191,11 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
         maximumResultItems: Int
     ) -> AOSAXPlatformResult<AOSAXPlatformRelationshipBatch<Int>> {
         called()
+        if queuedValueRefAttribute, handle == 3 {
+            return .value(.init(relationships: [], frontier: [
+                .init(name: "Deferred", nextChildPosition: 0, remainingCount: 1),
+            ]))
+        }
         if relationshipPlatformError {
             return .platformError(.init(code: "AX_FAKE_RELATIONSHIP", detail: "fake relationship failure"))
         }
@@ -241,6 +247,9 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
     func attributeNames(for handle: Int, deadlineNanoseconds: UInt64) -> AOSAXPlatformResult<[String]> {
         called()
         if rollbackAttribute { return .value(["RollbackArray"]) }
+        if queuedValueRefAttribute {
+            return .value(handle == 3 ? ["QueuedElement"] : [])
+        }
         if handle != 1 { return .value(["Title", "NoValue", "Unsupported", "Error"]) }
         return .value([
             "URL", "Unsigned", "String", "Size", "Signed", "Rect", "Range", "Point",
@@ -260,6 +269,7 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
         }
         switch name {
         case "RollbackArray": return .value(.array([.element(99), .unknownType("late failure")]))
+        case "QueuedElement": return .value(.element(5))
         case "Boolean": return .value(.boolean(true))
         case "Signed": return .value(.signedInteger(-4))
         case "Unsigned": return .value(.unsignedInteger(4))
@@ -1060,6 +1070,17 @@ func run() {
     precondition(attribute("RollbackArray", in: rollback.nodes[0]).outcome == .unrepresentableType)
     precondition(rollback.retention.retainedRefCount == 1)
     precondition(rollbackHarness.provider.retainCount() - rollbackHarness.provider.releaseCount() == 1)
+
+    let queuedRefHarness = Harness()
+    queuedRefHarness.provider.queuedValueRefAttribute = true
+    let queuedRef = try! queuedRefHarness.engine.observe(request(.systemWide, bounds: bounds(visited: 4),
+        filters: [.init(role: "AXSystemWide")], projection: attributesOnly, pageSize: 2))
+    precondition(queuedRef.accounting.visited == 2 && queuedRef.accounting.emitted == 1)
+    precondition(queuedRef.nodes.map(\.facts.identifier) == ["id-1"])
+    precondition(queuedRef.retention.retainedRefCount == 2)
+    precondition(queuedRef.accounting.retainedValueCost == 0)
+    precondition(queuedRefHarness.provider.retainCount() - queuedRefHarness.provider.releaseCount() == 2)
+    emit(queuedRef)
 
     let deadlineHarness = Harness()
     deadlineHarness.provider.advancePerCall = 1
