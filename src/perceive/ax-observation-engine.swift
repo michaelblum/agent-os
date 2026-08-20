@@ -493,7 +493,7 @@ public struct AOSAXObservationRequest: Codable, Equatable, Sendable {
 
 enum AOSAXContractAdmission {
     static func identifier(_ value: String) -> Bool {
-        !value.isEmpty && value.count <= 512
+        unicodeScalarCount(value, minimum: 1, maximum: 512)
     }
 
     static func generation(_ value: AOSAXProcessGeneration) -> Bool {
@@ -501,7 +501,7 @@ enum AOSAXContractAdmission {
     }
 
     static func platformError(_ value: AOSAXPlatformError) -> Bool {
-        identifier(value.code) && !value.detail.isEmpty && value.detail.count <= 2_048
+        identifier(value.code) && unicodeScalarCount(value.detail, minimum: 1, maximum: 2_048)
     }
 
     static func facts(_ value: AOSAXElementFacts) -> Bool {
@@ -522,6 +522,19 @@ enum AOSAXContractAdmission {
         value.utf8.count == 64 && value.unicodeScalars.allSatisfy {
             (48...57).contains($0.value) || (97...102).contains($0.value)
         }
+    }
+
+    private static func unicodeScalarCount(
+        _ value: String,
+        minimum: Int,
+        maximum: Int
+    ) -> Bool {
+        var count = 0
+        for _ in value.unicodeScalars {
+            count += 1
+            if count > maximum { return false }
+        }
+        return count >= minimum
     }
 
     static func request(_ value: AOSAXObservationRequest) -> Bool {
@@ -707,7 +720,7 @@ public struct AOSAXNodeProjection: Codable, Equatable, Sendable {
     public let supportedActionNamesRead: AOSAXProviderReadOutcome?
     public let relationshipNames: [String]?
     public let relationshipRead: AOSAXProviderReadOutcome
-    public let referenceEdges: [AOSAXReferenceEdge]
+    public var referenceEdges: [AOSAXReferenceEdge]
 
     public init(
         ref: String,
@@ -896,6 +909,51 @@ public struct AOSAXObservationResponse: Codable, Equatable, Sendable {
         )
     }
 
+    public static func frontierLimitExceeded<Handle: Hashable & Sendable>(
+        from snapshot: AOSAXStoredSnapshot<Handle>
+    ) -> AOSAXObservationResponse {
+        let limit = snapshot.effectiveLimits.observationLimits.maxFrontier
+        return AOSAXObservationResponse(
+            schemaVersion: "aos.ax-observation.v1",
+            kind: "observation",
+            stateID: snapshot.stateID,
+            root: snapshot.root,
+            requestDigest: snapshot.requestDigest,
+            projectionDigest: snapshot.projectionDigest,
+            bounds: snapshot.bounds,
+            effectiveLimits: snapshot.effectiveLimits,
+            filters: snapshot.filters,
+            createdAt: snapshot.createdAt,
+            expiresAt: snapshot.expiresAt,
+            outcome: .truncated,
+            stopCondition: .init(
+                kind: .retentionLimit,
+                detail: "snapshot frontier exceeds the effective retained-frontier bound"
+            ),
+            accounting: snapshot.accounting,
+            frontier: Array(snapshot.frontier.prefix(limit)),
+            constituents: snapshot.constituents.map { constituent in
+                constituent.outcome == .complete
+                    ? .init(
+                        id: constituent.id,
+                        generation: constituent.generation,
+                        outcome: .truncated,
+                        error: constituent.error
+                    )
+                    : constituent
+            },
+            nodes: [],
+            nextPageToken: nil,
+            nextPosition: nil,
+            retention: .init(
+                snapshotTTLNanoseconds: snapshot.expiresMonotonicNanoseconds - snapshot.createdMonotonicNanoseconds,
+                retainedRefCount: 0,
+                retainedValueCost: 0,
+                pageSize: snapshot.pageSize
+            )
+        )
+    }
+
     private init(
         schemaVersion: String,
         kind: String,
@@ -962,6 +1020,16 @@ private struct AOSAXVisitEntry<Handle: Hashable & Sendable> {
     var constituentID: String? { queued.constituentID }
 }
 
+private struct AOSAXPendingEdge<Handle: Hashable & Sendable> {
+    let sequence: Int
+    let child: Handle
+    let parentRef: String
+    let relationshipName: String
+    let childPosition: Int
+    let depth: Int
+    let constituentID: String?
+}
+
 private struct AOSAXGenerationBinding {
     let generation: AOSAXProcessGeneration
     let constituentID: String?
@@ -1022,6 +1090,9 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
         var visitedHandles = Set<Provider.Handle>()
         var queue: [AOSAXQueueEntry<Provider.Handle>] = []
         var queueIndex = 0
+        var pendingEdgesByHandle: [Provider.Handle: [AOSAXPendingEdge<Provider.Handle>]] = [:]
+        var pendingEdgeCount = 0
+        var nextPendingEdgeSequence = 0
         var generationBindings: [AOSAXGenerationBinding] = []
         var constituents: [AOSAXCompositeConstituentResult] = []
         var forcedOutcome: AOSAXObservationOutcome?
@@ -1037,6 +1108,8 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
         var nodes: [AOSAXNodeProjection] = []
         var frontier: [AOSAXFrontierEntry] = []
         var rootStopped = false
+        var traversalStopped = false
+        let maxFrontier = admission.effectiveLimits.observationLimits.maxFrontier
 
         func deadlineReached() -> Bool {
             store.monotonicNow() >= deadline
@@ -1066,16 +1139,56 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             }
         }
 
+        func frontierReason(for kind: AOSAXStopKind) -> AOSAXFrontierReason {
+            switch kind {
+            case .depthBound: return .depthBound
+            case .visitedBound: return .visitedBound
+            case .emittedBound: return .emittedBound
+            case .deadline: return .deadline
+            case .valueCostBound: return .valueCostBound
+            case .arrayBound: return .arrayBound
+            case .platformUnsupported: return .platformUnsupported
+            case .platformUnavailable: return .platformUnavailable
+            case .platformError: return .platformError
+            case .generationMismatch: return .generationMismatch
+            case .retentionLimit, .sourceSnapshotExpired, .sourceSnapshotEvicted, .sourceRefMissing, .complete:
+                return .retentionLimit
+            }
+        }
+
         func recordProviderStop(_ error: AOSAXPlatformError) {
             if stopCondition.kind == .complete {
                 stopCondition = .init(kind: stopKind(for: error.kind), detail: error.code, error: error)
             }
         }
 
+        func queuedFrontierDebt() -> Int {
+            max(0, queue.count - queueIndex)
+        }
+
+        func canGrowFrontierDebt(by amount: Int) -> Bool {
+            guard amount >= 0 else { return false }
+            let base = frontier.count.addingReportingOverflow(queuedFrontierDebt())
+            guard !base.overflow else { return false }
+            let pending = base.partialValue.addingReportingOverflow(pendingEdgeCount)
+            guard !pending.overflow else { return false }
+            let total = pending.partialValue.addingReportingOverflow(amount)
+            return !total.overflow && total.partialValue <= maxFrontier
+        }
+
+        @discardableResult
+        func appendFrontier(_ entry: AOSAXFrontierEntry) -> Bool {
+            guard canGrowFrontierDebt(by: 1) else { return false }
+            frontier.append(entry)
+            return true
+        }
+
         func appendRemainingQueue(reason: AOSAXFrontierReason) {
             guard queueIndex < queue.count else { return }
-            for entry in queue[queueIndex...] {
-                frontier.append(.init(
+            let remaining = Array(queue[queueIndex...])
+            queueIndex = queue.count
+            for entry in remaining {
+                _ = appendFrontier(.init(
                     parentRef: entry.parentRef,
                     relationshipName: entry.incomingRelationship,
                     childPosition: entry.childPosition,
@@ -1085,7 +1198,6 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                     reason: reason
                 ))
             }
-            queueIndex = queue.count
         }
 
         func assignedRef(_ handle: Provider.Handle, constituentID: String?) throws -> String {
@@ -1121,7 +1233,8 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
 
         func enqueueRoot(_ handle: Provider.Handle, constituentID: String?) throws {
             guard !discoveredHandles.contains(handle) else { return }
-            guard discoveredHandles.count < request.bounds.maxVisited else {
+            guard discoveredHandles.count < request.bounds.maxVisited,
+                  canGrowFrontierDebt(by: 1) else {
                 throw AOSAXObservationError.retentionLimit
             }
             let box = try retainedBox(handle)
@@ -1263,7 +1376,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             rootIdentity = .init(kind: .systemWide)
             guard !deadlineReached() else {
                 stopCondition = .init(kind: .deadline, detail: "deadline reached before system-root access")
-                frontier.append(.init(parentRef: nil, relationshipName: nil, childPosition: nil, depth: 0, ref: nil, constituentID: nil, reason: .deadline))
+                _ = appendFrontier(.init(parentRef: nil, relationshipName: nil, childPosition: nil, depth: 0, ref: nil, constituentID: nil, reason: .deadline))
                 rootStopped = true
                 break
             }
@@ -1289,7 +1402,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             }) {
                 forcedOutcome = stopCondition.kind == .deadline ? nil : result.outcome
                 if stopCondition.kind == .deadline {
-                    frontier.append(.init(parentRef: nil, relationshipName: nil, childPosition: nil, depth: 0, ref: nil, constituentID: nil, reason: .deadline))
+                    _ = appendFrontier(.init(parentRef: nil, relationshipName: nil, childPosition: nil, depth: 0, ref: nil, constituentID: nil, reason: .deadline))
                     rootStopped = true
                 }
             }
@@ -1300,7 +1413,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             }) {
                 forcedOutcome = stopCondition.kind == .deadline ? nil : result.outcome
                 if stopCondition.kind == .deadline {
-                    frontier.append(.init(parentRef: nil, relationshipName: nil, childPosition: nil, depth: 0, ref: nil, constituentID: nil, reason: .deadline))
+                    _ = appendFrontier(.init(parentRef: nil, relationshipName: nil, childPosition: nil, depth: 0, ref: nil, constituentID: nil, reason: .deadline))
                     rootStopped = true
                 }
             }
@@ -1308,7 +1421,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             rootIdentity = .init(kind: .element, sourceStateID: sourceStateID, sourceRef: sourceRef)
             guard !deadlineReached() else {
                 stopCondition = .init(kind: .deadline, detail: "deadline reached before Observation Ref borrow")
-                frontier.append(.init(parentRef: nil, relationshipName: nil, childPosition: nil, depth: 0, ref: sourceRef, constituentID: nil, reason: .deadline))
+                _ = appendFrontier(.init(parentRef: nil, relationshipName: nil, childPosition: nil, depth: 0, ref: sourceRef, constituentID: nil, reason: .deadline))
                 rootStopped = true
                 break
             }
@@ -1335,16 +1448,51 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                 let constituentID = "application-\(index)-pid-\(generation.pid)"
                 if deadlineReached() {
                     stopCondition = .init(kind: .deadline, detail: "deadline reached during composite-root admission")
-                    frontier.append(.init(
-                        parentRef: nil,
-                        relationshipName: nil,
-                        childPosition: index,
-                        depth: 0,
-                        ref: nil,
-                        constituentID: constituentID,
-                        reason: .deadline,
-                        remainingCount: applications.count - index
-                    ))
+                    let error = AOSAXPlatformError(
+                        kind: .unavailable,
+                        code: "AX_DEADLINE_EXCEEDED",
+                        detail: "composite constituent was not traversed before the monotonic deadline"
+                    )
+                    queue.removeAll(keepingCapacity: true)
+                    queueIndex = 0
+                    generationBindings.removeAll(keepingCapacity: true)
+                    for priorIndex in constituents.indices where constituents[priorIndex].outcome == .complete {
+                        let prior = constituents[priorIndex]
+                        constituents[priorIndex] = .init(
+                            id: prior.id,
+                            generation: prior.generation,
+                            outcome: .unavailable,
+                            error: error
+                        )
+                        _ = appendFrontier(.init(
+                            parentRef: nil,
+                            relationshipName: nil,
+                            childPosition: priorIndex,
+                            depth: 0,
+                            ref: nil,
+                            constituentID: prior.id,
+                            reason: .deadline
+                        ))
+                    }
+                    for remainingIndex in index..<applications.count {
+                        let remainingGeneration = applications[remainingIndex]
+                        let remainingID = "application-\(remainingIndex)-pid-\(remainingGeneration.pid)"
+                        constituents.append(.init(
+                            id: remainingID,
+                            generation: remainingGeneration,
+                            outcome: .unavailable,
+                            error: error
+                        ))
+                        _ = appendFrontier(.init(
+                            parentRef: nil,
+                            relationshipName: nil,
+                            childPosition: remainingIndex,
+                            depth: 0,
+                            ref: nil,
+                            constituentID: remainingID,
+                            reason: .deadline
+                        ))
+                    }
                     rootStopped = true
                     break
                 }
@@ -1364,7 +1512,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             }
         }
 
-        var traversalStopped = forcedOutcome != nil || rootStopped
+        traversalStopped = forcedOutcome != nil || rootStopped
         remainingRelationshipItems = min(
             request.bounds.maxVisited + request.bounds.maxArrayItems,
             max(0, admission.effectiveLimits.observationLimits.maxFrontier - queue.count)
@@ -1373,7 +1521,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
         func stopAtDeadline(expanding entry: AOSAXVisitEntry<Provider.Handle>?) {
             stopCondition = .init(kind: .deadline, detail: "monotonic observation deadline reached")
             if let entry {
-                frontier.append(.init(
+                _ = appendFrontier(.init(
                     parentRef: entry.ref,
                     relationshipName: nil,
                     childPosition: nil,
@@ -1398,7 +1546,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                 let relationship = relationships[index]
                 let start = index == relationshipIndex ? childPosition : 0
                 guard start < relationship.elements.count else { continue }
-                frontier.append(.init(
+                _ = appendFrontier(.init(
                     parentRef: entry.ref,
                     relationshipName: relationship.name,
                     childPosition: start,
@@ -1461,9 +1609,31 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             }
             visited += 1
             visitedHandles.insert(entry.handle.value)
+            if let pending = pendingEdgesByHandle.removeValue(forKey: entry.handle.value) {
+                pendingEdgeCount -= pending.count
+                duplicateEdges += pending.count
+                for edge in pending {
+                    guard let parentIndex = nodes.firstIndex(where: { $0.ref == edge.parentRef }) else { continue }
+                    nodes[parentIndex].referenceEdges.append(.init(
+                        relationshipName: edge.relationshipName,
+                        childPosition: edge.childPosition,
+                        ref: entry.ref,
+                        kind: .duplicate
+                    ))
+                    nodes[parentIndex].referenceEdges.sort { lhs, rhs in
+                        if lhs.relationshipName == rhs.relationshipName {
+                            return lhs.childPosition < rhs.childPosition
+                        }
+                        return AOSAXValueCodec<Provider.Handle>.unicodeScalarLess(
+                            lhs.relationshipName,
+                            rhs.relationshipName
+                        )
+                    }
+                }
+            }
 
             guard !deadlineReached() else {
-                frontier.append(.init(parentRef: entry.parentRef, relationshipName: entry.incomingRelationship, childPosition: entry.childPosition, depth: entry.depth, ref: entry.ref, constituentID: entry.constituentID, reason: .deadline))
+                _ = appendFrontier(.init(parentRef: entry.parentRef, relationshipName: entry.incomingRelationship, childPosition: entry.childPosition, depth: entry.depth, ref: entry.ref, constituentID: entry.constituentID, reason: .deadline))
                 stopAtDeadline(expanding: nil)
                 break
             }
@@ -1475,21 +1645,21 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             case .unsupported(let error):
                 let exact = try classified(error, as: .unsupported)
                 recordProviderStop(exact)
-                frontier.append(.init(parentRef: entry.parentRef, relationshipName: entry.incomingRelationship, childPosition: entry.childPosition, depth: entry.depth, ref: entry.ref, constituentID: entry.constituentID, reason: .platformUnsupported))
+                _ = appendFrontier(.init(parentRef: entry.parentRef, relationshipName: entry.incomingRelationship, childPosition: entry.childPosition, depth: entry.depth, ref: entry.ref, constituentID: entry.constituentID, reason: .platformUnsupported))
                 appendRemainingQueue(reason: .platformUnsupported)
                 traversalStopped = true
                 continue
             case .unavailable(let error):
                 let exact = try classified(error, as: .unavailable)
                 recordProviderStop(exact)
-                frontier.append(.init(parentRef: entry.parentRef, relationshipName: entry.incomingRelationship, childPosition: entry.childPosition, depth: entry.depth, ref: entry.ref, constituentID: entry.constituentID, reason: .platformUnavailable))
+                _ = appendFrontier(.init(parentRef: entry.parentRef, relationshipName: entry.incomingRelationship, childPosition: entry.childPosition, depth: entry.depth, ref: entry.ref, constituentID: entry.constituentID, reason: .platformUnavailable))
                 appendRemainingQueue(reason: .platformUnavailable)
                 traversalStopped = true
                 continue
             case .platformError(let error):
                 let exact = try classified(error, as: .platformError)
                 recordProviderStop(exact)
-                frontier.append(.init(parentRef: entry.parentRef, relationshipName: entry.incomingRelationship, childPosition: entry.childPosition, depth: entry.depth, ref: entry.ref, constituentID: entry.constituentID, reason: .platformError))
+                _ = appendFrontier(.init(parentRef: entry.parentRef, relationshipName: entry.incomingRelationship, childPosition: entry.childPosition, depth: entry.depth, ref: entry.ref, constituentID: entry.constituentID, reason: .platformError))
                 appendRemainingQueue(reason: .platformError)
                 traversalStopped = true
                 continue
@@ -1639,7 +1809,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                     kind: valueBoundHit ? .valueCostBound : .retentionLimit,
                     detail: valueBoundHit ? "aggregate representable-value cost bound reached" : "retained Observation Ref capacity reached"
                 )
-                frontier.append(.init(parentRef: entry.ref, relationshipName: nil, childPosition: nil, depth: entry.depth + 1, ref: nil, constituentID: entry.constituentID, reason: reason))
+                _ = appendFrontier(.init(parentRef: entry.ref, relationshipName: nil, childPosition: nil, depth: entry.depth + 1, ref: nil, constituentID: entry.constituentID, reason: reason))
                 appendRemainingQueue(reason: reason)
                 traversalStopped = true
             }
@@ -1650,9 +1820,14 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             )
             var providerRelationshipFrontier: [AOSAXPlatformRelationshipFrontier] = []
             if !traversalStopped {
-                guard remainingRelationshipItems > 0 else {
+                let availableFrontierCapacity = max(
+                    0,
+                    maxFrontier - frontier.count - queuedFrontierDebt() - pendingEdgeCount
+                )
+                let relationshipFrontierCapacity = max(0, availableFrontierCapacity - 1)
+                guard remainingRelationshipItems > 0, relationshipFrontierCapacity > 0 else {
                     stopCondition = .init(kind: .arrayBound, detail: "relationship-element resource bound reached")
-                    frontier.append(.init(parentRef: entry.ref, relationshipName: nil, childPosition: nil, depth: entry.depth + 1, ref: nil, constituentID: entry.constituentID, reason: .arrayBound))
+                    _ = appendFrontier(.init(parentRef: entry.ref, relationshipName: nil, childPosition: nil, depth: entry.depth + 1, ref: nil, constituentID: entry.constituentID, reason: .arrayBound))
                     appendRemainingQueue(reason: .arrayBound)
                     traversalStopped = true
                     continue
@@ -1661,7 +1836,11 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                     stopAtDeadline(expanding: entry)
                     continue
                 }
-                let relationshipAdmission = min(request.bounds.maxArrayItems, remainingRelationshipItems)
+                let relationshipAdmission = min(
+                    request.bounds.maxArrayItems,
+                    remainingRelationshipItems,
+                    relationshipFrontierCapacity
+                )
                 switch provider.relationships(
                     for: entry.handle.value,
                     deadlineNanoseconds: deadline,
@@ -1677,19 +1856,21 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                         AOSAXContractAdmission.identifier($0.name) && $0.nextChildPosition >= 0 && $0.remainingCount > 0
                     }
                     let namedCost = batch.relationships.count.addingReportingOverflow(total)
+                    let combinedCost = namedCost.partialValue.addingReportingOverflow(batch.frontier.count)
                     guard !namedCost.overflow,
+                          !combinedCost.overflow,
                           batch.relationships.count <= request.bounds.maxArrayItems,
                           batch.relationships.allSatisfy({ AOSAXContractAdmission.identifier($0.name) }),
-                          namedCost.partialValue <= relationshipAdmission,
+                          combinedCost.partialValue <= relationshipAdmission,
                           validFrontier else {
                         let error = AOSAXPlatformError(kind: .platformError, code: "AX_PROVIDER_RESULT_BOUND_EXCEEDED", detail: "relationship provider violated the admitted bounded batch")
                         relationshipRead = .init(kind: .platformError, error: error)
                         recordProviderStop(error)
-                        frontier.append(.init(parentRef: entry.ref, relationshipName: nil, childPosition: nil, depth: entry.depth + 1, ref: nil, constituentID: entry.constituentID, reason: .platformError))
+                        _ = appendFrontier(.init(parentRef: entry.ref, relationshipName: nil, childPosition: nil, depth: entry.depth + 1, ref: nil, constituentID: entry.constituentID, reason: .platformError))
                         traversalStopped = true
                         continue
                     }
-                    remainingRelationshipItems -= namedCost.partialValue
+                    remainingRelationshipItems -= combinedCost.partialValue
                     relationships = batch.relationships.sorted { AOSAXValueCodec<Provider.Handle>.unicodeScalarLess($0.name, $1.name) }
                     providerRelationshipFrontier = batch.frontier.sorted {
                         if $0.name == $1.name { return $0.nextChildPosition < $1.nextChildPosition }
@@ -1700,17 +1881,17 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                     let exact = try classified(error, as: .unsupported)
                     relationshipRead = .init(kind: .unsupported, error: exact)
                     recordProviderStop(exact)
-                    frontier.append(.init(parentRef: entry.ref, relationshipName: nil, childPosition: nil, depth: entry.depth + 1, ref: nil, constituentID: entry.constituentID, reason: .platformUnsupported))
+                    _ = appendFrontier(.init(parentRef: entry.ref, relationshipName: nil, childPosition: nil, depth: entry.depth + 1, ref: nil, constituentID: entry.constituentID, reason: .platformUnsupported))
                 case .unavailable(let error):
                     let exact = try classified(error, as: .unavailable)
                     relationshipRead = .init(kind: .unavailable, error: exact)
                     recordProviderStop(exact)
-                    frontier.append(.init(parentRef: entry.ref, relationshipName: nil, childPosition: nil, depth: entry.depth + 1, ref: nil, constituentID: entry.constituentID, reason: .platformUnavailable))
+                    _ = appendFrontier(.init(parentRef: entry.ref, relationshipName: nil, childPosition: nil, depth: entry.depth + 1, ref: nil, constituentID: entry.constituentID, reason: .platformUnavailable))
                 case .platformError(let error):
                     let exact = try classified(error, as: .platformError)
                     relationshipRead = .init(kind: .platformError, error: exact)
                     recordProviderStop(exact)
-                    frontier.append(.init(parentRef: entry.ref, relationshipName: nil, childPosition: nil, depth: entry.depth + 1, ref: nil, constituentID: entry.constituentID, reason: .platformError))
+                    _ = appendFrontier(.init(parentRef: entry.ref, relationshipName: nil, childPosition: nil, depth: entry.depth + 1, ref: nil, constituentID: entry.constituentID, reason: .platformError))
                 }
             }
 
@@ -1735,20 +1916,61 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                         continue
                     }
                     if discoveredHandles.contains(child) {
+                        guard canGrowFrontierDebt(by: 1) else {
+                            stopCondition = .init(
+                                kind: .retentionLimit,
+                                detail: "effective frontier capacity reached before pending-edge admission"
+                            )
+                            appendRelationshipRemainder(
+                                relationships,
+                                relationshipIndex: relationshipIndex,
+                                childPosition: position,
+                                entry: entry,
+                                reason: .retentionLimit
+                            )
+                            appendRemainingQueue(reason: .retentionLimit)
+                            traversalStopped = true
+                            break relationshipLoop
+                        }
+                        pendingEdgesByHandle[child, default: []].append(.init(
+                            sequence: nextPendingEdgeSequence,
+                            child: child,
+                            parentRef: entry.ref,
+                            relationshipName: relationship.name,
+                            childPosition: position,
+                            depth: entry.depth + 1,
+                            constituentID: entry.constituentID
+                        ))
+                        nextPendingEdgeSequence += 1
+                        pendingEdgeCount += 1
                         continue
                     }
                     if entry.depth >= request.bounds.maxDepth {
-                        frontier.append(.init(parentRef: entry.ref, relationshipName: relationship.name, childPosition: position, depth: entry.depth + 1, ref: nil, constituentID: entry.constituentID, reason: .depthBound))
+                        _ = appendFrontier(.init(parentRef: entry.ref, relationshipName: relationship.name, childPosition: position, depth: entry.depth + 1, ref: nil, constituentID: entry.constituentID, reason: .depthBound))
                         if stopCondition.kind == .complete {
                             stopCondition = .init(kind: .depthBound, detail: "maximum traversal depth reached")
                         }
                         continue
                     }
-                    guard discoveredHandles.count < request.bounds.maxVisited,
-                          boxesByHandle.count < admission.maxRetainedRefs else {
-                        appendRelationshipRemainder(relationships, relationshipIndex: relationshipIndex, childPosition: position, entry: entry, reason: .visitedBound)
-                        stopCondition = .init(kind: .visitedBound, detail: "traversal resources exhausted before relationship retention")
-                        appendRemainingQueue(reason: .visitedBound)
+                    let traversalCapacityAvailable = discoveredHandles.count < request.bounds.maxVisited &&
+                        boxesByHandle.count < admission.maxRetainedRefs
+                    let frontierCapacityAvailable = canGrowFrontierDebt(by: 1)
+                    guard traversalCapacityAvailable, frontierCapacityAvailable else {
+                        let reason: AOSAXFrontierReason = frontierCapacityAvailable ? .visitedBound : .retentionLimit
+                        appendRelationshipRemainder(
+                            relationships,
+                            relationshipIndex: relationshipIndex,
+                            childPosition: position,
+                            entry: entry,
+                            reason: reason
+                        )
+                        stopCondition = .init(
+                            kind: frontierCapacityAvailable ? .visitedBound : .retentionLimit,
+                            detail: frontierCapacityAvailable
+                                ? "traversal resources exhausted before relationship retention"
+                                : "effective frontier capacity reached before relationship retention"
+                        )
+                        appendRemainingQueue(reason: reason)
                         traversalStopped = true
                         break relationshipLoop
                     }
@@ -1767,7 +1989,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
 
             if !providerRelationshipFrontier.isEmpty {
                 for remainder in providerRelationshipFrontier {
-                    frontier.append(.init(
+                    _ = appendFrontier(.init(
                         parentRef: entry.ref,
                         relationshipName: remainder.name,
                         childPosition: remainder.nextChildPosition,
@@ -1789,7 +2011,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             if matches {
                 matched += 1
                 if emitted >= request.bounds.maxEmitted {
-                    frontier.append(.init(parentRef: entry.parentRef, relationshipName: entry.incomingRelationship, childPosition: entry.childPosition, depth: entry.depth, ref: entry.ref, constituentID: entry.constituentID, reason: .emittedBound))
+                    _ = appendFrontier(.init(parentRef: entry.parentRef, relationshipName: entry.incomingRelationship, childPosition: entry.childPosition, depth: entry.depth, ref: entry.ref, constituentID: entry.constituentID, reason: .emittedBound))
                     stopCondition = .init(kind: .emittedBound, detail: "emitted-node bound reached")
                     appendRemainingQueue(reason: .emittedBound)
                     traversalStopped = true
@@ -1819,6 +2041,32 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
 
         }
 
+        if pendingEdgeCount > 0 {
+            let unsettled = pendingEdgesByHandle.values
+                .flatMap { $0 }
+                .sorted { $0.sequence < $1.sequence }
+            pendingEdgesByHandle.removeAll(keepingCapacity: true)
+            pendingEdgeCount = 0
+            if stopCondition.kind == .complete {
+                stopCondition = .init(
+                    kind: .retentionLimit,
+                    detail: "traversal ended before pending relationship edges could settle"
+                )
+            }
+            let reason = frontierReason(for: stopCondition.kind)
+            for edge in unsettled {
+                _ = appendFrontier(.init(
+                    parentRef: edge.parentRef,
+                    relationshipName: edge.relationshipName,
+                    childPosition: edge.childPosition,
+                    depth: edge.depth,
+                    ref: nil,
+                    constituentID: edge.constituentID,
+                    reason: reason
+                ))
+            }
+        }
+
         var generationFailures: [(id: String?, reason: AOSAXFrontierReason, stop: AOSAXStopCondition, error: AOSAXPlatformError)] = []
         for binding in generationBindings {
             switch try generationCheck(binding.generation) {
@@ -1835,12 +2083,14 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
         }
         let invalidConstituents = Set(generationFailures.map(\.id))
         if !invalidConstituents.isEmpty {
-            forcedOutcome = .unavailable
+            forcedOutcome = generationFailures.allSatisfy { $0.reason == .deadline }
+                ? nil
+                : .unavailable
             stopCondition = generationFailures[0].stop
             nodes.removeAll { invalidConstituents.contains($0.constituentID) }
             frontier.removeAll { invalidConstituents.contains($0.constituentID) }
             for failure in generationFailures {
-                frontier.append(.init(parentRef: nil, relationshipName: nil, childPosition: nil, depth: 0, ref: nil, constituentID: failure.id, reason: failure.reason))
+                _ = appendFrontier(.init(parentRef: nil, relationshipName: nil, childPosition: nil, depth: 0, ref: nil, constituentID: failure.id, reason: failure.reason))
                 valueCost -= valueCostByConstituent[failure.id, default: 0]
             }
             constituents = constituents.map { item in
@@ -1850,7 +2100,9 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
         }
 
         if case .displayComposite = request.root, invalidConstituents.isEmpty {
-            if constituents.contains(where: { $0.outcome == .unavailable }) {
+            if constituents.contains(where: {
+                $0.outcome == .unavailable && $0.error?.code != "AX_DEADLINE_EXCEEDED"
+            }) {
                 forcedOutcome = .unavailable
             } else if constituents.contains(where: { $0.outcome == .unsupported }) {
                 forcedOutcome = .unsupported

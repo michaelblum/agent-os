@@ -57,15 +57,20 @@ needs, but public command policy and product UI policy belong above it:
 - `src/perceive/ax-observation-engine.swift`, `ax-snapshot-store.swift`, and
   `ax-value-codec.swift` own the internal complete-AX observation primitive:
   exact system, application, window, current Observation Ref element, and AOS
-  display-composite roots; deterministic bounded traversal; closed raw value
-  outcomes; and immutable retained paging. The engine receives one externally
+  display-composite roots with exact constituent settlement; deterministic
+  bounded traversal with one effective frontier budget covering queued work,
+  provider remainders, and pending repeated edges; closed raw value outcomes;
+  JSON Schema code-point admission; and immutable retained paging. The engine receives one externally
   owned snapshot store so a daemon may preserve paging across IPC invocations;
   that store is the sole timing, retention, capacity, and observation-limit
   authority. Request-local stores and public daemon/CLI routing remain out of this slice.
   Generation is sampled before root resolution and again before snapshot
   commit. Page tokens are opaque store lookup identities, never decoded
-  authority. Observation Ref lookup uses bounded store-owned borrow leases;
-  expiry or eviction blocks new borrows before exactly-once physical release;
+  authority; lifecycle tombstones retain only bounded authenticator identity
+  and disclose lifecycle truth only after full presented-token authentication.
+  Observation Ref lookup uses bounded store-owned borrow leases; expiry,
+  eviction, rollback, and teardown revoke ownership under the store lock but
+  perform final exactly-once provider release only after unlocking;
 - DesktopWorld's per-display Metal projection hosts are generation-bound stage
   infrastructure. They are prepared before native-effect admission, stay
   dormant between effects, and retire only with their display segment, stage,

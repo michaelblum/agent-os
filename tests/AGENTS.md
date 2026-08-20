@@ -417,11 +417,13 @@ tests.
   observation engine, snapshot store, and value codec against only injected
   fake platform, generation, clock, and identity seams. It validates all five
   roots, deterministic traversal and edge classification, independent bounds
-  and frontier facts, closed raw values and typed outcomes, double generation
-  sampling, immutable no-reobserve paging, opaque-token rejection and
-  lifecycle, externally owned store reuse, concurrency, exactly-once retained
-  handle cleanup, bounded borrow settlement across expiry and eviction, hidden
-  filter-fact collection, and production JSON against the internal AX schema. It must
+  and one effective queued/pending/provider-remainder frontier, pending repeated
+  edge settlement, exact display-composite deadline results, closed raw values
+  and typed outcomes, Unicode code-point admission, double generation sampling,
+  immutable no-reobserve paging, authenticated opaque-token tombstone lifecycle,
+  externally owned store reuse, synchronous release reentry, exactly-once
+  outside-lock retained-handle cleanup, bounded borrow settlement across expiry
+  and eviction, hidden filter-fact collection, and production JSON against the internal AX schema. It must
   clean its disposable roots and must not execute `./aos`, daemon, native UI,
   browser, TCC, or public routing.
 - PNG file comparison proof must compile only its focused Swift source and

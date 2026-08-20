@@ -95,6 +95,8 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
     var relationshipPlatformError = false
     var rootError: AOSAXPlatformError?
     var rollbackAttribute = false
+    var frontierStress = false
+    var onRelease: (@Sendable () -> Void)?
     var forbiddenAtOrAfter: UInt64?
     private var calls = 0
     private var retains = 0
@@ -183,6 +185,19 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
         called()
         if relationshipPlatformError {
             return .platformError(.init(code: "AX_FAKE_RELATIONSHIP", detail: "fake relationship failure"))
+        }
+        if frontierStress, handle == 1 {
+            let admittedCost = max(0, maximumResultItems - maximumNames)
+            guard maximumNames >= 1, admittedCost >= 4 else {
+                return .platformError(.init(code: "AX_FAKE_FRONTIER_BOUND", detail: "fake frontier stress exceeded admission"))
+            }
+            return .value(.init(
+                relationships: [.init(name: "AChildren", elements: [3])],
+                frontier: [
+                    .init(name: "BChildren", nextChildPosition: 0, remainingCount: 2),
+                    .init(name: "ZChildren", nextChildPosition: 0, remainingCount: 2),
+                ]
+            ))
         }
         let relationships: [AOSAXPlatformRelationship<Int>]
         switch handle {
@@ -304,7 +319,13 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
     }
 
     func retain(handle: Int) { lock.held { retains += 1 } }
-    func release(handle: Int) { lock.held { releases += 1 } }
+    func release(handle: Int) {
+        let callback = lock.held { () -> (@Sendable () -> Void)? in
+            releases += 1
+            return onRelease
+        }
+        callback?()
+    }
 }
 
 final class Harness: @unchecked Sendable {
@@ -325,6 +346,8 @@ final class Harness: @unchecked Sendable {
         maxTombstones: Int = 256,
         maxBorrows: Int = 64,
         clockStart: UInt64 = 1_000,
+        limitVisited: Int = 64,
+        limitArrayItems: Int = 64,
         invalidTokenIdentities: Bool = false,
         tokenIdentity: AOSAXPageTokenIdentity? = nil
     ) {
@@ -345,11 +368,11 @@ final class Harness: @unchecked Sendable {
         )
         let limits = try! AOSAXObservationLimits(
             maxDepth: 8,
-            maxVisited: min(64, maxRefs),
-            maxEmitted: min(64, maxRefs),
+            maxVisited: min(limitVisited, maxRefs),
+            maxEmitted: min(limitVisited, maxRefs),
             maxDeadlineNanoseconds: 1_000,
             maxArrayDepth: 8,
-            maxArrayItems: 64,
+            maxArrayItems: limitArrayItems,
             maxValueCost: min(100_000, maxValueCost),
             maxPageSize: min(64, maxRefs),
             maxFilters: 64,
@@ -375,6 +398,13 @@ final class Harness: @unchecked Sendable {
             stateIDFactory: { [ids] in ids.next("state") },
             refIDFactory: { [ids] in ids.next("ref") }
         )
+    }
+
+    func enableReleaseReentry() {
+        let observedStore = store
+        provider.onRelease = { [weak observedStore] in
+            _ = observedStore?.retainedCounts()
+        }
     }
 }
 
@@ -420,6 +450,11 @@ func attribute(_ name: String, in node: AOSAXNodeProjection) -> AOSAXAttributePr
     return value
 }
 
+func tamperedAuthenticator(_ token: String) -> String {
+    let replacement = token.last == "x" ? "y" : "x"
+    return String(token.dropLast()) + replacement
+}
+
 final class ResponseBox: @unchecked Sendable {
     private let lock = NSLock()
     private var values: [AOSAXObservationResponse] = []
@@ -439,13 +474,17 @@ func run() {
     if base.accounting.visited != 4 {
         fatalError("base accounting \(base.accounting) nodes \(base.nodes.map(\.facts.identifier)) frontier \(base.frontier)")
     }
-    if base.accounting.emitted != 4 || base.accounting.cycleEdges != 1 || base.accounting.duplicateEdges != 1 {
+    if base.accounting.emitted != 4 || base.accounting.cycleEdges != 1 || base.accounting.duplicateEdges != 2 {
         fatalError("unexpected base accounting \(base.accounting)")
     }
     precondition(base.nodes.count == 2)
     precondition(base.nextPageToken != nil)
     precondition(base.retention.pageSize == 2)
     let root = base.nodes[0]
+    precondition(root.referenceEdges.count == 1)
+    precondition(root.referenceEdges[0].relationshipName == "ZChildren")
+    precondition(root.referenceEdges[0].childPosition == 1)
+    precondition(root.referenceEdges[0].kind == .duplicate)
     precondition(root.relationshipNames == ["AChildren", "ZChildren"])
     precondition(root.parameterizedAttributeNames == ["AParameterized", "ZParameterized"])
     precondition(root.supportedActionNames == ["AXPress", "AXRaise"])
@@ -509,12 +548,22 @@ func run() {
     let secondPage = primary.engine.page(firstPageRequest)
     precondition(secondPage.status == "ok")
     precondition(secondPage.nodes.count == 2)
+    precondition(root.referenceEdges[0].ref == secondPage.nodes[0].ref)
     precondition(secondPage.nodes.last?.referenceEdges.map(\.kind) == [.duplicate])
     precondition(primary.provider.callCount() == providerCallsBeforePages)
     emit(secondPage)
     let consumed = primary.engine.page(firstPageRequest)
     precondition(consumed.error?.kind == .tokenConsumed)
     emit(consumed)
+    let consumedTamper = primary.engine.page(
+        token: tamperedAuthenticator(firstToken),
+        expectedStateID: base.stateID,
+        requestDigest: base.requestDigest,
+        projectionDigest: base.projectionDigest,
+        pageSize: 2
+    )
+    precondition(consumedTamper.error?.kind == .tokenTampered)
+    emit(consumedTamper)
     let unknown = primary.engine.page(
         token: "unknown.signature",
         expectedStateID: base.stateID,
@@ -581,6 +630,52 @@ func run() {
         "application-0-pid-100", "application-1-pid-200", "application-2-pid-300",
     ])
     emit(settlement)
+
+    let admissionDeadlineHarness = Harness()
+    admissionDeadlineHarness.provider.advancePerCall = 1
+    let admissionDeadline = try! admissionDeadlineHarness.engine.observe(request(
+        .displayComposite(
+            topologyIdentity: "topology-admission-deadline",
+            applications: [gen100, gen200, gen300]
+        ),
+        bounds: bounds(deadline: 2),
+        pageSize: 8
+    ))
+    precondition(admissionDeadline.outcome == .truncated)
+    precondition(admissionDeadline.root.constituentCount == 3)
+    precondition(admissionDeadline.constituents.count == 3)
+    precondition(admissionDeadline.constituents.allSatisfy {
+        $0.outcome == .unavailable && $0.error?.code == "AX_DEADLINE_EXCEEDED"
+    })
+    precondition(admissionDeadline.frontier.compactMap(\.constituentID) == [
+        "application-0-pid-100", "application-1-pid-200", "application-2-pid-300",
+    ])
+    precondition(admissionDeadline.frontier.allSatisfy { $0.reason == .deadline })
+    emit(admissionDeadline)
+
+    let traversalDeadlineHarness = Harness()
+    traversalDeadlineHarness.provider.advancePerCall = 1
+    traversalDeadlineHarness.provider.forbiddenAtOrAfter = traversalDeadlineHarness.clock.read() + 4
+    let traversalDeadline = try! traversalDeadlineHarness.engine.observe(request(
+        .displayComposite(
+            topologyIdentity: "topology-traversal-deadline",
+            applications: [gen100, gen200]
+        ),
+        bounds: bounds(deadline: 4),
+        pageSize: 8
+    ))
+    precondition(traversalDeadline.outcome == .truncated)
+    precondition(traversalDeadline.root.constituentCount == 2)
+    precondition(traversalDeadline.constituents.count == 2)
+    precondition(traversalDeadline.constituents.allSatisfy {
+        $0.outcome == .unavailable && $0.error?.code == "AX_DEADLINE_EXCEEDED"
+    })
+    precondition(traversalDeadline.frontier.compactMap(\.constituentID) == [
+        "application-0-pid-100", "application-1-pid-200",
+    ])
+    precondition(traversalDeadline.frontier.allSatisfy { $0.reason == .deadline })
+    precondition(traversalDeadlineHarness.provider.lateCallCount() == 0)
+    emit(traversalDeadline)
 
     let unsupportedHarness = Harness()
     unsupportedHarness.provider.systemUnsupported = true
@@ -654,6 +749,14 @@ func run() {
     let emitBound = try! primary.engine.observe(request(.systemWide, bounds: bounds(emitted: 1), pageSize: 1))
     precondition(emitBound.outcome == .truncated)
     precondition(emitBound.stopCondition.kind == .emittedBound)
+    precondition(emitBound.accounting.duplicateEdges == 0)
+    precondition(emitBound.frontier.contains(where: {
+        $0.parentRef == emitBound.nodes[0].ref &&
+            $0.relationshipName == "ZChildren" &&
+            $0.childPosition == 1 &&
+            $0.ref == nil &&
+            $0.reason == .emittedBound
+    }))
     emit(emitBound)
     let pageBound = try! primary.engine.observe(request(.systemWide, pageSize: 1))
     precondition(pageBound.outcome == .complete)
@@ -684,6 +787,79 @@ func run() {
     precondition(valueBound.stopCondition.kind == .valueCostBound)
     precondition(valueBound.nodes[0].relationshipRead.kind == .notAttempted)
     emit(valueBound)
+
+    let frontierBudgetHarness = Harness(maxRefs: 2, limitVisited: 2, limitArrayItems: 4)
+    frontierBudgetHarness.provider.frontierStress = true
+    let frontierBudget = try! frontierBudgetHarness.engine.observe(request(
+        .systemWide,
+        bounds: bounds(visited: 2, arrayItems: 4),
+        projection: factsOnly,
+        pageSize: 2
+    ))
+    precondition(frontierBudget.outcome == .truncated)
+    precondition(frontierBudget.effectiveLimits.observationLimits.maxFrontier == 6)
+    precondition(frontierBudget.frontier.count == 3)
+    precondition(frontierBudget.frontier.map(\.relationshipName).compactMap { $0 } == [
+        "BChildren", "ZChildren", "AChildren",
+    ])
+    precondition(frontierBudget.frontier.count <= frontierBudget.effectiveLimits.observationLimits.maxFrontier)
+    emit(frontierBudget)
+
+    let manualRequest = request(
+        .systemWide,
+        bounds: bounds(visited: 1, arrayItems: 1),
+        projection: factsOnly,
+        pageSize: 1
+    )
+    let manualAdmission = try! frontierBudgetHarness.store.beginObservation(manualRequest)
+    let manualState = try! frontierBudgetHarness.store.allocateStateID { "manual-frontier-state" }
+    let oversizedFrontier = (0...manualAdmission.effectiveLimits.observationLimits.maxFrontier).map {
+        AOSAXFrontierEntry(
+            parentRef: nil,
+            relationshipName: "overflow-\($0)",
+            childPosition: $0,
+            depth: 0,
+            ref: nil,
+            constituentID: nil,
+            reason: .retentionLimit
+        )
+    }
+    let manualSnapshot = AOSAXStoredSnapshot<Int>(
+        stateID: manualState,
+        requestDigest: String(repeating: "a", count: 64),
+        projectionDigest: String(repeating: "b", count: 64),
+        root: .init(kind: .systemWide),
+        bounds: manualRequest.bounds,
+        effectiveLimits: manualAdmission.effectiveLimits,
+        filters: [],
+        pageSize: 1,
+        createdAt: manualAdmission.createdAt,
+        expiresAt: manualAdmission.expiresAt,
+        createdMonotonicNanoseconds: manualAdmission.startMonotonicNanoseconds,
+        expiresMonotonicNanoseconds: manualAdmission.expiresMonotonicNanoseconds,
+        outcome: .truncated,
+        stopCondition: .init(kind: .retentionLimit, detail: "injected oversized frontier"),
+        accounting: .init(
+            visited: 0,
+            matched: 0,
+            emitted: 0,
+            cycleEdges: 0,
+            duplicateEdges: 0,
+            elapsedNanoseconds: 0,
+            retainedValueCost: 0
+        ),
+        frontier: oversizedFrontier,
+        constituents: [],
+        nodes: [],
+        handlesByRef: [:],
+        retainedValueCost: 0
+    )
+    let rejectedFrontier = try! frontierBudgetHarness.store.publish(manualSnapshot, pageSize: 1)
+    precondition(rejectedFrontier.outcome == .truncated)
+    precondition(rejectedFrontier.stopCondition.kind == .retentionLimit)
+    precondition(rejectedFrontier.frontier.count == manualAdmission.effectiveLimits.observationLimits.maxFrontier)
+    precondition(frontierBudgetHarness.store.retainedCounts().snapshots == 1)
+    emit(rejectedFrontier)
 
     let rollbackHarness = Harness()
     rollbackHarness.provider.rollbackAttribute = true
@@ -718,9 +894,14 @@ func run() {
     emit(deadline)
 
     let evictionHarness = Harness(maxSnapshots: 1)
+    evictionHarness.enableReleaseReentry()
     let evictedSource = try! evictionHarness.engine.observe(request(.systemWide, pageSize: 1))
     let evictedToken = evictedSource.nextPageToken!
+    let releasesBeforeEviction = evictionHarness.provider.releaseCount()
     _ = try! evictionHarness.engine.observe(request(.systemWide, pageSize: 8))
+    precondition(
+        evictionHarness.provider.releaseCount() - releasesBeforeEviction == evictedSource.retention.retainedRefCount
+    )
     let evictedPage = evictionHarness.engine.page(
         token: evictedToken,
         expectedStateID: evictedSource.stateID,
@@ -730,6 +911,15 @@ func run() {
     )
     precondition(evictedPage.error?.kind == .tokenEvicted)
     emit(evictedPage)
+    let evictedTamper = evictionHarness.engine.page(
+        token: tamperedAuthenticator(evictedToken),
+        expectedStateID: evictedSource.stateID,
+        requestDigest: evictedSource.requestDigest,
+        projectionDigest: evictedSource.projectionDigest,
+        pageSize: 1
+    )
+    precondition(evictedTamper.error?.kind == .tokenTampered)
+    emit(evictedTamper)
     let staleElement = try! evictionHarness.engine.observe(request(
         .element(stateID: evictedSource.stateID, ref: evictedSource.nodes[0].ref),
         pageSize: 8
@@ -739,6 +929,7 @@ func run() {
     emit(staleElement)
 
     let expiryHarness = Harness(ttl: 10)
+    expiryHarness.enableReleaseReentry()
     let expiring = try! expiryHarness.engine.observe(request(.systemWide, pageSize: 1))
     expiryHarness.clock.advance(11)
     let expiredPage = expiryHarness.engine.page(
@@ -750,8 +941,18 @@ func run() {
     )
     precondition(expiredPage.error?.kind == .tokenExpired)
     emit(expiredPage)
+    let expiredTamper = expiryHarness.engine.page(
+        token: tamperedAuthenticator(expiring.nextPageToken!),
+        expectedStateID: expiring.stateID,
+        requestDigest: expiring.requestDigest,
+        projectionDigest: expiring.projectionDigest,
+        pageSize: 1
+    )
+    precondition(expiredTamper.error?.kind == .tokenTampered)
+    emit(expiredTamper)
 
     let borrowExpiryHarness = Harness(ttl: 10, maxBorrows: 1)
+    borrowExpiryHarness.enableReleaseReentry()
     let borrowExpirySource = try! borrowExpiryHarness.engine.observe(request(
         .systemWide,
         bounds: bounds(visited: 1),
@@ -778,6 +979,7 @@ func run() {
     precondition(borrowExpiryHarness.provider.releaseCount() == 1, "expiry release count \(borrowExpiryHarness.provider.releaseCount())")
 
     let borrowEvictionHarness = Harness(maxSnapshots: 1)
+    borrowEvictionHarness.enableReleaseReentry()
     let borrowEvictedSource = try! borrowEvictionHarness.engine.observe(request(.systemWide, bounds: bounds(visited: 1), projection: factsOnly, pageSize: 1))
     let evictionLease: AOSAXHandleBorrowLease<Int>
     if case .value(let lease) = borrowEvictionHarness.store.resolveElement(stateID: borrowEvictedSource.stateID, ref: borrowEvictedSource.nodes[0].ref) {
@@ -819,6 +1021,7 @@ func run() {
     emit(valueCapacity)
 
     let tokenCollisionHarness = Harness(invalidTokenIdentities: true)
+    tokenCollisionHarness.enableReleaseReentry()
     do {
         _ = try tokenCollisionHarness.engine.observe(request(.systemWide, pageSize: 1))
         preconditionFailure("invalid token identities must fail closed")
@@ -847,6 +1050,16 @@ func run() {
     do {
         _ = try AOSAXProcessGeneration(pid: 0, startTimeSeconds: 0, startTimeMicroseconds: 0)
         preconditionFailure("zero pid must be rejected")
+    } catch { precondition(error as? AOSAXObservationError == .invalidRoot) }
+    let combiningIdentifier = String(repeating: "e\u{301}", count: 256) + "e"
+    precondition(combiningIdentifier.count == 257 && combiningIdentifier.unicodeScalars.count == 513)
+    do {
+        _ = try AOSAXObservationRequest(
+            root: .displayComposite(topologyIdentity: combiningIdentifier, applications: [gen100]),
+            bounds: bounds(),
+            pageSize: 1
+        )
+        preconditionFailure("513-code-point topology identity must be rejected")
     } catch { precondition(error as? AOSAXObservationError == .invalidRoot) }
     do {
         _ = try AOSAXObservationRequest(
@@ -885,11 +1098,15 @@ func run() {
         )
         preconditionFailure("page request token shape must be rejected")
     } catch {}
+    let combiningDetail = String(repeating: "e\u{301}", count: 1_024) + "e"
+    precondition(combiningDetail.count == 1_025 && combiningDetail.unicodeScalars.count == 2_049)
     for providerError in [
         AOSAXPlatformError(code: "", detail: "missing code"),
         AOSAXPlatformError(code: String(repeating: "x", count: 513), detail: "oversized code"),
+        AOSAXPlatformError(code: combiningIdentifier, detail: "combining-scalar code overflow"),
         AOSAXPlatformError(code: "AX_EMPTY_DETAIL", detail: ""),
         AOSAXPlatformError(code: "AX_OVERSIZED", detail: String(repeating: "x", count: 2_049)),
+        AOSAXPlatformError(code: "AX_COMBINING_DETAIL", detail: combiningDetail),
     ] {
         let invalidProviderHarness = Harness()
         invalidProviderHarness.provider.rootError = providerError
@@ -912,6 +1129,7 @@ func run() {
     precondition(overflowHarness.store.retainedCounts().snapshots == 0)
 
     let concurrent = Harness(maxSnapshots: 32)
+    concurrent.enableReleaseReentry()
     let concurrentRequest = request(.systemWide, pageSize: 1)
     let box = ResponseBox()
     DispatchQueue.concurrentPerform(iterations: 8) { _ in
@@ -938,6 +1156,8 @@ func run() {
     _ = primary.store.removeAll()
     _ = mismatchHarness.store.removeAll()
     _ = settlementHarness.store.removeAll()
+    _ = admissionDeadlineHarness.store.removeAll()
+    _ = traversalDeadlineHarness.store.removeAll()
     _ = unsupportedHarness.store.removeAll()
     _ = deadlineHarness.store.removeAll()
     _ = evictionHarness.store.removeAll()
@@ -948,7 +1168,18 @@ func run() {
     _ = refCapacityHarness.store.removeAll()
     _ = valueCapacityHarness.store.removeAll()
     _ = rollbackHarness.store.removeAll()
+    _ = frontierBudgetHarness.store.removeAll()
     precondition(primary.provider.retainCount() == primary.provider.releaseCount())
+    for reentrantHarness in [
+        evictionHarness,
+        expiryHarness,
+        borrowExpiryHarness,
+        borrowEvictionHarness,
+        tokenCollisionHarness,
+        concurrent,
+    ] {
+        precondition(reentrantHarness.provider.retainCount() == reentrantHarness.provider.releaseCount())
+    }
 }
 
 run()

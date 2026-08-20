@@ -473,7 +473,12 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
     private var tokenOrder: [String] = []
     private var snapshotTombstones: [String: AOSAXTombstoneReason] = [:]
     private var snapshotTombstoneOrder: [String] = []
-    private var tokenTombstones: [String: AOSAXTombstoneReason] = [:]
+    private struct TokenTombstone: Sendable {
+        let authenticator: String
+        let reason: AOSAXTombstoneReason
+    }
+
+    private var tokenTombstones: [String: TokenTombstone] = [:]
     private var tokenTombstoneOrder: [String] = []
     private var sequence: UInt64 = 0
     private var retainedRefCount = 0
@@ -553,8 +558,8 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
     }
 
     public func allocateStateID(factory: @Sendable () -> String) throws -> String {
-        try lock.withLock {
-            expireLocked(now: monotonicClock())
+        try withLockRetiring { retirement in
+            expireLocked(now: monotonicClock(), retirement: &retirement)
             for _ in 0..<configuration.retention.identityAttempts {
                 let candidate = factory()
                 guard Self.validIdentity(candidate) else { continue }
@@ -576,8 +581,8 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
     }
 
     public func resolveElement(stateID: String, ref: String) -> AOSAXSnapshotLookup<Handle> {
-        lock.withLock {
-            expireLocked(now: monotonicClock())
+        withLockRetiring { retirement in
+            expireLocked(now: monotonicClock(), retirement: &retirement)
             guard let entry = snapshots[stateID] else {
                 switch snapshotTombstones[stateID] {
                 case .expired: return .expired
@@ -602,19 +607,27 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
         _ snapshot: AOSAXStoredSnapshot<Handle>,
         pageSize: Int
     ) throws -> AOSAXObservationResponse {
-        try lock.withLock {
+        try withLockRetiring { retirement in
             let now = monotonicClock()
-            expireLocked(now: now)
+            expireLocked(now: now, retirement: &retirement)
             guard pageSize > 0,
                   pageSize <= configuration.observationLimits.maxPageSize,
                   pageSize <= snapshot.bounds.maxEmitted,
                   snapshot.nodes.count <= snapshot.bounds.maxEmitted,
-                  snapshot.frontier.count <= AOSAXObservationLimits.schemaMaxFrontier else {
+                  snapshot.effectiveLimits == configuration else {
                 throw AOSAXObservationError.invalidBounds
             }
             guard reservedStateIDs.remove(snapshot.stateID) != nil,
                   snapshots[snapshot.stateID] == nil else {
                 throw AOSAXObservationError.stateCollision
+            }
+            if snapshot.frontier.count > snapshot.effectiveLimits.observationLimits.maxFrontier {
+                addSnapshotTombstoneLocked(snapshot.stateID, reason: .retentionLimit)
+                return AOSAXObservationResponse.frontierLimitExceeded(from: snapshot)
+            }
+            if snapshot.root.kind == .displayComposite,
+               snapshot.root.constituentCount != snapshot.constituents.count {
+                throw AOSAXObservationError.invalidRoot
             }
             let retention = configuration.retention
             guard snapshot.handlesByRef.count <= retention.maxRetainedRefs,
@@ -629,7 +642,7 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
                     addSnapshotTombstoneLocked(snapshot.stateID, reason: .retentionLimit)
                     return AOSAXObservationResponse.retentionUnavailable(from: snapshot)
                 }
-                removeSnapshotLocked(oldest, reason: .evicted)
+                removeSnapshotLocked(oldest, reason: .evicted, retirement: &retirement)
             }
             sequence &+= 1
             snapshots[snapshot.stateID] = SnapshotEntry(snapshot: snapshot, sequence: sequence)
@@ -645,7 +658,7 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
                     ? try makeTokenLocked(snapshot: snapshot, nextPosition: end, pageSize: pageSize)
                     : nil
             } catch {
-                rollbackSnapshotLocked(snapshot.stateID)
+                rollbackSnapshotLocked(snapshot.stateID, retirement: &retirement)
                 throw error
             }
             return AOSAXObservationResponse(
@@ -664,9 +677,9 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
         projectionDigest: String,
         pageSize: Int
     ) -> AOSAXPageResponse {
-        lock.withLock {
+        withLockRetiring { retirement in
             let now = monotonicClock()
-            expireLocked(now: now)
+            expireLocked(now: now, retirement: &retirement)
             guard AOSAXContractAdmission.pageToken(publicToken) else {
                 return .init(error: .init(kind: .tokenTampered, detail: "token shape is invalid"))
             }
@@ -686,7 +699,7 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
                 return .init(error: .init(kind: .tokenTampered, detail: "token shape is invalid"))
             }
             guard let token = tokens[lookupID] else {
-                return .init(error: pageErrorForMissingToken(lookupID))
+                return .init(error: pageErrorForMissingToken(lookupID, presentedToken: publicToken))
             }
             guard token.publicToken == publicToken else {
                 return .init(error: .init(kind: .tokenTampered, detail: "token authenticator does not match retained identity"))
@@ -736,11 +749,11 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
 
     @discardableResult
     public func removeAll() -> Int {
-        lock.withLock {
+        withLockRetiring { retirement in
             let count = snapshots.count
             let ids = snapshotOrder
             for id in ids {
-                removeSnapshotLocked(id, reason: .evicted)
+                removeSnapshotLocked(id, reason: .evicted, retirement: &retirement)
             }
             tokens.removeAll()
             tokenOrder.removeAll()
@@ -750,8 +763,8 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
     }
 
     public func retainedCounts() -> (snapshots: Int, refs: Int, valueCost: Int, tokens: Int) {
-        lock.withLock {
-            expireLocked(now: monotonicClock())
+        withLockRetiring { retirement in
+            expireLocked(now: monotonicClock(), retirement: &retirement)
             return (snapshots.count, retainedRefCount, retainedValueCost, tokens.count)
         }
     }
@@ -795,13 +808,13 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
         throw AOSAXObservationError.identityExhausted
     }
 
-    private func expireLocked(now: UInt64) {
+    private func expireLocked(now: UInt64, retirement: inout [SnapshotEntry]) {
         let expiredSnapshots = snapshotOrder.filter {
             guard let entry = snapshots[$0] else { return false }
             return now >= entry.snapshot.expiresMonotonicNanoseconds
         }
         for id in expiredSnapshots {
-            removeSnapshotLocked(id, reason: .expired)
+            removeSnapshotLocked(id, reason: .expired, retirement: &retirement)
         }
         let expiredTokens = tokenOrder.filter {
             guard let entry = tokens[$0] else { return false }
@@ -812,7 +825,11 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
         }
     }
 
-    private func removeSnapshotLocked(_ stateID: String, reason: AOSAXTombstoneReason) {
+    private func removeSnapshotLocked(
+        _ stateID: String,
+        reason: AOSAXTombstoneReason,
+        retirement: inout [SnapshotEntry]
+    ) {
         guard let entry = snapshots.removeValue(forKey: stateID) else { return }
         snapshotOrder.removeAll { $0 == stateID }
         retainedRefCount -= entry.snapshot.handlesByRef.count
@@ -822,9 +839,10 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
         for tokenID in relatedTokens {
             removeTokenLocked(tokenID, reason: reason)
         }
+        retirement.append(entry)
     }
 
-    private func rollbackSnapshotLocked(_ stateID: String) {
+    private func rollbackSnapshotLocked(_ stateID: String, retirement: inout [SnapshotEntry]) {
         guard let entry = snapshots.removeValue(forKey: stateID) else { return }
         snapshotOrder.removeAll { $0 == stateID }
         retainedRefCount -= entry.snapshot.handlesByRef.count
@@ -834,12 +852,16 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
             tokens.removeValue(forKey: tokenID)
             tokenOrder.removeAll { $0 == tokenID }
         }
+        retirement.append(entry)
     }
 
     private func removeTokenLocked(_ lookupID: String, reason: AOSAXTombstoneReason) {
-        guard tokens.removeValue(forKey: lookupID) != nil else { return }
+        guard let token = tokens.removeValue(forKey: lookupID) else { return }
         tokenOrder.removeAll { $0 == lookupID }
-        addTokenTombstoneLocked(lookupID, reason: reason)
+        guard let authenticator = Self.authenticator(from: token.publicToken) else {
+            preconditionFailure("retained AX page token lost its admitted authenticator")
+        }
+        addTokenTombstoneLocked(lookupID, authenticator: authenticator, reason: reason)
     }
 
     private func addSnapshotTombstoneLocked(_ stateID: String, reason: AOSAXTombstoneReason) {
@@ -850,24 +872,43 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
         }
     }
 
-    private func addTokenTombstoneLocked(_ lookupID: String, reason: AOSAXTombstoneReason) {
+    private func addTokenTombstoneLocked(
+        _ lookupID: String,
+        authenticator: String,
+        reason: AOSAXTombstoneReason
+    ) {
         if tokenTombstones[lookupID] == nil { tokenTombstoneOrder.append(lookupID) }
-        tokenTombstones[lookupID] = reason
+        tokenTombstones[lookupID] = .init(authenticator: authenticator, reason: reason)
         while tokenTombstoneOrder.count > configuration.retention.maxTombstones {
             tokenTombstones.removeValue(forKey: tokenTombstoneOrder.removeFirst())
         }
     }
 
-    private func pageErrorForMissingToken(_ lookupID: String) -> AOSAXPageError {
-        switch tokenTombstones[lookupID] {
+    private func pageErrorForMissingToken(_ lookupID: String, presentedToken: String) -> AOSAXPageError {
+        guard let tombstone = tokenTombstones[lookupID] else {
+            return .init(kind: .unknownIdentity, detail: "page token identity is unknown")
+        }
+        guard let authenticator = Self.authenticator(from: presentedToken),
+              tombstone.authenticator == authenticator else {
+            return .init(kind: .tokenTampered, detail: "token authenticator does not match retained lifecycle identity")
+        }
+        switch tombstone.reason {
         case .expired:
             return .init(kind: .tokenExpired, detail: "page token expired")
         case .evicted, .retentionLimit:
             return .init(kind: .tokenEvicted, detail: "page token was evicted")
         case .consumed:
             return .init(kind: .tokenConsumed, detail: "page token was already consumed")
-        case nil:
-            return .init(kind: .unknownIdentity, detail: "page token identity is unknown")
+        }
+    }
+
+    private func withLockRetiring<T>(
+        _ body: (inout [SnapshotEntry]) throws -> T
+    ) rethrows -> T {
+        var retirement: [SnapshotEntry] = []
+        defer { retirement.removeAll(keepingCapacity: false) }
+        return try lock.withLock {
+            try body(&retirement)
         }
     }
 
@@ -907,6 +948,14 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
         let authenticator = publicToken[publicToken.index(after: separator)...]
         guard !authenticator.isEmpty, !authenticator.contains(".") else { return nil }
         return validIdentity(lookupID) ? lookupID : nil
+    }
+
+    private static func authenticator(from publicToken: String) -> String? {
+        guard AOSAXContractAdmission.pageToken(publicToken),
+              let separator = publicToken.firstIndex(of: ".") else { return nil }
+        let authenticator = publicToken[publicToken.index(after: separator)...]
+        guard !authenticator.isEmpty, !authenticator.contains(".") else { return nil }
+        return String(authenticator)
     }
 
     private static func iso8601(_ date: Date) -> String {
