@@ -274,25 +274,53 @@ later atomic cutovers:
   `src/act/targeting.swift`, and `src/act/session.swift`;
 - display binding: `src/perceive/display-topology.swift`,
   `src/perceive/spatial.swift`, and `src/perceive/models.swift`;
-- current public grammar: the authored `see`, `graph`, and `do` command sources,
-  their external routes, current schemas, generated aggregates, and maintained
-  API docs named by the capability ledger; and
-- current static/native-compile evidence: `tests/aos-desktop-capabilities.test.mjs`,
-  `tests/native-target-locator-selection.sh`,
-  `tests/schemas/display-topology-v1.test.mjs`, and
-  `tests/display-topology-contract.sh`.
+- current public CLI and IPC routing: `src/main.swift`,
+  `scripts/aos-see-native.mjs`, `scripts/aos-see-observe.mjs`,
+  `scripts/aos-focus-graph.mjs`, `scripts/aos-do-native.mjs`, and
+  `scripts/aos-do-ref.mjs`;
+- current closed-contract inputs: `shared/schemas/aos-target-handle-v1.schema.json`,
+  `shared/schemas/daemon-request.schema.json`,
+  `shared/schemas/daemon-response.schema.json`,
+  `shared/schemas/daemon-event.schema.json`, and
+  `shared/schemas/display-topology-v1.schema.json`;
+- current authored observation grammar:
+  `manifests/commands/source/aos/03-see-01-capture.json`,
+  `manifests/commands/source/external/11-see.json`,
+  `manifests/commands/source/aos/16-graph.json`, and
+  `manifests/commands/source/external/36-graph.json`;
+- current authored action grammar:
+  `manifests/commands/source/aos/07-do-03-controls.json` and
+  `manifests/commands/source/external/07-do-03-controls.json`; and
+- current generated and maintained projections:
+  `manifests/commands/aos-commands.json`,
+  `manifests/commands/aos-external-commands.json`, `docs/api/aos.md`, and
+  `docs/api/aos-capabilities.md`.
 
-The planned command-producing boundary must name, create, or select exact
-production owners for the observation engine, snapshot retention and paging,
-raw value codec, public CLI/IPC routing, coordinate binding, per-PID
-subscription lifecycle, raw action adapter, closed schemas, authored command
-sources, generated aggregates/docs, and API docs. Proposed paths in a ledger
-are target allocations, not evidence that those files already exist.
+The exact proposed production allocations are
+`src/perceive/ax-observation-engine.swift`,
+`src/perceive/ax-snapshot-store.swift`, `src/perceive/ax-value-codec.swift`,
+`src/perceive/ax-coordinate-binding.swift`,
+`src/daemon/ax-observer-adapter.swift`, `src/daemon/ax-action-adapter.swift`,
+and `src/commands/ax.swift`. The exact proposed closed contracts are
+`shared/schemas/aos-ax-observation-v1.schema.json`,
+`shared/schemas/aos-ax-action-v1.schema.json`, and
+`shared/schemas/aos-ax-notification-v1.schema.json`. The exact proposed
+authored grammar owners are
+`manifests/commands/source/aos/43-ax-complete.json` and
+`manifests/commands/source/external/51-ax-complete.json`; they project through
+the two generated aggregates named above and both maintained API documents.
+None of these proposed paths exists in the accepted authority slice. Their
+`proposed` ledger kind is an allocation, not implementation evidence; a later
+atomic implementation must create each selected owner and change its kind with
+the corresponding executable truth.
 
 Behavioral acceptance must execute production owners or a production-attached
 injected abstraction. Static text/schema proof alone cannot prove traversal,
 paging, target resolution, observer cleanup, loss accounting, action readback,
-or coordinate behavior. M10 separately owns live native/TCC evidence.
+or coordinate behavior. `tests/m4-ax-contract-foundation.test.mjs` is the
+current static authority proof. The proposed production-attached fake proof is
+`tests/ax-complete-surface.test.mjs`. M10 separately owns live native/TCC
+evidence.
 
 ### Dependency-ordered M4 delivery
 

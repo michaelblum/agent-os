@@ -9,6 +9,51 @@ const repoRoot = path.resolve(dirname, '..');
 const adrPath = 'docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md';
 const ledgerPath = 'docs/dev/aos-privileged-capability-ledger-v1.json';
 const authorityPath = 'docs/dev/aos-sovereign-capability-authority-v1.json';
+const expectedM4PathRefs = [
+  [adrPath, 'current'],
+  ['src/perceive/ax.swift', 'current'],
+  ['src/perceive/capture-pipeline.swift', 'current'],
+  ['src/perceive/daemon.swift', 'current'],
+  ['src/perceive/display-topology.swift', 'current'],
+  ['src/perceive/spatial.swift', 'current'],
+  ['src/perceive/models.swift', 'current'],
+  ['src/act/actions.swift', 'current'],
+  ['src/act/targeting.swift', 'current'],
+  ['src/act/session.swift', 'current'],
+  ['src/perceive/ax-observation-engine.swift', 'proposed'],
+  ['src/perceive/ax-snapshot-store.swift', 'proposed'],
+  ['src/perceive/ax-value-codec.swift', 'proposed'],
+  ['src/perceive/ax-coordinate-binding.swift', 'proposed'],
+  ['src/daemon/ax-observer-adapter.swift', 'proposed'],
+  ['src/daemon/ax-action-adapter.swift', 'proposed'],
+  ['src/commands/ax.swift', 'proposed'],
+  ['scripts/aos-see-native.mjs', 'current'],
+  ['scripts/aos-see-observe.mjs', 'current'],
+  ['scripts/aos-focus-graph.mjs', 'current'],
+  ['scripts/aos-do-native.mjs', 'current'],
+  ['scripts/aos-do-ref.mjs', 'current'],
+  ['src/main.swift', 'current'],
+  ['shared/schemas/aos-target-handle-v1.schema.json', 'current'],
+  ['shared/schemas/daemon-request.schema.json', 'current'],
+  ['shared/schemas/daemon-response.schema.json', 'current'],
+  ['shared/schemas/daemon-event.schema.json', 'current'],
+  ['shared/schemas/display-topology-v1.schema.json', 'current'],
+  ['shared/schemas/aos-ax-observation-v1.schema.json', 'proposed'],
+  ['shared/schemas/aos-ax-action-v1.schema.json', 'proposed'],
+  ['shared/schemas/aos-ax-notification-v1.schema.json', 'proposed'],
+  ['manifests/commands/source/aos/03-see-01-capture.json', 'current'],
+  ['manifests/commands/source/external/11-see.json', 'current'],
+  ['manifests/commands/source/aos/16-graph.json', 'current'],
+  ['manifests/commands/source/external/36-graph.json', 'current'],
+  ['manifests/commands/source/aos/07-do-03-controls.json', 'current'],
+  ['manifests/commands/source/external/07-do-03-controls.json', 'current'],
+  ['manifests/commands/source/aos/43-ax-complete.json', 'proposed'],
+  ['manifests/commands/source/external/51-ax-complete.json', 'proposed'],
+  ['manifests/commands/aos-commands.json', 'generated'],
+  ['manifests/commands/aos-external-commands.json', 'generated'],
+  ['docs/api/aos.md', 'current'],
+  ['docs/api/aos-capabilities.md', 'current'],
+];
 
 async function read(relativePath) {
   return fs.readFile(path.join(repoRoot, relativePath), 'utf8');
@@ -35,6 +80,21 @@ function assertNoContradictoryAuthorityClaims(body) {
     /\bObservation Ref (?:silently )?(?:re-resolves|reacquires) (?:the )?(?:target|current machine state)\b/iu,
   ];
   for (const pattern of forbidden) assert.doesNotMatch(body, pattern);
+}
+
+function assertNonCircularM4Prerequisite(adr, ledger) {
+  const m4 = ledger.program_milestones.find(({ id }) => id === 'M4');
+  const coordinateGate = m4.exit_gates.find(({ id }) => id === 'coordinate_identity_bound');
+  const authorityText = [
+    adr,
+    ...m4.exit_gates.map(({ criterion }) => criterion),
+    ...m4.later_dependencies,
+  ].join('\n');
+  assert.doesNotMatch(
+    authorityText,
+    /\b(?:transform\s+)?prerequisite\s+(?:is|requires|depends on)\s+(?:the\s+)?complete(?:-| )AX re-observation\b/iu,
+  );
+  assert.deepEqual(coordinateGate.prerequisite_gate_refs, ['M3.geometry_reobserved_and_bound']);
 }
 
 test('ADR 0045 freezes the exact root and immutable snapshot/page taxonomy', async () => {
@@ -117,18 +177,20 @@ test('coordinate contract names exact spaces without fictional SCK identity or c
   assert.match(adr, /must not publish a\s+fictional SCK generation or platform identity/u);
   assert.match(adr, /landed M3 recording-geometry core carried\s+through M3 closeout `53bcbd67`/u);
   assert.match(adr, /It is not complete AX re-observation/u);
+  assertNonCircularM4Prerequisite(adr, ledger);
   const m4 = ledger.program_milestones.find(({ id }) => id === 'M4');
-  assert.deepEqual(
-    m4.exit_gates.find(({ id }) => id === 'coordinate_identity_bound').prerequisite_gate_refs,
-    ['M3.geometry_reobserved_and_bound'],
-  );
   assert.match(
     m4.exit_gates.find(({ id }) => id === 'coordinate_identity_bound').criterion,
     /no fictional SCK generation or platform identity/iu,
   );
+  const circularLedger = structuredClone(ledger);
+  circularLedger.program_milestones.find(({ id }) => id === 'M4')
+    .exit_gates.find(({ id }) => id === 'coordinate_identity_bound').criterion =
+      'The transform prerequisite is complete-AX re-observation.';
+  assert.throws(() => assertNonCircularM4Prerequisite(adr, circularLedger));
 });
 
-test('M4 ledger has actual owner families and requires production-attached behavioral proof', async () => {
+test('M4 ledger has exhaustive exact-file owners and requires production-attached behavioral proof', async () => {
   const [adr, ledger] = await Promise.all([read(adrPath), json(ledgerPath)]);
   const m4 = ledger.program_milestones.find(({ id }) => id === 'M4');
   assert.deepEqual(m4.deliverables.map(({ id }) => id), [
@@ -140,26 +202,23 @@ test('M4 ledger has actual owner families and requires production-attached behav
     'raw_ax_actions',
     'integrated_closeout',
   ]);
-  const ownerKinds = new Map(m4.path_refs.map(({ path: ownerPath, kind }) => [ownerPath, kind]));
-  assert.equal(ownerKinds.get(adrPath), 'current');
-  assert.equal(ownerKinds.get('src/perceive/'), 'current');
-  assert.equal(ownerKinds.get('src/act/'), 'current');
-  assert.equal(ownerKinds.get('manifests/commands/source/aos/43-ax-complete.json'), 'proposed');
-  assert.equal(ownerKinds.get('manifests/commands/source/external/51-ax-complete.json'), 'proposed');
-  assert.equal(ownerKinds.get('manifests/commands/aos-commands.json'), 'generated');
-  assert.equal(ownerKinds.get('manifests/commands/aos-external-commands.json'), 'generated');
-  for (const ownerPath of [
-    'src/perceive/ax.swift',
-    'src/perceive/capture-pipeline.swift',
-    'src/perceive/daemon.swift',
-    'src/act/actions.swift',
-    'src/act/targeting.swift',
-    'src/act/session.swift',
-    'src/perceive/display-topology.swift',
-    'src/perceive/spatial.swift',
-    'src/perceive/models.swift',
-  ]) {
-    assert.match(adr, new RegExp(ownerPath.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'));
+  assert.deepEqual(
+    m4.path_refs.map(({ path: ownerPath, kind }) => [ownerPath, kind]),
+    expectedM4PathRefs,
+  );
+  assert.ok(m4.path_refs.every(({ path: ownerPath }) => !ownerPath.endsWith('/')));
+  for (const [ownerPath, kind] of expectedM4PathRefs) {
+    if (ownerPath !== adrPath) {
+      assert.match(adr, new RegExp(ownerPath.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'));
+    }
+    if (kind === 'proposed') {
+      await assert.rejects(
+        fs.stat(path.join(repoRoot, ownerPath)),
+        (error) => error.code === 'ENOENT',
+        `proposed owner must not be preclaimed as existing: ${ownerPath}`,
+      );
+      continue;
+    }
     const stat = await fs.stat(path.join(repoRoot, ownerPath));
     assert.ok(stat.isFile(), ownerPath);
   }
@@ -181,6 +240,10 @@ test('authority map, milestone boundaries, and non-AX assignment agree with ADR 
     read('docs/dev/aos-sovereign-capability-remodel-ledger.md'),
   ]);
   assert.deepEqual(authority.authority.aos_adr_amendments, [
+    'docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md',
+    adrPath,
+  ]);
+  assert.deepEqual(ledger.authority.target_adr_amendments, [
     'docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md',
     adrPath,
   ]);

@@ -19,6 +19,51 @@ const bootstrapPaths = new Set([
   'docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md',
   'tests/m4-ax-contract-foundation.test.mjs',
 ]);
+const expectedM4PathRefs = [
+  ['docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md', 'current'],
+  ['src/perceive/ax.swift', 'current'],
+  ['src/perceive/capture-pipeline.swift', 'current'],
+  ['src/perceive/daemon.swift', 'current'],
+  ['src/perceive/display-topology.swift', 'current'],
+  ['src/perceive/spatial.swift', 'current'],
+  ['src/perceive/models.swift', 'current'],
+  ['src/act/actions.swift', 'current'],
+  ['src/act/targeting.swift', 'current'],
+  ['src/act/session.swift', 'current'],
+  ['src/perceive/ax-observation-engine.swift', 'proposed'],
+  ['src/perceive/ax-snapshot-store.swift', 'proposed'],
+  ['src/perceive/ax-value-codec.swift', 'proposed'],
+  ['src/perceive/ax-coordinate-binding.swift', 'proposed'],
+  ['src/daemon/ax-observer-adapter.swift', 'proposed'],
+  ['src/daemon/ax-action-adapter.swift', 'proposed'],
+  ['src/commands/ax.swift', 'proposed'],
+  ['scripts/aos-see-native.mjs', 'current'],
+  ['scripts/aos-see-observe.mjs', 'current'],
+  ['scripts/aos-focus-graph.mjs', 'current'],
+  ['scripts/aos-do-native.mjs', 'current'],
+  ['scripts/aos-do-ref.mjs', 'current'],
+  ['src/main.swift', 'current'],
+  ['shared/schemas/aos-target-handle-v1.schema.json', 'current'],
+  ['shared/schemas/daemon-request.schema.json', 'current'],
+  ['shared/schemas/daemon-response.schema.json', 'current'],
+  ['shared/schemas/daemon-event.schema.json', 'current'],
+  ['shared/schemas/display-topology-v1.schema.json', 'current'],
+  ['shared/schemas/aos-ax-observation-v1.schema.json', 'proposed'],
+  ['shared/schemas/aos-ax-action-v1.schema.json', 'proposed'],
+  ['shared/schemas/aos-ax-notification-v1.schema.json', 'proposed'],
+  ['manifests/commands/source/aos/03-see-01-capture.json', 'current'],
+  ['manifests/commands/source/external/11-see.json', 'current'],
+  ['manifests/commands/source/aos/16-graph.json', 'current'],
+  ['manifests/commands/source/external/36-graph.json', 'current'],
+  ['manifests/commands/source/aos/07-do-03-controls.json', 'current'],
+  ['manifests/commands/source/external/07-do-03-controls.json', 'current'],
+  ['manifests/commands/source/aos/43-ax-complete.json', 'proposed'],
+  ['manifests/commands/source/external/51-ax-complete.json', 'proposed'],
+  ['manifests/commands/aos-commands.json', 'generated'],
+  ['manifests/commands/aos-external-commands.json', 'generated'],
+  ['docs/api/aos.md', 'current'],
+  ['docs/api/aos-capabilities.md', 'current'],
+];
 
 const expectedCapabilityIds = [
   "ax-element-observation",
@@ -3911,7 +3956,7 @@ const expectedMilestoneShape = [
       "coordinate_identity_bound",
       "subscription_action_integrated_closeout"
     ],
-    "path_count": 8,
+    "path_count": 43,
     "proof_count": 2
   },
   {
@@ -8714,16 +8759,12 @@ test('M4 authority stays AX-only, production-owned, non-circular, and behavioral
   const ledger = await json(ledgerRelativePath);
   const m4 = ledger.program_milestones.find(({ id }) => id === 'M4');
   assert.ok(m4);
-  assert.deepEqual(m4.path_refs.map(({ path: ownerPath, kind }) => [ownerPath, kind]), [
-    ['docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md', 'current'],
-    ['src/perceive/', 'current'],
-    ['src/act/', 'current'],
-    ['manifests/commands/source/aos/43-ax-complete.json', 'proposed'],
-    ['manifests/commands/source/external/51-ax-complete.json', 'proposed'],
-    ['manifests/commands/aos-commands.json', 'generated'],
-    ['manifests/commands/aos-external-commands.json', 'generated'],
-    ['docs/api/aos.md', 'current'],
+  assert.deepEqual(ledger.authority.target_adr_amendments, [
+    'docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md',
+    'docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md',
   ]);
+  assert.deepEqual(m4.path_refs.map(({ path: ownerPath, kind }) => [ownerPath, kind]), expectedM4PathRefs);
+  assert.ok(m4.path_refs.every(({ path: ownerPath }) => !ownerPath.endsWith('/')));
   assert.deepEqual(m4.proof_paths.map(({ path: proofPath, kind, execution_class: executionClass }) => (
     [proofPath, kind, executionClass]
   )), [

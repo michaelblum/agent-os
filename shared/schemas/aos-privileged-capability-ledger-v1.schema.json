@@ -733,11 +733,14 @@
         },
         "target_adr_amendments": {
           "type": "array",
-          "minItems": 1,
-          "maxItems": 1,
+          "minItems": 2,
+          "maxItems": 2,
           "prefixItems": [
             {
               "const": "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md"
+            },
+            {
+              "const": "docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md"
             }
           ],
           "items": false
@@ -5890,8 +5893,8 @@
               "maxItems": 4
             },
             "path_refs": {
-              "minItems": 8,
-              "maxItems": 8
+              "minItems": 43,
+              "maxItems": 43
             },
             "proof_paths": {
               "minItems": 2,

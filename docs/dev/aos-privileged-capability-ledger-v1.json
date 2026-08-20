@@ -7,7 +7,8 @@
   "authority": {
     "target_adr": "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md",
     "target_adr_amendments": [
-      "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md"
+      "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md",
+      "docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md"
     ],
     "authority_map": "docs/dev/aos-sovereign-capability-authority-v1.json",
     "ledger_schema": "shared/schemas/aos-privileged-capability-ledger-v1.schema.json",
@@ -18755,7 +18756,16 @@
         {
           "id": "observation_engine",
           "owner_ref_ids": [
-            "M4.path.src_perceive"
+            "M4.path.src_perceive_ax_swift",
+            "M4.path.src_perceive_capture_pipeline_swift",
+            "M4.path.src_perceive_daemon_swift",
+            "M4.path.src_perceive_ax_observation_engine_swift",
+            "M4.path.src_perceive_ax_snapshot_store_swift",
+            "M4.path.src_perceive_ax_value_codec_swift",
+            "M4.path.shared_schemas_aos_target_handle_v1_schema_json",
+            "M4.path.shared_schemas_daemon_request_schema_json",
+            "M4.path.shared_schemas_daemon_response_schema_json",
+            "M4.path.shared_schemas_aos_ax_observation_v1_schema_json"
           ],
           "exit_gate_ids": [
             "immutable_bounded_ax_observation"
@@ -18768,12 +18778,28 @@
         {
           "id": "public_observation",
           "owner_ref_ids": [
-            "M4.path.src_perceive",
+            "M4.path.src_perceive_ax_observation_engine_swift",
+            "M4.path.src_perceive_ax_snapshot_store_swift",
+            "M4.path.src_perceive_ax_value_codec_swift",
+            "M4.path.src_commands_ax_swift",
+            "M4.path.src_main_swift",
+            "M4.path.scripts_aos_see_native_mjs",
+            "M4.path.scripts_aos_see_observe_mjs",
+            "M4.path.scripts_aos_focus_graph_mjs",
+            "M4.path.manifests_commands_source_aos_03_see_01_capture_json",
+            "M4.path.manifests_commands_source_external_11_see_json",
+            "M4.path.manifests_commands_source_aos_16_graph_json",
+            "M4.path.manifests_commands_source_external_36_graph_json",
+            "M4.path.shared_schemas_aos_target_handle_v1_schema_json",
+            "M4.path.shared_schemas_daemon_request_schema_json",
+            "M4.path.shared_schemas_daemon_response_schema_json",
+            "M4.path.shared_schemas_aos_ax_observation_v1_schema_json",
             "M4.path.manifests_commands_source_aos_43_ax_complete_json",
             "M4.path.manifests_commands_source_external_51_ax_complete_json",
             "M4.path.manifests_commands_aos_commands_json",
             "M4.path.manifests_commands_aos_external_commands_json",
-            "M4.path.docs_api_aos_md"
+            "M4.path.docs_api_aos_md",
+            "M4.path.docs_api_aos_capabilities_md"
           ],
           "exit_gate_ids": [
             "immutable_bounded_ax_observation"
@@ -18786,7 +18812,13 @@
         {
           "id": "coordinate_binding",
           "owner_ref_ids": [
-            "M4.path.src_perceive"
+            "M4.path.src_perceive_capture_pipeline_swift",
+            "M4.path.src_perceive_display_topology_swift",
+            "M4.path.src_perceive_spatial_swift",
+            "M4.path.src_perceive_models_swift",
+            "M4.path.src_perceive_ax_coordinate_binding_swift",
+            "M4.path.shared_schemas_display_topology_v1_schema_json",
+            "M4.path.shared_schemas_aos_ax_observation_v1_schema_json"
           ],
           "exit_gate_ids": [
             "coordinate_identity_bound"
@@ -18799,12 +18831,20 @@
         {
           "id": "ax_subscription_lifecycle",
           "owner_ref_ids": [
-            "M4.path.src_perceive",
+            "M4.path.src_perceive_daemon_swift",
+            "M4.path.src_daemon_ax_observer_adapter_swift",
+            "M4.path.src_commands_ax_swift",
+            "M4.path.src_main_swift",
+            "M4.path.shared_schemas_daemon_request_schema_json",
+            "M4.path.shared_schemas_daemon_response_schema_json",
+            "M4.path.shared_schemas_daemon_event_schema_json",
+            "M4.path.shared_schemas_aos_ax_notification_v1_schema_json",
             "M4.path.manifests_commands_source_aos_43_ax_complete_json",
             "M4.path.manifests_commands_source_external_51_ax_complete_json",
             "M4.path.manifests_commands_aos_commands_json",
             "M4.path.manifests_commands_aos_external_commands_json",
-            "M4.path.docs_api_aos_md"
+            "M4.path.docs_api_aos_md",
+            "M4.path.docs_api_aos_capabilities_md"
           ],
           "exit_gate_ids": [
             "subscription_action_integrated_closeout"
@@ -18817,12 +18857,26 @@
         {
           "id": "raw_ax_actions",
           "owner_ref_ids": [
-            "M4.path.src_act",
+            "M4.path.src_act_actions_swift",
+            "M4.path.src_act_targeting_swift",
+            "M4.path.src_act_session_swift",
+            "M4.path.src_daemon_ax_action_adapter_swift",
+            "M4.path.src_commands_ax_swift",
+            "M4.path.src_main_swift",
+            "M4.path.scripts_aos_do_native_mjs",
+            "M4.path.scripts_aos_do_ref_mjs",
+            "M4.path.manifests_commands_source_aos_07_do_03_controls_json",
+            "M4.path.manifests_commands_source_external_07_do_03_controls_json",
+            "M4.path.shared_schemas_aos_target_handle_v1_schema_json",
+            "M4.path.shared_schemas_daemon_request_schema_json",
+            "M4.path.shared_schemas_daemon_response_schema_json",
+            "M4.path.shared_schemas_aos_ax_action_v1_schema_json",
             "M4.path.manifests_commands_source_aos_43_ax_complete_json",
             "M4.path.manifests_commands_source_external_51_ax_complete_json",
             "M4.path.manifests_commands_aos_commands_json",
             "M4.path.manifests_commands_aos_external_commands_json",
-            "M4.path.docs_api_aos_md"
+            "M4.path.docs_api_aos_md",
+            "M4.path.docs_api_aos_capabilities_md"
           ],
           "exit_gate_ids": [
             "subscription_action_integrated_closeout"
@@ -18836,13 +18890,23 @@
           "id": "integrated_closeout",
           "owner_ref_ids": [
             "M4.path.docs_adr_0045_complete_ax_contract_md",
-            "M4.path.src_perceive",
-            "M4.path.src_act",
+            "M4.path.src_perceive_ax_swift",
+            "M4.path.src_perceive_ax_observation_engine_swift",
+            "M4.path.src_perceive_ax_snapshot_store_swift",
+            "M4.path.src_perceive_ax_value_codec_swift",
+            "M4.path.src_perceive_ax_coordinate_binding_swift",
+            "M4.path.src_daemon_ax_observer_adapter_swift",
+            "M4.path.src_daemon_ax_action_adapter_swift",
+            "M4.path.src_commands_ax_swift",
+            "M4.path.shared_schemas_aos_ax_observation_v1_schema_json",
+            "M4.path.shared_schemas_aos_ax_action_v1_schema_json",
+            "M4.path.shared_schemas_aos_ax_notification_v1_schema_json",
             "M4.path.manifests_commands_source_aos_43_ax_complete_json",
             "M4.path.manifests_commands_source_external_51_ax_complete_json",
             "M4.path.manifests_commands_aos_commands_json",
             "M4.path.manifests_commands_aos_external_commands_json",
-            "M4.path.docs_api_aos_md"
+            "M4.path.docs_api_aos_md",
+            "M4.path.docs_api_aos_capabilities_md"
           ],
           "exit_gate_ids": [
             "authority_contract_frozen",
@@ -18902,13 +18966,183 @@
           "kind": "current"
         },
         {
-          "id": "M4.path.src_perceive",
-          "path": "src/perceive/",
+          "id": "M4.path.src_perceive_ax_swift",
+          "path": "src/perceive/ax.swift",
           "kind": "current"
         },
         {
-          "id": "M4.path.src_act",
-          "path": "src/act/",
+          "id": "M4.path.src_perceive_capture_pipeline_swift",
+          "path": "src/perceive/capture-pipeline.swift",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.src_perceive_daemon_swift",
+          "path": "src/perceive/daemon.swift",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.src_perceive_display_topology_swift",
+          "path": "src/perceive/display-topology.swift",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.src_perceive_spatial_swift",
+          "path": "src/perceive/spatial.swift",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.src_perceive_models_swift",
+          "path": "src/perceive/models.swift",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.src_act_actions_swift",
+          "path": "src/act/actions.swift",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.src_act_targeting_swift",
+          "path": "src/act/targeting.swift",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.src_act_session_swift",
+          "path": "src/act/session.swift",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.src_perceive_ax_observation_engine_swift",
+          "path": "src/perceive/ax-observation-engine.swift",
+          "kind": "proposed"
+        },
+        {
+          "id": "M4.path.src_perceive_ax_snapshot_store_swift",
+          "path": "src/perceive/ax-snapshot-store.swift",
+          "kind": "proposed"
+        },
+        {
+          "id": "M4.path.src_perceive_ax_value_codec_swift",
+          "path": "src/perceive/ax-value-codec.swift",
+          "kind": "proposed"
+        },
+        {
+          "id": "M4.path.src_perceive_ax_coordinate_binding_swift",
+          "path": "src/perceive/ax-coordinate-binding.swift",
+          "kind": "proposed"
+        },
+        {
+          "id": "M4.path.src_daemon_ax_observer_adapter_swift",
+          "path": "src/daemon/ax-observer-adapter.swift",
+          "kind": "proposed"
+        },
+        {
+          "id": "M4.path.src_daemon_ax_action_adapter_swift",
+          "path": "src/daemon/ax-action-adapter.swift",
+          "kind": "proposed"
+        },
+        {
+          "id": "M4.path.src_commands_ax_swift",
+          "path": "src/commands/ax.swift",
+          "kind": "proposed"
+        },
+        {
+          "id": "M4.path.scripts_aos_see_native_mjs",
+          "path": "scripts/aos-see-native.mjs",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.scripts_aos_see_observe_mjs",
+          "path": "scripts/aos-see-observe.mjs",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.scripts_aos_focus_graph_mjs",
+          "path": "scripts/aos-focus-graph.mjs",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.scripts_aos_do_native_mjs",
+          "path": "scripts/aos-do-native.mjs",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.scripts_aos_do_ref_mjs",
+          "path": "scripts/aos-do-ref.mjs",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.src_main_swift",
+          "path": "src/main.swift",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.shared_schemas_aos_target_handle_v1_schema_json",
+          "path": "shared/schemas/aos-target-handle-v1.schema.json",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.shared_schemas_daemon_request_schema_json",
+          "path": "shared/schemas/daemon-request.schema.json",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.shared_schemas_daemon_response_schema_json",
+          "path": "shared/schemas/daemon-response.schema.json",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.shared_schemas_daemon_event_schema_json",
+          "path": "shared/schemas/daemon-event.schema.json",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.shared_schemas_display_topology_v1_schema_json",
+          "path": "shared/schemas/display-topology-v1.schema.json",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.shared_schemas_aos_ax_observation_v1_schema_json",
+          "path": "shared/schemas/aos-ax-observation-v1.schema.json",
+          "kind": "proposed"
+        },
+        {
+          "id": "M4.path.shared_schemas_aos_ax_action_v1_schema_json",
+          "path": "shared/schemas/aos-ax-action-v1.schema.json",
+          "kind": "proposed"
+        },
+        {
+          "id": "M4.path.shared_schemas_aos_ax_notification_v1_schema_json",
+          "path": "shared/schemas/aos-ax-notification-v1.schema.json",
+          "kind": "proposed"
+        },
+        {
+          "id": "M4.path.manifests_commands_source_aos_03_see_01_capture_json",
+          "path": "manifests/commands/source/aos/03-see-01-capture.json",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.manifests_commands_source_external_11_see_json",
+          "path": "manifests/commands/source/external/11-see.json",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.manifests_commands_source_aos_16_graph_json",
+          "path": "manifests/commands/source/aos/16-graph.json",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.manifests_commands_source_external_36_graph_json",
+          "path": "manifests/commands/source/external/36-graph.json",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.manifests_commands_source_aos_07_do_03_controls_json",
+          "path": "manifests/commands/source/aos/07-do-03-controls.json",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.manifests_commands_source_external_07_do_03_controls_json",
+          "path": "manifests/commands/source/external/07-do-03-controls.json",
           "kind": "current"
         },
         {
@@ -18934,6 +19168,11 @@
         {
           "id": "M4.path.docs_api_aos_md",
           "path": "docs/api/aos.md",
+          "kind": "current"
+        },
+        {
+          "id": "M4.path.docs_api_aos_capabilities_md",
+          "path": "docs/api/aos-capabilities.md",
           "kind": "current"
         }
       ],
