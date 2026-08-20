@@ -83,6 +83,7 @@ public enum AOSAXAttributeRead<Handle: Hashable & Sendable>: Sendable {
     case value(AOSAXPlatformValue<Handle>)
     case noValue
     case unsupported
+    case unavailable(AOSAXPlatformError)
     case platformError(AOSAXPlatformError)
 }
 
@@ -288,6 +289,7 @@ public enum AOSAXValueLimit: String, Sendable {
     case recursion
     case arrayItems = "array_items"
     case aggregateCost = "aggregate_cost"
+    case retainedRefs = "retained_refs"
     case unrepresentable
 }
 
@@ -346,7 +348,23 @@ public struct AOSAXValueCodec<Handle: Hashable & Sendable> {
         case .string(let value):
             return scalar(.string(value), cost: 1 + value.utf8.count, remaining: remaining)
         case .data(let value):
-            return scalar(.data(value.base64EncodedString()), cost: 1 + value.count, remaining: remaining)
+            let groups = value.count.addingReportingOverflow(2)
+            guard !groups.overflow else {
+                return AOSAXValueEncoding(value: nil, cost: 0, limit: .aggregateCost)
+            }
+            let encodedLength = (groups.partialValue / 3).multipliedReportingOverflow(by: 4)
+            guard !encodedLength.overflow else {
+                return AOSAXValueEncoding(value: nil, cost: 0, limit: .aggregateCost)
+            }
+            let cost = encodedLength.partialValue.addingReportingOverflow(1)
+            guard !cost.overflow, cost.partialValue <= remaining else {
+                return AOSAXValueEncoding(value: nil, cost: 0, limit: .aggregateCost)
+            }
+            return AOSAXValueEncoding(
+                value: .data(value.base64EncodedString()),
+                cost: cost.partialValue,
+                limit: nil
+            )
         case .date(let value):
             let encoded = Self.iso8601(value)
             return scalar(.date(encoded), cost: 1 + encoded.utf8.count, remaining: remaining)
@@ -371,7 +389,12 @@ public struct AOSAXValueCodec<Handle: Hashable & Sendable> {
         case .range(let value):
             return scalar(.range(value), cost: 3, remaining: remaining)
         case .element(let handle):
-            let ref = try resolveElementRef(handle)
+            let ref: String
+            do {
+                ref = try resolveElementRef(handle)
+            } catch AOSAXObservationError.retentionLimit {
+                return AOSAXValueEncoding(value: nil, cost: 0, limit: .retainedRefs)
+            }
             return scalar(.elementRef(ref), cost: 1 + ref.utf8.count, remaining: remaining)
         case .array(let values):
             guard depth < bounds.maxArrayDepth else {

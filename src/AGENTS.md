@@ -60,10 +60,12 @@ needs, but public command policy and product UI policy belong above it:
   display-composite roots; deterministic bounded traversal; closed raw value
   outcomes; and immutable retained paging. The engine receives one externally
   owned snapshot store so a daemon may preserve paging across IPC invocations;
-  request-local stores and public daemon/CLI routing remain out of this slice.
+  that store is the sole timing, retention, capacity, and observation-limit
+  authority. Request-local stores and public daemon/CLI routing remain out of this slice.
   Generation is sampled before root resolution and again before snapshot
   commit. Page tokens are opaque store lookup identities, never decoded
-  authority, and retained native handles release exactly once;
+  authority. Observation Ref lookup uses bounded store-owned borrow leases;
+  expiry or eviction blocks new borrows before exactly-once physical release;
 - DesktopWorld's per-display Metal projection hosts are generation-bound stage
   infrastructure. They are prepared before native-effect admission, stay
   dormant between effects, and retire only with their display segment, stage,

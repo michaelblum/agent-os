@@ -420,7 +420,8 @@ tests.
   and frontier facts, closed raw values and typed outcomes, double generation
   sampling, immutable no-reobserve paging, opaque-token rejection and
   lifecycle, externally owned store reuse, concurrency, exactly-once retained
-  handle cleanup, and production JSON against the internal AX schema. It must
+  handle cleanup, bounded borrow settlement across expiry and eviction, hidden
+  filter-fact collection, and production JSON against the internal AX schema. It must
   clean its disposable roots and must not execute `./aos`, daemon, native UI,
   browser, TCC, or public routing.
 - PNG file comparison proof must compile only its focused Swift source and

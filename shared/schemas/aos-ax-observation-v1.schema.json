@@ -30,8 +30,9 @@
     "platform_error": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["code", "detail"],
+      "required": ["kind", "code", "detail"],
       "properties": {
+        "kind": { "enum": ["unsupported", "unavailable", "platform_error"] },
         "code": { "$ref": "#/$defs/identifier" },
         "detail": { "type": "string", "maxLength": 2048 }
       }
@@ -167,13 +168,13 @@
         "max_value_cost"
       ],
       "properties": {
-        "max_depth": { "$ref": "#/$defs/positive_integer" },
-        "max_visited": { "$ref": "#/$defs/positive_integer" },
-        "max_emitted": { "$ref": "#/$defs/positive_integer" },
-        "deadline_nanoseconds": { "$ref": "#/$defs/positive_integer" },
-        "max_array_depth": { "$ref": "#/$defs/positive_integer" },
-        "max_array_items": { "$ref": "#/$defs/positive_integer" },
-        "max_value_cost": { "$ref": "#/$defs/positive_integer" }
+        "max_depth": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "max_visited": { "type": "integer", "minimum": 1, "maximum": 65536 },
+        "max_emitted": { "type": "integer", "minimum": 1, "maximum": 65536 },
+        "deadline_nanoseconds": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "max_array_depth": { "type": "integer", "minimum": 1, "maximum": 64 },
+        "max_array_items": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "max_value_cost": { "type": "integer", "minimum": 1, "maximum": 16777216 }
       }
     },
     "projection": {
@@ -255,7 +256,7 @@
           "items": { "$ref": "#/$defs/filter" }
         },
         "projection": { "$ref": "#/$defs/projection" },
-        "page_size": { "$ref": "#/$defs/positive_integer" }
+        "page_size": { "type": "integer", "minimum": 1, "maximum": 4096 }
       }
     },
     "page_request": {
@@ -277,7 +278,7 @@
         "expected_state_id": { "$ref": "#/$defs/identifier" },
         "request_digest": { "$ref": "#/$defs/digest" },
         "projection_digest": { "$ref": "#/$defs/digest" },
-        "page_size": { "$ref": "#/$defs/positive_integer" }
+        "page_size": { "type": "integer", "minimum": 1, "maximum": 4096 }
       }
     },
     "value": {
@@ -465,6 +466,15 @@
         "kind": { "enum": ["cycle", "duplicate"] }
       }
     },
+    "provider_read_outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["value", "unsupported", "unavailable", "platform_error", "deadline_exceeded", "not_attempted"] },
+        "error": { "$ref": "#/$defs/platform_error" }
+      }
+    },
     "node": {
       "type": "object",
       "additionalProperties": false,
@@ -472,11 +482,7 @@
         "ref",
         "depth",
         "facts",
-        "attributes",
-        "parameterized_attribute_names",
-        "settable_facts",
-        "supported_action_names",
-        "relationship_names",
+        "relationship_read",
         "reference_edges"
       ],
       "properties": {
@@ -492,11 +498,13 @@
           "maxItems": 4096,
           "items": { "$ref": "#/$defs/attribute_projection" }
         },
+        "attribute_names_read": { "$ref": "#/$defs/provider_read_outcome" },
         "parameterized_attribute_names": {
           "type": "array",
           "maxItems": 4096,
           "items": { "$ref": "#/$defs/identifier" }
         },
+        "parameterized_attribute_names_read": { "$ref": "#/$defs/provider_read_outcome" },
         "settable_facts": {
           "type": "array",
           "maxItems": 4096,
@@ -507,11 +515,13 @@
           "maxItems": 4096,
           "items": { "$ref": "#/$defs/identifier" }
         },
+        "supported_action_names_read": { "$ref": "#/$defs/provider_read_outcome" },
         "relationship_names": {
           "type": "array",
           "maxItems": 4096,
           "items": { "$ref": "#/$defs/identifier" }
         },
+        "relationship_read": { "$ref": "#/$defs/provider_read_outcome" },
         "reference_edges": {
           "type": "array",
           "maxItems": 4096,
@@ -552,6 +562,7 @@
         "depth": { "$ref": "#/$defs/nonnegative_integer" },
         "ref": { "$ref": "#/$defs/identifier" },
         "constituent_id": { "$ref": "#/$defs/identifier" },
+        "remaining_count": { "$ref": "#/$defs/positive_integer" },
         "reason": {
           "enum": [
             "depth_bound",
@@ -559,8 +570,12 @@
             "emitted_bound",
             "deadline",
             "value_cost_bound",
+            "array_bound",
+            "platform_unsupported",
+            "platform_unavailable",
             "platform_error",
-            "generation_mismatch"
+            "generation_mismatch",
+            "retention_limit"
           ]
         }
       }
@@ -578,6 +593,7 @@
             "emitted_bound",
             "deadline",
             "value_cost_bound",
+            "array_bound",
             "platform_unsupported",
             "platform_unavailable",
             "platform_error",
@@ -588,7 +604,8 @@
             "retention_limit"
           ]
         },
-        "detail": { "type": "string", "maxLength": 2048 }
+        "detail": { "type": "string", "maxLength": 2048 },
+        "error": { "$ref": "#/$defs/platform_error" }
       }
     },
     "constituent": {
@@ -613,6 +630,47 @@
         "page_size": { "$ref": "#/$defs/positive_integer" }
       }
     },
+    "observation_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_depth", "max_visited", "max_emitted", "max_deadline_nanoseconds", "max_array_depth", "max_array_items", "max_value_cost", "max_page_size", "max_filters", "max_composite_applications", "max_frontier"],
+      "properties": {
+        "max_depth": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "max_visited": { "type": "integer", "minimum": 1, "maximum": 65536 },
+        "max_emitted": { "type": "integer", "minimum": 1, "maximum": 65536 },
+        "max_deadline_nanoseconds": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "max_array_depth": { "type": "integer", "minimum": 1, "maximum": 64 },
+        "max_array_items": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "max_value_cost": { "type": "integer", "minimum": 1, "maximum": 16777216 },
+        "max_page_size": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "max_filters": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "max_composite_applications": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "max_frontier": { "type": "integer", "minimum": 2, "maximum": 69632 }
+      }
+    },
+    "effective_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["retention", "observation_limits"],
+      "properties": {
+        "retention": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["snapshot_ttl_nanoseconds", "max_snapshots", "max_retained_refs", "max_retained_value_cost", "max_page_tokens", "max_tombstones", "max_active_borrows", "identity_attempts"],
+          "properties": {
+            "snapshot_ttl_nanoseconds": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+            "max_snapshots": { "$ref": "#/$defs/positive_integer" },
+            "max_retained_refs": { "$ref": "#/$defs/positive_integer" },
+            "max_retained_value_cost": { "$ref": "#/$defs/positive_integer" },
+            "max_page_tokens": { "$ref": "#/$defs/positive_integer" },
+            "max_tombstones": { "$ref": "#/$defs/positive_integer" },
+            "max_active_borrows": { "$ref": "#/$defs/positive_integer" },
+            "identity_attempts": { "$ref": "#/$defs/positive_integer" }
+          }
+        },
+        "observation_limits": { "$ref": "#/$defs/observation_limits" }
+      }
+    },
     "observation_response": {
       "type": "object",
       "additionalProperties": false,
@@ -624,6 +682,7 @@
         "request_digest",
         "projection_digest",
         "bounds",
+        "effective_limits",
         "filters",
         "created_at",
         "expires_at",
@@ -643,6 +702,7 @@
         "request_digest": { "$ref": "#/$defs/digest" },
         "projection_digest": { "$ref": "#/$defs/digest" },
         "bounds": { "$ref": "#/$defs/bounds" },
+        "effective_limits": { "$ref": "#/$defs/effective_limits" },
         "filters": {
           "type": "array",
           "maxItems": 4096,
@@ -655,7 +715,7 @@
         "accounting": { "$ref": "#/$defs/accounting" },
         "frontier": {
           "type": "array",
-          "maxItems": 65536,
+          "maxItems": 69632,
           "items": { "$ref": "#/$defs/frontier" }
         },
         "constituents": {
@@ -665,7 +725,7 @@
         },
         "nodes": {
           "type": "array",
-          "maxItems": 65536,
+          "maxItems": 4096,
           "items": { "$ref": "#/$defs/node" }
         },
         "next_page_token": { "type": "string", "minLength": 3, "maxLength": 512 },
@@ -708,6 +768,7 @@
             "state_id",
             "request_digest",
             "projection_digest",
+            "effective_limits",
             "position",
             "nodes",
             "snapshot_outcome",
@@ -721,10 +782,11 @@
             "state_id": { "$ref": "#/$defs/identifier" },
             "request_digest": { "$ref": "#/$defs/digest" },
             "projection_digest": { "$ref": "#/$defs/digest" },
+            "effective_limits": { "$ref": "#/$defs/effective_limits" },
             "position": { "$ref": "#/$defs/positive_integer" },
             "nodes": {
               "type": "array",
-              "maxItems": 65536,
+              "maxItems": 4096,
               "items": { "$ref": "#/$defs/node" }
             },
             "next_page_token": { "type": "string", "minLength": 3, "maxLength": 512 },
@@ -733,7 +795,7 @@
             "accounting": { "$ref": "#/$defs/accounting" },
             "frontier": {
               "type": "array",
-              "maxItems": 65536,
+              "maxItems": 69632,
               "items": { "$ref": "#/$defs/frontier" }
             }
           }

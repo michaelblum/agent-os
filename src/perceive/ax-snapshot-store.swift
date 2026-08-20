@@ -1,5 +1,70 @@
 import Foundation
 
+public struct AOSAXObservationLimits: Codable, Equatable, Sendable {
+    public static let schemaMaxDepth = 4_096
+    public static let schemaMaxVisited = 65_536
+    public static let schemaMaxEmitted = 65_536
+    public static let schemaMaxDeadlineNanoseconds: UInt64 = 9_007_199_254_740_991
+    public static let schemaMaxArrayDepth = 64
+    public static let schemaMaxArrayItems = 4_096
+    public static let schemaMaxValueCost = 16_777_216
+    public static let schemaMaxPageSize = 4_096
+    public static let schemaMaxFilters = 4_096
+    public static let schemaMaxCompositeApplications = 4_096
+    public static let schemaMaxFrontier = schemaMaxVisited + schemaMaxArrayItems
+
+    public let maxDepth: Int
+    public let maxVisited: Int
+    public let maxEmitted: Int
+    public let maxDeadlineNanoseconds: UInt64
+    public let maxArrayDepth: Int
+    public let maxArrayItems: Int
+    public let maxValueCost: Int
+    public let maxPageSize: Int
+    public let maxFilters: Int
+    public let maxCompositeApplications: Int
+    public let maxFrontier: Int
+
+    public init(
+        maxDepth: Int,
+        maxVisited: Int,
+        maxEmitted: Int,
+        maxDeadlineNanoseconds: UInt64,
+        maxArrayDepth: Int,
+        maxArrayItems: Int,
+        maxValueCost: Int,
+        maxPageSize: Int,
+        maxFilters: Int,
+        maxCompositeApplications: Int
+    ) throws {
+        guard (1...Self.schemaMaxDepth).contains(maxDepth),
+              (1...Self.schemaMaxVisited).contains(maxVisited),
+              (1...Self.schemaMaxEmitted).contains(maxEmitted),
+              (1...Self.schemaMaxDeadlineNanoseconds).contains(maxDeadlineNanoseconds),
+              (1...Self.schemaMaxArrayDepth).contains(maxArrayDepth),
+              (1...Self.schemaMaxArrayItems).contains(maxArrayItems),
+              (1...Self.schemaMaxValueCost).contains(maxValueCost),
+              (1...Self.schemaMaxPageSize).contains(maxPageSize),
+              (1...Self.schemaMaxFilters).contains(maxFilters),
+              (1...Self.schemaMaxCompositeApplications).contains(maxCompositeApplications),
+              maxEmitted <= maxVisited,
+              maxPageSize <= maxEmitted else {
+            throw AOSAXObservationError.invalidBounds
+        }
+        self.maxDepth = maxDepth
+        self.maxVisited = maxVisited
+        self.maxEmitted = maxEmitted
+        self.maxDeadlineNanoseconds = maxDeadlineNanoseconds
+        self.maxArrayDepth = maxArrayDepth
+        self.maxArrayItems = maxArrayItems
+        self.maxValueCost = maxValueCost
+        self.maxPageSize = maxPageSize
+        self.maxFilters = maxFilters
+        self.maxCompositeApplications = maxCompositeApplications
+        self.maxFrontier = maxVisited + maxArrayItems
+    }
+}
+
 public struct AOSAXRetentionConfiguration: Codable, Equatable, Sendable {
     public let snapshotTTLNanoseconds: UInt64
     public let maxSnapshots: Int
@@ -7,6 +72,7 @@ public struct AOSAXRetentionConfiguration: Codable, Equatable, Sendable {
     public let maxRetainedValueCost: Int
     public let maxPageTokens: Int
     public let maxTombstones: Int
+    public let maxActiveBorrows: Int
     public let identityAttempts: Int
 
     public init(
@@ -16,14 +82,16 @@ public struct AOSAXRetentionConfiguration: Codable, Equatable, Sendable {
         maxRetainedValueCost: Int,
         maxPageTokens: Int,
         maxTombstones: Int,
+        maxActiveBorrows: Int,
         identityAttempts: Int = 8
     ) throws {
-        guard snapshotTTLNanoseconds > 0,
+        guard (1...AOSAXObservationLimits.schemaMaxDeadlineNanoseconds).contains(snapshotTTLNanoseconds),
               maxSnapshots > 0,
               maxRetainedRefs > 0,
               maxRetainedValueCost > 0,
               maxPageTokens > 0,
               maxTombstones > 0,
+              maxActiveBorrows > 0,
               identityAttempts > 0 else {
             throw AOSAXObservationError.invalidRetention
         }
@@ -33,8 +101,40 @@ public struct AOSAXRetentionConfiguration: Codable, Equatable, Sendable {
         self.maxRetainedValueCost = maxRetainedValueCost
         self.maxPageTokens = maxPageTokens
         self.maxTombstones = maxTombstones
+        self.maxActiveBorrows = maxActiveBorrows
         self.identityAttempts = identityAttempts
     }
+}
+
+public struct AOSAXSnapshotStoreConfiguration: Codable, Equatable, Sendable {
+    public let retention: AOSAXRetentionConfiguration
+    public let observationLimits: AOSAXObservationLimits
+
+    public init(
+        retention: AOSAXRetentionConfiguration,
+        observationLimits: AOSAXObservationLimits
+    ) throws {
+        guard observationLimits.maxVisited <= retention.maxRetainedRefs,
+              observationLimits.maxValueCost <= retention.maxRetainedValueCost else {
+            throw AOSAXObservationError.invalidRetention
+        }
+        self.retention = retention
+        self.observationLimits = observationLimits
+    }
+}
+
+public struct AOSAXObservationAdmission: Sendable {
+    public let startMonotonicNanoseconds: UInt64
+    public let deadlineMonotonicNanoseconds: UInt64
+    public let expiresMonotonicNanoseconds: UInt64
+    public let createdAt: String
+    public let expiresAt: String
+    public let effectiveLimits: AOSAXSnapshotStoreConfiguration
+    public let snapshotTTLNanoseconds: UInt64
+    public let maxRetainedRefs: Int
+    public let maxRetainedValueCost: Int
+    public let maxActiveBorrows: Int
+    public let identityAttempts: Int
 }
 
 public final class AOSAXRetainedHandle<Handle: Hashable & Sendable>: @unchecked Sendable {
@@ -61,6 +161,44 @@ public final class AOSAXRetainedHandle<Handle: Hashable & Sendable>: @unchecked 
         if shouldRelease {
             releaseBody(value)
         }
+    }
+}
+
+public final class AOSAXHandleBorrowLease<Handle: Hashable & Sendable>: @unchecked Sendable {
+    private var retainedHandle: AOSAXRetainedHandle<Handle>?
+    private let settleBody: @Sendable () -> Void
+    private let lock = NSLock()
+    private var settled = false
+
+    public var value: Handle {
+        lock.withLock {
+            precondition(!settled, "settled Observation Ref borrow has no lookup authority")
+            return retainedHandle!.value
+        }
+    }
+
+    fileprivate init(
+        retainedHandle: AOSAXRetainedHandle<Handle>,
+        settle: @escaping @Sendable () -> Void
+    ) {
+        self.retainedHandle = retainedHandle
+        self.settleBody = settle
+    }
+
+    deinit {
+        release()
+    }
+
+    public func release() {
+        var releasedHandle = lock.withLock { () -> AOSAXRetainedHandle<Handle>? in
+            guard !settled else { return nil }
+            settled = true
+            defer { retainedHandle = nil }
+            return retainedHandle
+        }
+        guard releasedHandle != nil else { return }
+        settleBody()
+        releasedHandle = nil
     }
 }
 
@@ -121,7 +259,9 @@ public struct AOSAXPageRequest: Codable, Equatable, Sendable {
         projectionDigest: String,
         pageSize: Int
     ) throws {
-        guard pageSize > 0 else { throw AOSAXObservationError.invalidBounds }
+        guard (1...AOSAXObservationLimits.schemaMaxPageSize).contains(pageSize) else {
+            throw AOSAXObservationError.invalidBounds
+        }
         self.schemaVersion = "aos.ax-observation.v1"
         self.kind = "page_request"
         self.token = token
@@ -139,6 +279,7 @@ public struct AOSAXPageResponse: Codable, Equatable, Sendable {
     public let stateID: String?
     public let requestDigest: String?
     public let projectionDigest: String?
+    public let effectiveLimits: AOSAXSnapshotStoreConfiguration?
     public let position: Int?
     public let nodes: [AOSAXNodeProjection]
     public let nextPageToken: String?
@@ -152,6 +293,7 @@ public struct AOSAXPageResponse: Codable, Equatable, Sendable {
         stateID: String,
         requestDigest: String,
         projectionDigest: String,
+        effectiveLimits: AOSAXSnapshotStoreConfiguration,
         position: Int,
         nodes: [AOSAXNodeProjection],
         nextPageToken: String?,
@@ -166,6 +308,7 @@ public struct AOSAXPageResponse: Codable, Equatable, Sendable {
         self.stateID = stateID
         self.requestDigest = requestDigest
         self.projectionDigest = projectionDigest
+        self.effectiveLimits = effectiveLimits
         self.position = position
         self.nodes = nodes
         self.nextPageToken = nextPageToken
@@ -183,6 +326,7 @@ public struct AOSAXPageResponse: Codable, Equatable, Sendable {
         self.stateID = nil
         self.requestDigest = nil
         self.projectionDigest = nil
+        self.effectiveLimits = nil
         self.position = nil
         self.nodes = []
         self.nextPageToken = nil
@@ -200,6 +344,7 @@ public struct AOSAXStoredSnapshot<Handle: Hashable & Sendable>: Sendable {
     public let projectionDigest: String
     public let root: AOSAXRootIdentity
     public let bounds: AOSAXObservationBounds
+    public let effectiveLimits: AOSAXSnapshotStoreConfiguration
     public let filters: [AOSAXObservationFilter]
     public let pageSize: Int
     public let createdAt: String
@@ -221,6 +366,7 @@ public struct AOSAXStoredSnapshot<Handle: Hashable & Sendable>: Sendable {
         projectionDigest: String,
         root: AOSAXRootIdentity,
         bounds: AOSAXObservationBounds,
+        effectiveLimits: AOSAXSnapshotStoreConfiguration,
         filters: [AOSAXObservationFilter],
         pageSize: Int,
         createdAt: String,
@@ -241,6 +387,7 @@ public struct AOSAXStoredSnapshot<Handle: Hashable & Sendable>: Sendable {
         self.projectionDigest = projectionDigest
         self.root = root
         self.bounds = bounds
+        self.effectiveLimits = effectiveLimits
         self.filters = filters
         self.pageSize = pageSize
         self.createdAt = createdAt
@@ -259,15 +406,17 @@ public struct AOSAXStoredSnapshot<Handle: Hashable & Sendable>: Sendable {
 }
 
 public enum AOSAXSnapshotLookup<Handle: Hashable & Sendable>: Sendable {
-    case value(AOSAXRetainedHandle<Handle>)
+    case value(AOSAXHandleBorrowLease<Handle>)
     case expired
     case evicted
     case missing
     case incompatible
+    case borrowLimit
 }
 
 public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked Sendable {
     public typealias MonotonicClock = @Sendable () -> UInt64
+    public typealias WallClock = @Sendable () -> Date
     public typealias TokenFactory = @Sendable () -> AOSAXPageTokenIdentity
 
     private struct SnapshotEntry: Sendable {
@@ -287,8 +436,9 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
         let sequence: UInt64
     }
 
-    private let configuration: AOSAXRetentionConfiguration
+    private let configuration: AOSAXSnapshotStoreConfiguration
     private let monotonicClock: MonotonicClock
+    private let wallClock: WallClock
     private let tokenFactory: TokenFactory
     private let lock = NSLock()
     private var snapshots: [String: SnapshotEntry] = [:]
@@ -303,21 +453,83 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
     private var sequence: UInt64 = 0
     private var retainedRefCount = 0
     private var retainedValueCost = 0
+    private var activeBorrowCount = 0
 
     public init(
-        configuration: AOSAXRetentionConfiguration,
+        configuration: AOSAXSnapshotStoreConfiguration,
         monotonicClock: @escaping MonotonicClock,
+        wallClock: @escaping WallClock,
         tokenFactory: @escaping TokenFactory
     ) {
         self.configuration = configuration
         self.monotonicClock = monotonicClock
+        self.wallClock = wallClock
         self.tokenFactory = tokenFactory
+    }
+
+    public func beginObservation(_ request: AOSAXObservationRequest) throws -> AOSAXObservationAdmission {
+        let limits = configuration.observationLimits
+        guard request.bounds.maxDepth <= limits.maxDepth,
+              request.bounds.maxVisited <= limits.maxVisited,
+              request.bounds.maxEmitted <= limits.maxEmitted,
+              request.bounds.maxEmitted <= request.bounds.maxVisited,
+              request.bounds.deadlineNanoseconds <= limits.maxDeadlineNanoseconds,
+              request.bounds.maxArrayDepth <= limits.maxArrayDepth,
+              request.bounds.maxArrayItems <= limits.maxArrayItems,
+              request.bounds.maxValueCost <= limits.maxValueCost,
+              request.pageSize <= limits.maxPageSize,
+              request.pageSize <= request.bounds.maxEmitted,
+              request.filters.count <= limits.maxFilters else {
+            throw AOSAXObservationError.invalidBounds
+        }
+        var totalFilterAttributeOutcomes = 0
+        for filter in request.filters {
+            let total = totalFilterAttributeOutcomes.addingReportingOverflow(filter.rawAttributeOutcomes.count)
+            guard !total.overflow,
+                  total.partialValue <= limits.maxArrayItems,
+                  total.partialValue <= request.bounds.maxArrayItems else {
+                throw AOSAXObservationError.invalidBounds
+            }
+            totalFilterAttributeOutcomes = total.partialValue
+        }
+        if case .displayComposite(_, let applications) = request.root,
+           (applications.count > limits.maxCompositeApplications || applications.count > request.bounds.maxVisited) {
+            throw AOSAXObservationError.invalidBounds
+        }
+
+        let start = monotonicClock()
+        let deadline = start.addingReportingOverflow(request.bounds.deadlineNanoseconds)
+        guard !deadline.overflow else { throw AOSAXObservationError.invalidBounds }
+        let retention = configuration.retention
+        let expiry = start.addingReportingOverflow(retention.snapshotTTLNanoseconds)
+        guard !expiry.overflow else { throw AOSAXObservationError.invalidRetention }
+        let createdDate = wallClock()
+        let expiryDate = createdDate.addingTimeInterval(
+            Double(retention.snapshotTTLNanoseconds) / 1_000_000_000
+        )
+        return AOSAXObservationAdmission(
+            startMonotonicNanoseconds: start,
+            deadlineMonotonicNanoseconds: deadline.partialValue,
+            expiresMonotonicNanoseconds: expiry.partialValue,
+            createdAt: Self.iso8601(createdDate),
+            expiresAt: Self.iso8601(expiryDate),
+            effectiveLimits: configuration,
+            snapshotTTLNanoseconds: retention.snapshotTTLNanoseconds,
+            maxRetainedRefs: retention.maxRetainedRefs,
+            maxRetainedValueCost: retention.maxRetainedValueCost,
+            maxActiveBorrows: retention.maxActiveBorrows,
+            identityAttempts: retention.identityAttempts
+        )
+    }
+
+    public func monotonicNow() -> UInt64 {
+        monotonicClock()
     }
 
     public func allocateStateID(factory: @Sendable () -> String) throws -> String {
         try lock.withLock {
             expireLocked(now: monotonicClock())
-            for _ in 0..<configuration.identityAttempts {
+            for _ in 0..<configuration.retention.identityAttempts {
                 let candidate = factory()
                 guard Self.validIdentity(candidate) else { continue }
                 if snapshots[candidate] == nil,
@@ -350,7 +562,13 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
             guard let handle = entry.snapshot.handlesByRef[ref] else {
                 return .incompatible
             }
-            return .value(handle)
+            guard activeBorrowCount < configuration.retention.maxActiveBorrows else {
+                return .borrowLimit
+            }
+            activeBorrowCount += 1
+            return .value(AOSAXHandleBorrowLease(retainedHandle: handle) { [weak self] in
+                self?.completeBorrow()
+            })
         }
     }
 
@@ -361,19 +579,26 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
         try lock.withLock {
             let now = monotonicClock()
             expireLocked(now: now)
-            guard pageSize > 0 else { throw AOSAXObservationError.invalidBounds }
+            guard pageSize > 0,
+                  pageSize <= configuration.observationLimits.maxPageSize,
+                  pageSize <= snapshot.bounds.maxEmitted,
+                  snapshot.nodes.count <= snapshot.bounds.maxEmitted,
+                  snapshot.frontier.count <= AOSAXObservationLimits.schemaMaxFrontier else {
+                throw AOSAXObservationError.invalidBounds
+            }
             guard reservedStateIDs.remove(snapshot.stateID) != nil,
                   snapshots[snapshot.stateID] == nil else {
                 throw AOSAXObservationError.stateCollision
             }
-            guard snapshot.handlesByRef.count <= configuration.maxRetainedRefs,
-                  snapshot.retainedValueCost <= configuration.maxRetainedValueCost else {
+            let retention = configuration.retention
+            guard snapshot.handlesByRef.count <= retention.maxRetainedRefs,
+                  snapshot.retainedValueCost <= retention.maxRetainedValueCost else {
                 addSnapshotTombstoneLocked(snapshot.stateID, reason: .retentionLimit)
                 return AOSAXObservationResponse.retentionUnavailable(from: snapshot)
             }
-            while snapshots.count >= configuration.maxSnapshots ||
-                    retainedRefCount + snapshot.handlesByRef.count > configuration.maxRetainedRefs ||
-                    retainedValueCost + snapshot.retainedValueCost > configuration.maxRetainedValueCost {
+            while snapshots.count >= retention.maxSnapshots ||
+                    retainedRefCount + snapshot.handlesByRef.count > retention.maxRetainedRefs ||
+                    retainedValueCost + snapshot.retainedValueCost > retention.maxRetainedValueCost {
                 guard let oldest = snapshotOrder.first else {
                     addSnapshotTombstoneLocked(snapshot.stateID, reason: .retentionLimit)
                     return AOSAXObservationResponse.retentionUnavailable(from: snapshot)
@@ -456,6 +681,7 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
                 stateID: entry.snapshot.stateID,
                 requestDigest: entry.snapshot.requestDigest,
                 projectionDigest: entry.snapshot.projectionDigest,
+                effectiveLimits: entry.snapshot.effectiveLimits,
                 position: start,
                 nodes: pageNodes,
                 nextPageToken: nextToken,
@@ -489,15 +715,20 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
         }
     }
 
+    public func activeBorrows() -> Int {
+        lock.withLock { activeBorrowCount }
+    }
+
     private func makeTokenLocked(
         snapshot: AOSAXStoredSnapshot<Handle>,
         nextPosition: Int,
         pageSize: Int
     ) throws -> String {
-        while tokens.count >= configuration.maxPageTokens, let oldest = tokenOrder.first {
+        let retention = configuration.retention
+        while tokens.count >= retention.maxPageTokens, let oldest = tokenOrder.first {
             removeTokenLocked(oldest, reason: .evicted)
         }
-        for _ in 0..<configuration.identityAttempts {
+        for _ in 0..<retention.identityAttempts {
             let identity = tokenFactory()
             guard Self.validIdentity(identity.lookupID),
                   identity.publicToken.hasPrefix(identity.lookupID + "."),
@@ -562,7 +793,7 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
     private func addSnapshotTombstoneLocked(_ stateID: String, reason: AOSAXTombstoneReason) {
         if snapshotTombstones[stateID] == nil { snapshotTombstoneOrder.append(stateID) }
         snapshotTombstones[stateID] = reason
-        while snapshotTombstoneOrder.count > configuration.maxTombstones {
+        while snapshotTombstoneOrder.count > configuration.retention.maxTombstones {
             snapshotTombstones.removeValue(forKey: snapshotTombstoneOrder.removeFirst())
         }
     }
@@ -570,7 +801,7 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
     private func addTokenTombstoneLocked(_ lookupID: String, reason: AOSAXTombstoneReason) {
         if tokenTombstones[lookupID] == nil { tokenTombstoneOrder.append(lookupID) }
         tokenTombstones[lookupID] = reason
-        while tokenTombstoneOrder.count > configuration.maxTombstones {
+        while tokenTombstoneOrder.count > configuration.retention.maxTombstones {
             tokenTombstones.removeValue(forKey: tokenTombstoneOrder.removeFirst())
         }
     }
@@ -599,6 +830,13 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
         }
     }
 
+    private func completeBorrow() {
+        lock.withLock {
+            precondition(activeBorrowCount > 0, "AX borrow settlement underflow")
+            activeBorrowCount -= 1
+        }
+    }
+
     private static func validIdentity(_ value: String) -> Bool {
         !value.isEmpty && value.utf8.count <= 256 &&
             value.unicodeScalars.allSatisfy { scalar in
@@ -614,6 +852,12 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
               let separator = publicToken.firstIndex(of: ".") else { return nil }
         let lookupID = String(publicToken[..<separator])
         return validIdentity(lookupID) ? lookupID : nil
+    }
+
+    private static func iso8601(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.string(from: date)
     }
 }
 

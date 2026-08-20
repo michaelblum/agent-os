@@ -81,7 +81,8 @@ apps, and tests.
   helper and deterministic fixtures.
 - `schemas/aos-ax-observation-v1.schema.json` owns the closed internal M4 AX
   request, immutable snapshot, retained page, raw value, outcome, completeness,
-  frontier, and state-scoped Observation Ref contract. Its presence does not
+  typed provider-read, effective-limit, optional projection, frontier, and
+  state-scoped Observation Ref contract. Its presence does not
   add daemon or CLI reachability; that public integration belongs to M4C.
 - Shared helpers must stay product-neutral and layer-neutral.
 - Source facts admitted by each bounded public observation contract are exposed
