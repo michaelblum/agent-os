@@ -418,8 +418,10 @@ tests.
   fake platform, generation, clock, and identity seams. It validates all five
   roots, deterministic traversal and edge classification, independent bounds
   and one effective queued/pending/provider-remainder frontier, pending repeated
-  edge settlement, exact display-composite deadline results, closed raw values
-  and typed outcomes, Unicode code-point admission, double generation sampling,
+  edge settlement, exact per-constituent display-composite outcomes and deadline
+  results, post-provider deadline retention rejection, kind-exact root identity,
+  schema-valid omitted filter defaults, closed raw values and typed outcomes,
+  Unicode code-point admission, double generation sampling,
   immutable no-reobserve paging, authenticated opaque-token tombstone lifecycle,
   externally owned store reuse, synchronous release reentry, exactly-once
   outside-lock retained-handle cleanup, bounded borrow settlement across expiry

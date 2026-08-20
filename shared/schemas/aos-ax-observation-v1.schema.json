@@ -146,20 +146,57 @@
       ]
     },
     "root_identity": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["kind"],
-      "properties": {
-        "kind": {
-          "enum": ["system_wide", "application", "window", "element", "display_composite"]
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": { "kind": { "const": "system_wide" } }
         },
-        "generation": { "$ref": "#/$defs/process_generation" },
-        "window_id": { "$ref": "#/$defs/nonnegative_integer" },
-        "source_state_id": { "$ref": "#/$defs/identifier" },
-        "source_ref": { "$ref": "#/$defs/identifier" },
-        "topology_identity": { "$ref": "#/$defs/identifier" },
-        "constituent_count": { "$ref": "#/$defs/positive_integer" }
-      }
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "generation"],
+          "properties": {
+            "kind": { "const": "application" },
+            "generation": { "$ref": "#/$defs/process_generation" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "generation", "window_id"],
+          "properties": {
+            "kind": { "const": "window" },
+            "generation": { "$ref": "#/$defs/process_generation" },
+            "window_id": { "$ref": "#/$defs/nonnegative_integer" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "source_state_id", "source_ref"],
+          "properties": {
+            "kind": { "const": "element" },
+            "source_state_id": { "$ref": "#/$defs/identifier" },
+            "source_ref": { "$ref": "#/$defs/identifier" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "topology_identity", "constituent_count"],
+          "properties": {
+            "kind": { "const": "display_composite" },
+            "topology_identity": { "$ref": "#/$defs/identifier" },
+            "constituent_count": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4096
+            }
+          }
+        }
+      ]
     },
     "bounds": {
       "type": "object",

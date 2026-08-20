@@ -96,12 +96,14 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
     var rootError: AOSAXPlatformError?
     var rollbackAttribute = false
     var frontierStress = false
+    var advanceAfterAttribute: [String: UInt64] = [:]
     var onRelease: (@Sendable () -> Void)?
     var forbiddenAtOrAfter: UInt64?
     private var calls = 0
     private var retains = 0
     private var releases = 0
     private var lateCalls = 0
+    private var lateRetains = 0
 
     init(clock: FakeClock) { self.clock = clock }
 
@@ -118,6 +120,7 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
     func retainCount() -> Int { lock.held { retains } }
     func releaseCount() -> Int { lock.held { releases } }
     func lateCallCount() -> Int { lock.held { lateCalls } }
+    func lateRetainCount() -> Int { lock.held { lateRetains } }
 
     func systemWideRoot(deadlineNanoseconds: UInt64) -> AOSAXPlatformResult<Int> {
         called()
@@ -248,6 +251,9 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
         deadlineNanoseconds: UInt64
     ) -> AOSAXAttributeRead<Int> {
         called()
+        defer {
+            if let advance = advanceAfterAttribute[name] { clock.advance(advance) }
+        }
         switch name {
         case "RollbackArray": return .value(.array([.element(99), .unknownType("late failure")]))
         case "Boolean": return .value(.boolean(true))
@@ -318,7 +324,13 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
         return .value(["AXRaise", "AXPress"])
     }
 
-    func retain(handle: Int) { lock.held { retains += 1 } }
+    func retain(handle: Int) {
+        let now = clock.read()
+        lock.held {
+            retains += 1
+            if let forbiddenAtOrAfter, now >= forbiddenAtOrAfter { lateRetains += 1 }
+        }
+    }
     func release(handle: Int) {
         let callback = lock.held { () -> (@Sendable () -> Void)? in
             releases += 1
@@ -603,6 +615,22 @@ func run() {
     precondition(!composite.nodes.isEmpty)
     emit(composite)
 
+    let constituentBoundHarness = Harness()
+    let constituentBound = try! constituentBoundHarness.engine.observe(request(
+        .displayComposite(
+            topologyIdentity: "topology-constituent-bound",
+            applications: [gen100, gen200]
+        ),
+        bounds: bounds(depth: 1),
+        pageSize: 8
+    ))
+    precondition(constituentBound.outcome == .truncated)
+    precondition(constituentBound.constituents.map(\.outcome) == [.complete, .truncated])
+    precondition(constituentBound.frontier.allSatisfy {
+        $0.constituentID == "application-1-pid-200"
+    })
+    emit(constituentBound)
+
     let mismatchHarness = Harness()
     mismatchHarness.generations.changeAfterFirst = [100]
     let mismatch = try! mismatchHarness.engine.observe(request(.application(gen100), pageSize: 8))
@@ -828,7 +856,7 @@ func run() {
         stateID: manualState,
         requestDigest: String(repeating: "a", count: 64),
         projectionDigest: String(repeating: "b", count: 64),
-        root: .init(kind: .systemWide),
+        root: try! .init(kind: .systemWide),
         bounds: manualRequest.bounds,
         effectiveLimits: manualAdmission.effectiveLimits,
         filters: [],
@@ -891,7 +919,39 @@ func run() {
     precondition(deadline.outcome == .truncated)
     precondition(deadline.stopCondition.kind == .deadline)
     precondition(deadlineHarness.provider.lateCallCount() == 0)
+    precondition(deadlineHarness.provider.lateRetainCount() == 0)
     emit(deadline)
+
+    let lateRootHarness = Harness()
+    lateRootHarness.provider.advancePerCall = 1
+    lateRootHarness.provider.forbiddenAtOrAfter = lateRootHarness.clock.read() + 1
+    let lateRoot = try! lateRootHarness.engine.observe(request(
+        .systemWide,
+        bounds: bounds(visited: 1, deadline: 1),
+        projection: factsOnly,
+        pageSize: 1
+    ))
+    precondition(lateRoot.outcome == .truncated && lateRoot.stopCondition.kind == .deadline)
+    precondition(lateRoot.retention.retainedRefCount == 0)
+    precondition(lateRootHarness.provider.retainCount() == 0)
+    precondition(lateRootHarness.provider.lateRetainCount() == 0)
+    emit(lateRoot)
+
+    let lateValueHarness = Harness()
+    lateValueHarness.provider.advanceAfterAttribute = ["Element": 1]
+    lateValueHarness.provider.forbiddenAtOrAfter = lateValueHarness.clock.read() + 1
+    let lateValue = try! lateValueHarness.engine.observe(request(
+        .systemWide,
+        bounds: bounds(visited: 1, deadline: 1),
+        projection: attributesOnly,
+        pageSize: 1
+    ))
+    precondition(lateValue.outcome == .truncated && lateValue.stopCondition.kind == .deadline)
+    precondition(attribute("Element", in: lateValue.nodes[0]).outcome == .deadlineExceeded)
+    precondition(lateValue.retention.retainedRefCount == 1)
+    precondition(lateValueHarness.provider.retainCount() == 1)
+    precondition(lateValueHarness.provider.lateRetainCount() == 0)
+    emit(lateValue)
 
     let evictionHarness = Harness(maxSnapshots: 1)
     evictionHarness.enableReleaseReentry()
@@ -1081,6 +1141,43 @@ func run() {
     let decoder = JSONDecoder()
     decoder.keyDecodingStrategy = .convertFromSnakeCase
     precondition((try? decoder.decode(AOSAXObservationRequest.self, from: encodedRequest)) != nil)
+    let emptyFilterJSON = String(data: encodedRequest, encoding: .utf8)!
+        .replacingOccurrences(of: "\"filters\":[]", with: "\"filters\":[{}]")
+    precondition(emptyFilterJSON.contains("\"filters\":[{}]"))
+    let emptyFilterRequest = try! decoder.decode(
+        AOSAXObservationRequest.self,
+        from: Data(emptyFilterJSON.utf8)
+    )
+    precondition(emptyFilterRequest.filters.count == 1)
+    precondition(emptyFilterRequest.filters[0].rawAttributeOutcomes.isEmpty)
+    print(emptyFilterJSON)
+
+    let generationJSON = "\"generation\":{\"pid\":100,\"start_time_seconds\":10,\"start_time_microseconds\":1}"
+    let validRootIdentities = [
+        "{\"kind\":\"system_wide\"}",
+        "{\"kind\":\"application\",\(generationJSON)}",
+        "{\"kind\":\"window\",\(generationJSON),\"window_id\":10}",
+        "{\"kind\":\"element\",\"source_state_id\":\"state\",\"source_ref\":\"ref\"}",
+        "{\"kind\":\"display_composite\",\"topology_identity\":\"topology\",\"constituent_count\":2}",
+    ]
+    for identityJSON in validRootIdentities {
+        precondition((try? decoder.decode(AOSAXRootIdentity.self, from: Data(identityJSON.utf8))) != nil)
+    }
+    let invalidRootIdentities = [
+        "{}",
+        "{\"kind\":\"system_wide\",\(generationJSON)}",
+        "{\"kind\":\"application\"}",
+        "{\"kind\":\"application\",\(generationJSON),\"window_id\":10}",
+        "{\"kind\":\"window\",\(generationJSON)}",
+        "{\"kind\":\"window\",\(generationJSON),\"window_id\":10,\"source_ref\":\"ref\"}",
+        "{\"kind\":\"element\",\"source_state_id\":\"state\"}",
+        "{\"kind\":\"element\",\"source_state_id\":\"state\",\"source_ref\":\"ref\",\(generationJSON)}",
+        "{\"kind\":\"display_composite\",\"topology_identity\":\"topology\"}",
+        "{\"kind\":\"display_composite\",\"topology_identity\":\"topology\",\"constituent_count\":2,\"source_state_id\":\"state\"}",
+    ]
+    for identityJSON in invalidRootIdentities {
+        precondition((try? decoder.decode(AOSAXRootIdentity.self, from: Data(identityJSON.utf8))) == nil)
+    }
     let invalidJSON = String(data: encodedRequest, encoding: .utf8)!
         .replacingOccurrences(of: "\"start_time_microseconds\":1", with: "\"start_time_microseconds\":1000000")
     precondition(invalidJSON.contains("\"start_time_microseconds\":1000000"))
@@ -1154,12 +1251,15 @@ func run() {
     precondition(concurrent.provider.retainCount() == concurrent.provider.releaseCount())
 
     _ = primary.store.removeAll()
+    _ = constituentBoundHarness.store.removeAll()
     _ = mismatchHarness.store.removeAll()
     _ = settlementHarness.store.removeAll()
     _ = admissionDeadlineHarness.store.removeAll()
     _ = traversalDeadlineHarness.store.removeAll()
     _ = unsupportedHarness.store.removeAll()
     _ = deadlineHarness.store.removeAll()
+    _ = lateRootHarness.store.removeAll()
+    _ = lateValueHarness.store.removeAll()
     _ = evictionHarness.store.removeAll()
     _ = expiryHarness.store.removeAll()
     _ = borrowExpiryHarness.store.removeAll()
@@ -1170,6 +1270,8 @@ func run() {
     _ = rollbackHarness.store.removeAll()
     _ = frontierBudgetHarness.store.removeAll()
     precondition(primary.provider.retainCount() == primary.provider.releaseCount())
+    precondition(lateRootHarness.provider.retainCount() == lateRootHarness.provider.releaseCount())
+    precondition(lateValueHarness.provider.retainCount() == lateValueHarness.provider.releaseCount())
     for reentrantHarness in [
         evictionHarness,
         expiryHarness,
@@ -1203,6 +1305,27 @@ if errors:
     schemaPath,
   ], { cwd: repoRoot, input: JSON.stringify(instance), encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
+}
+
+function validateDefinitionCases(definition, instances) {
+  const result = spawnSync('python3', [
+    '-c',
+    String.raw`
+import json, sys
+from pathlib import Path
+from jsonschema import Draft202012Validator
+schema = json.loads(Path(sys.argv[1]).read_text())
+definition = sys.argv[2]
+wrapper = {"$ref": f"#/$defs/{definition}", "$defs": schema["$defs"]}
+validator = Draft202012Validator(wrapper)
+instances = json.loads(sys.stdin.read())
+print(json.dumps([validator.is_valid(instance) for instance in instances]))
+`,
+    schemaPath,
+    definition,
+  ], { cwd: repoRoot, input: JSON.stringify(instances), encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  return JSON.parse(result.stdout);
 }
 
 test('production AX engine owns five-root traversal, values, immutable pages, retention, and cleanup', async () => {
@@ -1252,4 +1375,29 @@ test('M4B source keeps the store injectable and does not claim public routing', 
   assert.equal(contract.$defs.bounds.properties.max_visited.maximum, 65_536);
   assert.equal(contract.$defs.observation_request.properties.page_size.maximum, 4_096);
   assert.equal(contract.$defs.observation_response.properties.nodes.maxItems, 4_096);
+  const generation = { pid: 100, start_time_seconds: 10, start_time_microseconds: 1 };
+  const validRootIdentities = [
+    { kind: 'system_wide' },
+    { kind: 'application', generation },
+    { kind: 'window', generation, window_id: 10 },
+    { kind: 'element', source_state_id: 'state', source_ref: 'ref' },
+    { kind: 'display_composite', topology_identity: 'topology', constituent_count: 2 },
+  ];
+  const missingRootFields = [
+    {},
+    { kind: 'application' },
+    { kind: 'window', generation },
+    { kind: 'element', source_state_id: 'state' },
+    { kind: 'display_composite', topology_identity: 'topology' },
+  ];
+  const crossKindRootFields = [
+    { kind: 'system_wide', generation },
+    { kind: 'application', generation, window_id: 10 },
+    { kind: 'window', generation, window_id: 10, source_ref: 'ref' },
+    { kind: 'element', source_state_id: 'state', source_ref: 'ref', generation },
+    { kind: 'display_composite', topology_identity: 'topology', constituent_count: 2, source_state_id: 'state' },
+  ];
+  assert.deepEqual(validateDefinitionCases('root_identity', validRootIdentities), Array(5).fill(true));
+  assert.deepEqual(validateDefinitionCases('root_identity', missingRootFields), Array(5).fill(false));
+  assert.deepEqual(validateDefinitionCases('root_identity', crossKindRootFields), Array(5).fill(false));
 });
