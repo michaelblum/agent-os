@@ -779,6 +779,39 @@ enum AOSOperationPublicProjection {
         ]
     }
 
+    static func control(
+        action: String,
+        selectedOperations: [AOSOperationIdentity],
+        selectedOperationCount: UInt64,
+        selectedOperationDigest: String,
+        completedAt: String,
+        inspect: (AOSOperationIdentity) -> AOSOperationRecord?
+    ) -> [String: Any] {
+        let current = selectedOperations.compactMap(inspect)
+        let cleanupRequired = current.contains {
+            [.cleanupRequired, .recovering].contains($0.state)
+        }
+        return [
+            "schema_version": "aos.operation.control-result.v1",
+            "operation": action,
+            "outcome": selectedOperations.isEmpty
+                ? "empty_selection" : (cleanupRequired ? "cleanup_required" : "accepted"),
+            "selected_operation_count": selectedOperationCount,
+            "selected_operation_digest": selectedOperationDigest,
+            "results": current.map {
+                [
+                    "operation_id": $0.identity.id,
+                    "operation_generation": $0.identity.generation,
+                    "resulting_state": $0.state.rawValue,
+                    "cleanup_result": [.cleanupRequired, .recovering].contains($0.state)
+                        ? "residuals_present"
+                        : ($0.state == .terminal ? "zero_residuals" : "pending"),
+                ]
+            },
+            "completed_at": completedAt,
+        ]
+    }
+
     static func snapshot(
         _ operation: AOSOperationRecord,
         state: AOSOperationDurableState

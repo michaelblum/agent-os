@@ -113,96 +113,29 @@ uncertain absence retains `cleanup_required` operation and claim truth, while
 retry-to-absence releases the claim and terminalizes the operation.
 No audio device, daemon, TCC, or repo binary executes.
 
-For the bounded fixed or caller-followed recording producer with independently
-optional system audio and microphone, use:
+For focused recording schemas, source contracts, and native compile closure, use:
 
 ```bash
 bash tests/native-screen-recording-contract.sh
 ```
 
-This route validates the closed four-selection schema, mandatory H.264 video,
-independently optional AAC-LC system-audio and daemon-owned microphone tracks
-in one QuickTime writer, fixed and caller-followed geometry, generation-CAS
-updates, immutable source drift, deadline/native-failure/pending-recovery truth,
-shared microphone session ownership, authored/generated help, and a
-whole-source Swift typecheck. Its
-executable compiled harness runs the
-production recording adapter, registry, in-memory durable store, lifecycle,
-sample admission, multitrack coordination, terminal truth, custody coordinator,
-and boot recovery with injected fake clock, video/system-audio/microphone
-callbacks, writer inputs/file, a real `AOSMicrophoneNativeSession` executing
-through injected non-native dependencies, and broker dependencies. It covers
-the production follow parser, validator/coordinator, registry/store/recovery
-projector, and injected native crop seam; all four selections in fixed and
-followed admission; one concurrent geometry winner; zero-effect invalid/stale/duplicate/
-off-source/out-of-bounds updates; every immutable source discontinuity; exact
-deadline re-arm/expiry; and the actual public `AOSOperationControlPlane`
-cancel/kill path immediately after the first durable `.prepared` publication
-but before provisional owner insertion, after durable `starting` but before
-concrete runtime installation, before follow activation, while activation owns
-the runtime lock, immediately after the timer arms, and in both cancel-first/
-kill-first races. Those twelve stop cases assert that prepared-publication
-control blocks until the owner exists, plus exact receipts, same-action replay,
-different-action rejection, immutable first intent/outcome, no adapter-failure
-overwrite, stopped geometry/timer, and terminal child/claim cleanup. The two
-prepared-publication and two pre-install cases prove zero runtime start
-handoffs, broker acquisitions, native starts, and native stops; the eight
-post-install cases prove exactly one native stop. Failed durable stop admission
-has no native effect. One blocked durable stop-save case proves the startup wait
-is bounded, the keyed pending owner survives until settlement, and no later
-runtime, broker, or native effect escapes. A consecutive preparation-save and
-first cleanup-save failure proves bounded retry reaches exact failed-terminal
-cleanup without releasing ownership. A waiting public stop crossed with a
-preparation-save failure proves the public first writer wins exact terminal
-truth while the start caller receives the preparation error. A post-admission
-stopped-geometry save failure proves the pending owner retries the atomic
-geometry-and-terminal mutation instead of suppressing the failure. All three
-assert exact stopped geometry, child/claim closure, replay/rejection, and zero
-later runtime, broker, or native effects. It also covers native
-failure; and unresolved pending cleanup. Accepted-source containment loss is
-also exercised through the production frame validator. Durable geometry changes
-advance one exact event sequence, and the harness captures the production
-adapter event sink and daemon envelope and validates both public schemas. It also
-covers
-all six three-track first-sample orders at one
-common epoch, pre-epoch system-audio/microphone callback failures in both
-orders, final-summary normalization with deterministic video/system-audio/
-microphone precedence, per-track monotonicity and truth, independent bounded
-backpressure, and injected durable save faults after atomic operation admission
-across every later stream, artifact, claim-set, claim, and starting transition.
-Immediately after durable prepared publication and its injected barrier, the
-adapter installs the exact operation-keyed pending owner before the first child;
-preparation failure terminal-closes exact mechanically absent children and
-claims before that owner is released. For all four exact track selections,
-the harness executes the exact production snapshot/list/inspect projector used
-by `UnifiedDaemon` and validates the prepared and exact failed-terminal
-responses against `aos.operation.v1` without synthesizing wire
-metadata or backfilling track truth. Four callback-failure terminal projections
-assert exact snapshot progress and terminal per-track values and precedence;
-one pre-native encoder-setup projection proves its exact typed failure is not
-normalized. All five exercise the same snapshot/list/inspect owner and schema
-route. It also executes
-the production admission projection and validates all four responses against
-the recording schema. It
-also covers registration availability distinct from positive-byte first-sample truth,
-positive per-track sample counts and bytes, zero-byte rejection, writer-global
-failure on every selected track, typed selected-audio failures, simultaneous
-per-track settlement with video/system-audio/microphone terminal precedence,
-standalone-microphone resource conflict before native authority, one conditional
-dual-resource claim-set and aggregate authority retirement,
-microphone startup failure with unavailable truth, gated availability-before-
-sample admission, microphone-selected cancel/peer-loss/deadline/retirement,
-audio byte progress while video input is backpressured, later mandatory-video
-success and failure, one total native-start/common-barrier budget, callback
-loss, startup stop and task cancellation,
-late start failure after active evidence, retirement timeout/false settlement,
-selected-track stop/drain/finalize, successful-summary/media-identity schema
-coupling, required screen progress/terminal summaries and typed failure/artifact
-truth, zero/missing-artifact cleanup, typed retain unavailability, release/remove
-races, every release fault phase, restart recovery, and decoder extra-key/type
-rejection. It does not execute
-ScreenCaptureKit, AVAssetWriter, AVAudioEngine, filesystem effects, `./aos`, the daemon, TCC,
-native UI, pixels, or media.
+For the canonical complete landed-system integration, use:
+
+```bash
+bash tests/m3-screen-recording-integrated.sh
+```
+
+The integrated route compiles and executes the production registry, file-store
+readback, topology wire, recovery and control planes, fixed/followed screen adapter,
+multitrack coordinator, artifact custody, shared microphone adapter/session, and
+production snapshot/list/inspect and control-result projectors against injected
+non-native dependencies. It proves all eight
+geometry/track selections, exact pre-authority cardinality and settlement,
+mandatory-video precedence, fixed-mode rejection, immutable drift, deadline re-arm,
+control races, recovery, terminal-clean or retained-residual persistence faults,
+request/result/failure schemas, and authored/generated manifest equality. Its
+wrapper exclusively owns and removes one private root. It runs no repo binary, live
+service, native capture authority, device, TCC, pixels, audio, UI, or filesystem media.
 
 For deterministic Target Handle Runtime V1 coverage, use:
 

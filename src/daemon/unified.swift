@@ -3990,7 +3990,14 @@ class UnifiedDaemon {
                     : try control.kill(context: ordinary, operation: selector)
                 sendResponseJSON(
                     to: outbound,
-                    operationControlResult(receipt, registry: registry),
+                    AOSOperationPublicProjection.control(
+                        action: receipt.action.rawValue,
+                        selectedOperations: receipt.selectedOperations,
+                        selectedOperationCount: receipt.selectedOperationCount,
+                        selectedOperationDigest: receipt.selectedOperationDigest,
+                        completedAt: operationTimestamp(registry.now()),
+                        inspect: { try? registry.inspect($0) }
+                    ),
                     envelopeActive: true,
                     envelopeRef: envelopeRef
                 )
@@ -4001,7 +4008,14 @@ class UnifiedDaemon {
                 )
                 sendResponseJSON(
                     to: outbound,
-                    operationControlResult(receipt, registry: registry),
+                    AOSOperationPublicProjection.control(
+                        action: receipt.action.rawValue,
+                        selectedOperations: receipt.selectedOperations,
+                        selectedOperationCount: receipt.selectedOperationCount,
+                        selectedOperationDigest: receipt.selectedOperationDigest,
+                        completedAt: operationTimestamp(registry.now()),
+                        inspect: { try? registry.inspect($0) }
+                    ),
                     envelopeActive: true,
                     envelopeRef: envelopeRef
                 )
@@ -4752,35 +4766,6 @@ class UnifiedDaemon {
         return formatter.string(from: Date(
             timeIntervalSince1970: Double(nanoseconds) / 1_000_000_000
         ))
-    }
-
-    private func operationControlResult(
-        _ receipt: AOSOperationControlReceipt,
-        registry: AOSOperationRegistry
-    ) -> [String: Any] {
-        let current = receipt.selectedOperations.compactMap { try? registry.inspect($0) }
-        let cleanupRequired = current.contains {
-            [.cleanupRequired, .recovering].contains($0.state)
-        }
-        return [
-            "schema_version": "aos.operation.control-result.v1",
-            "operation": receipt.action.rawValue,
-            "outcome": receipt.selectedOperations.isEmpty
-                ? "empty_selection" : (cleanupRequired ? "cleanup_required" : "accepted"),
-            "selected_operation_count": receipt.selectedOperationCount,
-            "selected_operation_digest": receipt.selectedOperationDigest,
-            "results": current.map {
-                [
-                    "operation_id": $0.identity.id,
-                    "operation_generation": $0.identity.generation,
-                    "resulting_state": $0.state.rawValue,
-                    "cleanup_result": [.cleanupRequired, .recovering].contains($0.state)
-                        ? "residuals_present"
-                        : ($0.state == .terminal ? "zero_residuals" : "pending"),
-                ]
-            },
-            "completed_at": operationTimestamp(registry.now()),
-        ]
     }
 
     private func callerEvidencePayload(_ caller: AOSCallerEvidence) -> [String: Any] {

@@ -844,6 +844,44 @@ final class AOSOperationRegistry {
                 )
                 state.operations[operationIndex].screenRecordingGeometry = geometry
             }
+            if var progress = state.operations[operationIndex].progress,
+               let summary = progress.trackSummary {
+                let terminalFailureCode = outcome == .failed ? failureCode : nil
+                func settled(_ value: AOSScreenRecordingTrackTruth)
+                    -> AOSScreenRecordingTrackTruth {
+                    AOSScreenRecordingTrackTruth(
+                        selected: value.selected,
+                        admitted: value.admitted,
+                        available: value.available,
+                        firstSamplePresent: value.firstSamplePresent,
+                        sampleCount: value.sampleCount,
+                        sampleByteCount: value.sampleByteCount,
+                        failureCode: value.failureCode
+                            ?? (value.selected ? terminalFailureCode : nil),
+                        drained: value.selected ? true : value.drained,
+                        finalized: value.finalized
+                    )
+                }
+                let video = settled(summary.video)
+                let systemAudio = settled(summary.systemAudio)
+                let microphone = settled(summary.microphone)
+                let finalizedTracks = [
+                    (AOSScreenRecordingTrackKind.video.rawValue, video),
+                    (AOSScreenRecordingTrackKind.systemAudio.rawValue, systemAudio),
+                    (AOSScreenRecordingTrackKind.microphone.rawValue, microphone),
+                ].compactMap {
+                    $0.1.selected && $0.1.finalized ? $0.0 : nil
+                }
+                progress.trackSummary = AOSScreenRecordingTrackSummary(
+                    selectedTracks: summary.selectedTracks,
+                    finalizedTracks: finalizedTracks,
+                    commonMediaEpochNanoseconds: summary.commonMediaEpochNanoseconds,
+                    video: video,
+                    systemAudio: systemAudio,
+                    microphone: microphone
+                )
+                state.operations[operationIndex].progress = progress
+            }
             state.operations[operationIndex].state = .terminal
             state.operations[operationIndex].stopIntent = stopIntent
             state.operations[operationIndex].outcome = outcome
