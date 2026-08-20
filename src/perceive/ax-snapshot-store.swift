@@ -46,8 +46,7 @@ public struct AOSAXObservationLimits: Codable, Equatable, Sendable {
               (1...Self.schemaMaxValueCost).contains(maxValueCost),
               (1...Self.schemaMaxPageSize).contains(maxPageSize),
               (1...Self.schemaMaxFilters).contains(maxFilters),
-              (1...Self.schemaMaxCompositeApplications).contains(maxCompositeApplications),
-              maxEmitted <= maxVisited else {
+              (1...Self.schemaMaxCompositeApplications).contains(maxCompositeApplications) else {
             throw AOSAXObservationError.invalidBounds
         }
         self.maxDepth = maxDepth
@@ -502,7 +501,6 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
               request.bounds.maxDepth <= limits.maxDepth,
               request.bounds.maxVisited <= limits.maxVisited,
               request.bounds.maxEmitted <= limits.maxEmitted,
-              request.bounds.maxEmitted <= request.bounds.maxVisited,
               request.bounds.deadlineNanoseconds <= limits.maxDeadlineNanoseconds,
               request.bounds.maxArrayDepth <= limits.maxArrayDepth,
               request.bounds.maxArrayItems <= limits.maxArrayItems,
@@ -511,18 +509,8 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
               request.filters.count <= limits.maxFilters else {
             throw AOSAXObservationError.invalidBounds
         }
-        var totalFilterAttributeOutcomes = 0
-        for filter in request.filters {
-            let total = totalFilterAttributeOutcomes.addingReportingOverflow(filter.rawAttributeOutcomes.count)
-            guard !total.overflow,
-                  total.partialValue <= limits.maxArrayItems,
-                  total.partialValue <= request.bounds.maxArrayItems else {
-                throw AOSAXObservationError.invalidBounds
-            }
-            totalFilterAttributeOutcomes = total.partialValue
-        }
         if case .displayComposite(_, let applications) = request.root,
-           (applications.count > limits.maxCompositeApplications || applications.count > request.bounds.maxVisited) {
+           applications.count > limits.maxCompositeApplications {
             throw AOSAXObservationError.invalidBounds
         }
 

@@ -13,6 +13,49 @@ const sources = [
 ].map((relative) => path.join(repoRoot, relative));
 const schemaPath = path.join(repoRoot, 'shared/schemas/aos-ax-observation-v1.schema.json');
 
+const corpusGeneration = { pid: 100, start_time_seconds: 10, start_time_microseconds: 1 };
+const corpusBounds = {
+  max_depth: 1,
+  max_visited: 1,
+  max_emitted: 1,
+  deadline_nanoseconds: 1,
+  max_array_depth: 1,
+  max_array_items: 1,
+  max_value_cost: 1,
+};
+const corpusRequest = (overrides = {}) => ({
+  schema_version: 'aos.ax-observation.v1',
+  kind: 'request',
+  root: { kind: 'system_wide' },
+  bounds: corpusBounds,
+  filters: [],
+  projection: {
+    attributes: false,
+    parameterized_attribute_names: false,
+    settable_facts: false,
+    supported_action_names: false,
+    relationship_names: false,
+  },
+  page_size: 1,
+  ...overrides,
+});
+const requestAdmissionCorpus = [
+  { valid: true, request: corpusRequest({ bounds: { ...corpusBounds, max_emitted: 2 } }) },
+  { valid: true, request: corpusRequest({ filters: [
+    { raw_attribute_outcomes: [{ name: 'Title', outcome: 'value' }] },
+    { raw_attribute_outcomes: [{ name: 'Role', outcome: 'no_value' }] },
+  ] }) },
+  { valid: true, request: corpusRequest({ root: {
+    kind: 'display_composite', topology_identity: 'topology', applications: [corpusGeneration, corpusGeneration],
+  } }) },
+  { valid: false, request: corpusRequest({ surplus: true }) },
+  { valid: false, request: corpusRequest({ root: { kind: 'system_wide', generation: corpusGeneration } }) },
+];
+const requestAdmissionCorpusJSON = JSON.stringify(requestAdmissionCorpus.map(({ valid, request }) => ({
+  valid,
+  json: JSON.stringify(request),
+})));
+
 const harness = String.raw`
 import Foundation
 
@@ -98,6 +141,7 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
     var queuedValueRefAttribute = false
     var frontierStress = false
     var oversizedFacts = false
+    var duplicateAttributeNames = false
     var advanceAfterAttribute: [String: UInt64] = [:]
     var onRelease: (@Sendable () -> Void)?
     var forbiddenAtOrAfter: UInt64?
@@ -246,6 +290,7 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
 
     func attributeNames(for handle: Int, deadlineNanoseconds: UInt64) -> AOSAXPlatformResult<[String]> {
         called()
+        if duplicateAttributeNames { return .value(["Title", "Title"]) }
         if rollbackAttribute { return .value(["RollbackArray"]) }
         if queuedValueRefAttribute {
             return .value(handle == 3 ? ["QueuedElement"] : [])
@@ -377,7 +422,8 @@ final class Harness: @unchecked Sendable {
         limitPageSize: Int = 64,
         limitArrayItems: Int = 64,
         invalidTokenIdentities: Bool = false,
-        tokenIdentity: AOSAXPageTokenIdentity? = nil
+        tokenIdentity: AOSAXPageTokenIdentity? = nil,
+        cancelAfterBorrow: Bool = false
     ) {
         clock = FakeClock(clockStart)
         let gen100 = try! AOSAXProcessGeneration(pid: 100, startTimeSeconds: 10, startTimeMicroseconds: 1)
@@ -424,7 +470,8 @@ final class Harness: @unchecked Sendable {
             generationObserver: generations,
             store: store,
             stateIDFactory: { [ids] in ids.next("state") },
-            refIDFactory: { [ids] in ids.next("ref") }
+            refIDFactory: { [ids] in ids.next("ref") },
+            cancellationObserver: { [store] in cancelAfterBorrow && store.activeBorrows() > 0 }
         )
     }
 
@@ -488,6 +535,11 @@ final class ResponseBox: @unchecked Sendable {
     private var values: [AOSAXObservationResponse] = []
     func append(_ value: AOSAXObservationResponse) { lock.held { values.append(value) } }
     func snapshot() -> [AOSAXObservationResponse] { lock.held { values } }
+}
+
+struct RequestAdmissionCorpusEntry: Decodable {
+    let valid: Bool
+    let json: String
 }
 
 func run() {
@@ -835,6 +887,48 @@ func run() {
     precondition(oversizedFacts.stopCondition.error?.code == "AX_PROVIDER_RESULT_BOUND_EXCEEDED")
     precondition(oversizedFacts.nextPageToken == nil && oversizedFacts.accounting.retainedValueCost == 0)
     emit(oversizedFacts)
+
+    let duplicateNamesHarness = Harness(limitVisited: 1)
+    duplicateNamesHarness.provider.duplicateAttributeNames = true
+    let duplicateNames = try! duplicateNamesHarness.engine.observe(request(
+        .systemWide,
+        bounds: bounds(visited: 1),
+        pageSize: 1
+    ))
+    precondition(duplicateNames.nodes[0].attributeNamesRead?.kind == .platformError)
+    precondition(duplicateNames.nodes[0].attributeNamesRead?.error?.code == "AX_PROVIDER_RESULT_INVALID")
+    precondition(duplicateNames.nodes[0].attributes?.isEmpty == true)
+    let duplicateCounts = duplicateNamesHarness.store.retainedCounts()
+    precondition(duplicateCounts.snapshots == 1 && duplicateCounts.refs == 1)
+    precondition(duplicateCounts.valueCost == 0 && duplicateCounts.tokens == 0)
+
+    let cancellationHarness = Harness(limitVisited: 1, cancelAfterBorrow: true)
+    let cancellationSource = try! cancellationHarness.engine.observe(request(
+        .systemWide,
+        bounds: bounds(visited: 1),
+        projection: factsOnly,
+        pageSize: 1
+    ))
+    let cancellationCounts = cancellationHarness.store.retainedCounts()
+    let callsBeforeCancellation = cancellationHarness.provider.callCount()
+    do {
+        _ = try cancellationHarness.engine.observe(request(
+            .element(stateID: cancellationSource.stateID, ref: cancellationSource.nodes[0].ref),
+            bounds: bounds(visited: 1),
+            projection: factsOnly,
+            pageSize: 1
+        ))
+        preconditionFailure("post-borrow cancellation must terminate before publication")
+    } catch { precondition(error as? AOSAXObservationError == .cancelled) }
+    let cancelledCounts = cancellationHarness.store.retainedCounts()
+    precondition(cancellationHarness.store.activeBorrows() == 0)
+    precondition(cancellationHarness.provider.callCount() == callsBeforeCancellation)
+    precondition(cancelledCounts.snapshots == cancellationCounts.snapshots)
+    precondition(cancelledCounts.refs == cancellationCounts.refs && cancelledCounts.tokens == cancellationCounts.tokens)
+    precondition(cancelledCounts.valueCost == cancellationCounts.valueCost)
+    let reusedState = try! cancellationHarness.store.allocateStateID { "state-2" }
+    precondition(reusedState == "state-2")
+    cancellationHarness.store.abandonStateID(reusedState)
 
     let errorHarness = Harness()
     errorHarness.provider.attributeUnavailable = true
@@ -1314,6 +1408,14 @@ func run() {
     let encodedRequest = try! AOSAXObservationJSON.encode(request(.application(gen100), pageSize: 1))
     let decoder = JSONDecoder()
     decoder.keyDecodingStrategy = .convertFromSnakeCase
+    let requestCorpus = try! JSONDecoder().decode(
+        [RequestAdmissionCorpusEntry].self,
+        from: Data(#"${requestAdmissionCorpusJSON}"#.utf8)
+    )
+    for entry in requestCorpus {
+        let accepted = (try? decoder.decode(AOSAXObservationRequest.self, from: Data(entry.json.utf8))) != nil
+        precondition(accepted == entry.valid)
+    }
     precondition((try? decoder.decode(AOSAXObservationRequest.self, from: encodedRequest)) != nil)
     let emptyFilterJSON = String(data: encodedRequest, encoding: .utf8)!
         .replacingOccurrences(of: "\"filters\":[]", with: "\"filters\":[{}]")
@@ -1443,9 +1545,13 @@ func run() {
     _ = valueCapacityHarness.store.removeAll()
     _ = rollbackHarness.store.removeAll()
     _ = frontierBudgetHarness.store.removeAll()
+    _ = duplicateNamesHarness.store.removeAll()
+    _ = cancellationHarness.store.removeAll()
     precondition(primary.provider.retainCount() == primary.provider.releaseCount())
     precondition(lateRootHarness.provider.retainCount() == lateRootHarness.provider.releaseCount())
     precondition(lateValueHarness.provider.retainCount() == lateValueHarness.provider.releaseCount())
+    precondition(duplicateNamesHarness.provider.retainCount() == duplicateNamesHarness.provider.releaseCount())
+    precondition(cancellationHarness.provider.retainCount() == cancellationHarness.provider.releaseCount())
     for reentrantHarness in [
         evictionHarness,
         expiryHarness,
@@ -1551,6 +1657,10 @@ test('M4B source keeps the store injectable and does not claim public routing', 
   assert.equal(contract.$defs.observation_response.properties.nodes.maxItems, 4_096);
   assert.equal(contract.$defs.bounded_string.maxLength, 512);
   assert.ok(contract.$defs.stop_condition.properties.kind.enum.includes('snapshot_expired'));
+  assert.deepEqual(
+    validateDefinitionCases('observation_request', requestAdmissionCorpus.map(({ request }) => request)),
+    requestAdmissionCorpus.map(({ valid }) => valid),
+  );
   const generation = { pid: 100, start_time_seconds: 10, start_time_microseconds: 1 };
   const validRootIdentities = [
     { kind: 'system_wide' },

@@ -1,5 +1,27 @@
 import Foundation
 
+private struct AOSAXJSONCodingKey: CodingKey {
+    let stringValue: String
+    let intValue: Int?
+
+    init?(stringValue: String) {
+        self.stringValue = stringValue
+        self.intValue = nil
+    }
+
+    init?(intValue: Int) {
+        self.stringValue = String(intValue)
+        self.intValue = intValue
+    }
+}
+
+private func aosAXRejectSurplusKeys(_ decoder: Decoder, allowed: Set<String>) throws {
+    let keys = try decoder.container(keyedBy: AOSAXJSONCodingKey.self).allKeys
+    guard keys.allSatisfy({ allowed.contains($0.stringValue) }) else {
+        throw AOSAXObservationError.invalidRoot
+    }
+}
+
 public enum AOSAXObservationError: Error, Equatable, Sendable {
     case invalidBounds
     case invalidRetention
@@ -8,6 +30,7 @@ public enum AOSAXObservationError: Error, Equatable, Sendable {
     case stateCollision
     case digestEncodingFailed
     case retentionLimit
+    case cancelled
 }
 
 public enum AOSAXPlatformErrorKind: String, Codable, Equatable, Sendable {
@@ -214,10 +237,10 @@ public enum AOSAXObservationRoot: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case kind
         case generation
-        case windowID = "window_id"
-        case stateID = "state_id"
+        case windowID = "windowId"
+        case stateID = "stateId"
         case ref
-        case topologyIdentity = "topology_identity"
+        case topologyIdentity
         case applications
     }
 
@@ -246,7 +269,17 @@ public enum AOSAXObservationRoot: Codable, Equatable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        switch try container.decode(AOSAXRootKind.self, forKey: .kind) {
+        let kind = try container.decode(AOSAXRootKind.self, forKey: .kind)
+        let allowed: Set<String>
+        switch kind {
+        case .systemWide: allowed = ["kind"]
+        case .application: allowed = ["kind", "generation"]
+        case .window: allowed = ["kind", "generation", "windowId"]
+        case .element: allowed = ["kind", "stateId", "ref"]
+        case .displayComposite: allowed = ["kind", "topologyIdentity", "applications"]
+        }
+        try aosAXRejectSurplusKeys(decoder, allowed: allowed)
+        switch kind {
         case .systemWide:
             self = .systemWide
         case .application:
@@ -362,7 +395,6 @@ public struct AOSAXObservationBounds: Codable, Equatable, Sendable {
         guard (1...AOSAXObservationLimits.schemaMaxDepth).contains(maxDepth),
               (1...AOSAXObservationLimits.schemaMaxVisited).contains(maxVisited),
               (1...AOSAXObservationLimits.schemaMaxEmitted).contains(maxEmitted),
-              maxEmitted <= maxVisited,
               (1...AOSAXObservationLimits.schemaMaxDeadlineNanoseconds).contains(deadlineNanoseconds),
               (1...AOSAXObservationLimits.schemaMaxArrayDepth).contains(maxArrayDepth),
               (1...AOSAXObservationLimits.schemaMaxArrayItems).contains(maxArrayItems),
@@ -538,6 +570,10 @@ public struct AOSAXObservationRequest: Codable, Equatable, Sendable {
     }
 
     public init(from decoder: Decoder) throws {
+        try aosAXRejectSurplusKeys(
+            decoder,
+            allowed: ["schemaVersion", "kind", "root", "bounds", "filters", "projection", "pageSize"]
+        )
         let container = try decoder.container(keyedBy: CodingKeys.self)
         guard try container.decode(String.self, forKey: .schemaVersion) == "aos.ax-observation.v1",
               try container.decode(String.self, forKey: .kind) == "request" else {
@@ -628,14 +664,9 @@ enum AOSAXContractAdmission {
         filters: [AOSAXObservationFilter],
         pageSize: Int
     ) -> Bool {
-        let outcomeCount = filters.reduce(into: 0) { total, filter in
-            let next = total.addingReportingOverflow(filter.rawAttributeOutcomes.count)
-            total = next.overflow ? Int.max : next.partialValue
-        }
         guard (1...AOSAXObservationLimits.schemaMaxDepth).contains(bounds.maxDepth),
               (1...AOSAXObservationLimits.schemaMaxVisited).contains(bounds.maxVisited),
               (1...AOSAXObservationLimits.schemaMaxEmitted).contains(bounds.maxEmitted),
-              bounds.maxEmitted <= bounds.maxVisited,
               (1...AOSAXObservationLimits.schemaMaxDeadlineNanoseconds).contains(bounds.deadlineNanoseconds),
               (1...AOSAXObservationLimits.schemaMaxArrayDepth).contains(bounds.maxArrayDepth),
               (1...AOSAXObservationLimits.schemaMaxArrayItems).contains(bounds.maxArrayItems),
@@ -647,8 +678,7 @@ enum AOSAXContractAdmission {
                       .compactMap({ $0 })
                       .allSatisfy({ boundedString($0) }) &&
                       filter.rawAttributeOutcomes.allSatisfy { identifier($0.name) }
-              }),
-              outcomeCount <= AOSAXObservationLimits.schemaMaxArrayItems else {
+              }) else {
             return false
         }
         switch root {
@@ -1161,25 +1191,29 @@ private enum AOSAXHandleAdmissionError: Error {
 
 public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unchecked Sendable {
     public typealias IdentityFactory = @Sendable () -> String
+    public typealias CancellationObserver = @Sendable () -> Bool
 
     private let provider: Provider
     private let generationObserver: any AOSAXProcessGenerationObserving
     private let store: AOSAXSnapshotStore<Provider.Handle>
     private let stateIDFactory: IdentityFactory
     private let refIDFactory: IdentityFactory
+    private let cancellationObserver: CancellationObserver
 
     public init(
         provider: Provider,
         generationObserver: any AOSAXProcessGenerationObserving,
         store: AOSAXSnapshotStore<Provider.Handle>,
         stateIDFactory: @escaping IdentityFactory,
-        refIDFactory: @escaping IdentityFactory
+        refIDFactory: @escaping IdentityFactory,
+        cancellationObserver: @escaping CancellationObserver
     ) {
         self.provider = provider
         self.generationObserver = generationObserver
         self.store = store
         self.stateIDFactory = stateIDFactory
         self.refIDFactory = refIDFactory
+        self.cancellationObserver = cancellationObserver
     }
 
     public func observe(_ request: AOSAXObservationRequest) throws -> AOSAXObservationResponse {
@@ -1194,6 +1228,19 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
 
         let start = admission.startMonotonicNanoseconds
         let deadline = admission.deadlineMonotonicNanoseconds
+
+        func checkCancellation() throws {
+            guard !cancellationObserver() else { throw AOSAXObservationError.cancelled }
+        }
+
+        func providerCall<Value>(_ body: () -> Value) throws -> Value {
+            try checkCancellation()
+            let value = body()
+            try checkCancellation()
+            return value
+        }
+
+        try checkCancellation()
         let requestDigest = try Self.digest(request)
         let projectionDigest = try Self.digest(request.projection)
 
@@ -1335,7 +1382,12 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                 throw AOSAXObservationError.retentionLimit
             }
             guard !deadlineReached() else { throw AOSAXHandleAdmissionError.deadline }
+            try checkCancellation()
             provider.retain(handle: handle)
+            do { try checkCancellation() } catch {
+                provider.release(handle: handle)
+                throw error
+            }
             let box = AOSAXRetainedHandle(value: handle) { [provider] handle in
                 provider.release(handle: handle)
             }
@@ -1402,7 +1454,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
         func generationCheck(_ generation: AOSAXProcessGeneration) throws -> AOSAXGenerationCheck {
             guard AOSAXContractAdmission.generation(generation) else { throw AOSAXObservationError.invalidRoot }
             guard !deadlineReached() else { return .deadline }
-            let observation = generationObserver.observeGeneration(pid: generation.pid)
+            let observation = try providerCall { generationObserver.observeGeneration(pid: generation.pid) }
             guard !deadlineReached() else { return .deadline }
             switch observation {
             case .value(let actual):
@@ -1480,7 +1532,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                     detail: "root provider was not called before the monotonic deadline"
                 )
             }
-            let resolution = resolve()
+            let resolution = try providerCall(resolve)
             guard !deadlineReached() else {
                 return generationRootDeadline(
                     generation: generation,
@@ -1592,7 +1644,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                 rootStopped = true
                 break
             }
-            let resolution = provider.systemWideRoot(deadlineNanoseconds: deadline)
+            let resolution = try providerCall { provider.systemWideRoot(deadlineNanoseconds: deadline) }
             if deadlineReached() {
                 stopCondition = .init(kind: .deadline, detail: "system-root provider returned after the monotonic deadline")
                 _ = appendFrontier(.init(parentRef: nil, relationshipName: nil, childPosition: nil, depth: 0, ref: nil, constituentID: nil, reason: .deadline))
@@ -1654,6 +1706,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             switch store.resolveElement(stateID: sourceStateID, ref: sourceRef) {
             case .value(let lease):
                 borrowLeases.append(lease)
+                try checkCancellation()
                 do {
                     try enqueueRoot(lease.value, constituentID: nil)
                 } catch AOSAXHandleAdmissionError.deadline {
@@ -1681,6 +1734,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                 constituentCount: applications.count
             )
             for (index, generation) in applications.enumerated() {
+                try checkCancellation()
                 let constituentID = "application-\(index)-pid-\(generation.pid)"
                 if deadlineReached() {
                     settleCompositeAdmissionDeadline(applications: applications, remainingStart: index)
@@ -1757,16 +1811,17 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             _ body: () -> AOSAXPlatformResult<[String]>
         ) throws -> ([String], AOSAXProviderReadOutcome) {
             guard !deadlineReached() else { return ([], .init(kind: .deadlineExceeded)) }
-            let result = body()
+            let result = try providerCall(body)
             guard !deadlineReached() else { return ([], .init(kind: .deadlineExceeded)) }
             switch result {
             case .value(let names):
                 guard names.count <= request.bounds.maxArrayItems,
+                      Set(names).count == names.count,
                       names.allSatisfy({ AOSAXContractAdmission.identifier($0) }) else {
                     let error = AOSAXPlatformError(
                         kind: .platformError,
-                        code: "AX_PROVIDER_RESULT_BOUND_EXCEEDED",
-                        detail: "provider name list exceeded the admitted array-item bound"
+                        code: "AX_PROVIDER_RESULT_INVALID",
+                        detail: "provider name list violated uniqueness, identity, or item bounds"
                     )
                     return ([], .init(kind: .platformError, error: error))
                 }
@@ -1784,6 +1839,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
         }
 
         while !traversalStopped, queueIndex < queue.count {
+            try checkCancellation()
             if visited >= request.bounds.maxVisited {
                 stopCondition = .init(kind: .visitedBound, detail: "visited-node breadth bound reached")
                 appendRemainingQueue(reason: .visitedBound)
@@ -1834,7 +1890,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                 break
             }
             let facts: AOSAXElementFacts
-            let factsResult = provider.facts(for: entry.handle.value, deadlineNanoseconds: deadline)
+            let factsResult = try providerCall { provider.facts(for: entry.handle.value, deadlineNanoseconds: deadline) }
             guard !deadlineReached() else {
                 _ = appendFrontier(.init(parentRef: entry.parentRef, relationshipName: entry.incomingRelationship, childPosition: entry.childPosition, depth: entry.depth, ref: entry.ref, constituentID: entry.constituentID, reason: .deadline))
                 stopAtDeadline(expanding: nil)
@@ -1948,7 +2004,9 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                     providerDeadlineHit = true
                     break
                 }
-                let attributeResult = provider.attribute(name, for: entry.handle.value, deadlineNanoseconds: deadline)
+                let attributeResult = try providerCall {
+                    provider.attribute(name, for: entry.handle.value, deadlineNanoseconds: deadline)
+                }
                 guard !deadlineReached() else {
                     internalAttributes.append(.init(name: name, outcome: .deadlineExceeded, detail: "provider returned after monotonic deadline"))
                     providerDeadlineHit = true
@@ -2031,11 +2089,9 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                         settableFacts?.append(.init(name: name, outcome: .deadlineExceeded))
                         continue
                     }
-                    let settableResult = provider.isAttributeSettable(
-                        name,
-                        for: entry.handle.value,
-                        deadlineNanoseconds: deadline
-                    )
+                    let settableResult = try providerCall {
+                        provider.isAttributeSettable(name, for: entry.handle.value, deadlineNanoseconds: deadline)
+                    }
                     guard !deadlineReached() else {
                         settableFacts?.append(.init(name: name, outcome: .deadlineExceeded))
                         if !traversalStopped { stopAtDeadline(expanding: entry) }
@@ -2100,12 +2156,14 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                     remainingRelationshipItems,
                     relationshipFrontierCapacity
                 )
-                let relationshipResult = provider.relationships(
-                    for: entry.handle.value,
-                    deadlineNanoseconds: deadline,
-                    maximumNames: request.bounds.maxArrayItems,
-                    maximumResultItems: relationshipAdmission + request.bounds.maxArrayItems
-                )
+                let relationshipResult = try providerCall {
+                    provider.relationships(
+                        for: entry.handle.value,
+                        deadlineNanoseconds: deadline,
+                        maximumNames: request.bounds.maxArrayItems,
+                        maximumResultItems: relationshipAdmission + request.bounds.maxArrayItems
+                    )
+                }
                 if deadlineReached() {
                     relationshipRead = .init(kind: .deadlineExceeded)
                     stopAtDeadline(expanding: entry)
@@ -2163,6 +2221,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             var referenceEdges: [AOSAXReferenceEdge] = []
             relationshipLoop: for (relationshipIndex, relationship) in relationships.enumerated() {
                 for (position, child) in relationship.elements.enumerated() {
+                    try checkCancellation()
                     guard !deadlineReached() else {
                         appendRelationshipRemainder(relationships, relationshipIndex: relationshipIndex, childPosition: position, entry: entry, reason: .deadline)
                         stopAtDeadline(expanding: nil)
@@ -2421,6 +2480,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             elapsedNanoseconds: elapsed,
             retainedValueCost: valueCost
         )
+        try checkCancellation()
         var retainedRefs: [String: AOSAXRetainedHandle<Provider.Handle>] = [:]
         if !invalidConstituents.contains(nil) {
             for (handle, ref) in refsByHandle {
@@ -2450,6 +2510,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             handlesByRef: retainedRefs,
             retainedValueCost: valueCost
         )
+        try checkCancellation()
         let response = try store.publish(snapshot, pageSize: request.pageSize)
         published = true
         return response
