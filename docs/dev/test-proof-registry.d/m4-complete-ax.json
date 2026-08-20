@@ -1,0 +1,23 @@
+{
+  "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
+  "schema_version": 1,
+  "summary": "Proof-worth ownership for the accepted M4 complete-AX authority, milestone allocation, production-owner map, and deferred behavioral proof boundary.",
+  "entries": [
+    {
+      "id": "m4-complete-ax-contract-foundation",
+      "path_patterns": [
+        "tests/m4-ax-contract-foundation.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "architecture-authority",
+      "harness_level": "model_unit",
+      "proof_kind": "complete_ax_authority_contract",
+      "contract": "ADR 0045 plus the capability and authority ledgers freeze the exact native system/application/window/current-Observation-Ref element/AOS display-composite root taxonomy; immutable retained snapshots, refs, deterministic traversal, separate traversal/page bounds, opaque snapshot-bound cursors, visited/matched/emitted/frontier truth, raw filter and closed typed AX value outcomes, distinct attribute/parameterized/settable/action projections, Observation Ref versus Locator separation, operation-plane raw actions and readback, per-PID process-generation AXObserver lifecycle with callback-receipt sequence/time and no invented source time, loss/frontier/no-replay recovery, zero-residual cleanup, ax_global_points and target_local_points plus three distinct pixel spaces, exact observable ScreenCaptureKit binding with no fictional generation or platform identity, landed M3 geometry prerequisite, M4/M5/M6/M10 ownership boundaries, actual current production-owner families, proposed/current/generated publication kinds, dependency-ordered M4A through M4F delivery, and production-attached behavioral proof before product completion.",
+      "worth": "This fails on circular AX transform prerequisites, fictional ScreenCaptureKit generation, SDK preclaim, display-composite-as-platform-root wording, missing current production owners, static-only behavioral proof, Observation Ref/Locator collapse, lost per-PID observer lifecycle, or reassignment of app lifecycle, window/menu lifecycle, or CoreGraphics input posting back into M4.",
+      "command": "node --test tests/m4-ax-contract-foundation.test.mjs",
+      "replaces": [],
+      "guard": "Static authority and owner-allocation proof only; it does not execute production AX traversal, actions, observers, coordinate transforms, ./aos, daemon, Swift/native builds, UI, browser, TCC, packaging, or live capability sampling.",
+      "status": "active"
+    }
+  ]
+}

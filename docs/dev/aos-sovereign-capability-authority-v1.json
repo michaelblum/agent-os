@@ -7,7 +7,8 @@
   "authority": {
     "aos_adr": "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md",
     "aos_adr_amendments": [
-      "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md"
+      "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md",
+      "docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md"
     ],
     "aos_adr_index": "docs/adr/README.md",
     "authority_map": "docs/dev/aos-sovereign-capability-authority-v1.json",
@@ -30,9 +31,10 @@
       "scope": "target_architecture",
       "owners": [
         "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md",
-        "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md"
+        "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md",
+        "docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md"
       ],
-      "rule": "ADR 0043 owns the accepted target direction; ADR 0044 accepts and amends its mechanical owner-root, same-effective-UID host-control, prior-generation recovery, and resource-claim clauses."
+      "rule": "ADR 0043 owns the accepted target direction; ADR 0044 accepts and amends its mechanical owner-root, same-effective-UID host-control, prior-generation recovery, and resource-claim clauses; ADR 0045 freezes complete-AX root, snapshot, raw value/action, observer, coordinate, milestone, owner, and proof boundaries."
     },
     {
       "scope": "current_executable_behavior",
@@ -74,7 +76,8 @@
       "owners": [
         "docs/adr/0042-host-and-gateway-move-to-sigil.md",
         "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md",
-        "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md"
+        "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md",
+        "docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md"
       ],
       "rule": "AOS owns the substrate and neutral operation control; Sigil owns workflow composition, labels, and action policy. Paired Sigil ADR 0021 is landed at reviewed revision 227382c1bcbdab56f551a85a69b0609eebbdfa0c; M2 executable truth remains distinct from later Sigil workflow composition and the later native capability milestones."
     }
@@ -86,6 +89,7 @@
       "path_patterns": [
         "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md",
         "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md",
+        "docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md",
         "docs/dev/aos-sovereign-capability-authority-v1.json",
         "docs/dev/aos-sovereign-capability-remodel-ledger.md",
         "docs/dev/aos-privileged-capability-ledger-v1.json",
@@ -156,6 +160,7 @@
       "exclude_patterns": [
         "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md",
         "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md",
+        "docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md",
         "docs/dev/aos-sovereign-capability-authority-v1.json",
         "docs/dev/aos-sovereign-capability-remodel-ledger.md",
         "docs/dev/aos-privileged-capability-ledger-v1.json",
@@ -194,7 +199,8 @@
         "docs/adr/0015-aos-tcc-capability-broker-boundary.md",
         "docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md",
         "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md",
-        "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md"
+        "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md",
+        "docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md"
       ],
       "current_owners": [
         "AGENTS.md",
@@ -206,6 +212,36 @@
       "disposition": "Expand",
       "implementation_state": "partial",
       "exit_gate": "Every mechanically supportable privileged macOS fact, action, stream, artifact, and operation has a stable product-neutral projection with typed platform limits."
+    },
+    {
+      "id": "complete-ax-surface",
+      "target_owners": [
+        "docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md",
+        "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md",
+        "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md",
+        "docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md"
+      ],
+      "current_owners": [
+        "src/perceive/ax.swift",
+        "src/perceive/capture-pipeline.swift",
+        "src/perceive/daemon.swift",
+        "src/act/actions.swift",
+        "src/act/targeting.swift",
+        "src/act/session.swift",
+        "src/perceive/display-topology.swift",
+        "src/perceive/spatial.swift",
+        "src/perceive/models.swift",
+        "shared/schemas/aos-target-handle-v1.schema.json",
+        "shared/schemas/daemon-request.schema.json",
+        "shared/schemas/daemon-response.schema.json",
+        "tests/aos-desktop-capabilities.test.mjs",
+        "tests/native-target-locator-selection.sh",
+        "tests/schemas/display-topology-v1.test.mjs",
+        "tests/display-topology-contract.sh"
+      ],
+      "disposition": "Expand",
+      "implementation_state": "partial",
+      "exit_gate": "M4 follows accepted ADR 0045 through production-attached delivery of exact native AX roots, immutable bounded snapshots and pages, raw typed values and filters, distinct Observation Ref/Locator targeting, per-PID observer lifecycle, raw operation-plane actions, and AX/display/SCK coordinate binding; M5 event projection, M6 SDK and non-AX action families, and M10 native acceptance remain separate."
     },
     {
       "id": "managed-playwright-grammar",
@@ -229,7 +265,8 @@
       "id": "operation-control-plane",
       "target_owners": [
         "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md",
-        "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md"
+        "docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md",
+        "docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md"
       ],
     "current_owners": [
       "scripts/lib/browser-companion/",
@@ -261,7 +298,8 @@
       "id": "caller-owned-transforms",
       "target_owners": [
         "docs/adr/0040-ambient-authority-raw-observation-and-target-handles.md",
-        "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md"
+        "docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md",
+        "docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md"
       ],
       "current_owners": [
         "src/daemon/AGENTS.md",

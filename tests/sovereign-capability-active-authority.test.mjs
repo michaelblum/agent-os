@@ -20,6 +20,7 @@ const programId = 'aos-sovereign-capability-substrate-v1';
 const bootstrapPaths = new Set([
   'docs/adr/0043-sovereign-capability-substrate-and-operation-control-plane.md',
   'docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md',
+  'docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md',
   'docs/dev/aos-sovereign-capability-authority-v1.json',
   'docs/dev/aos-sovereign-capability-remodel-ledger.md',
   'docs/dev/aos-privileged-capability-ledger-v1.json',
@@ -280,6 +281,7 @@ test('authority topology is schema-valid, unique, local, and publication-honest'
   );
   assert.deepEqual(authority.authority.aos_adr_amendments, [
     'docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md',
+    'docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md',
   ]);
   assert.deepEqual(authority.authority.paired_sigil_authority, {
     repository: 'https://github.com/Ch-osctrl/sigil',
@@ -429,6 +431,18 @@ test('authority topology is schema-valid, unique, local, and publication-honest'
   assert.match(operationControl.exit_gate, /public SDK projections.*later milestones/u);
   assert.ok(operationControl.current_owners.includes('docs/api/aos-capabilities.md'));
   assert.ok(operationControl.current_owners.includes('tests/native-operation-control-contract.sh'));
+  const completeAX = domains.get('complete-ax-surface');
+  assert.ok(completeAX);
+  assert.equal(completeAX.implementation_state, 'partial');
+  assert.ok(completeAX.target_owners.includes(
+    'docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md',
+  ));
+  for (const ownerPath of ['src/perceive/ax.swift', 'src/act/actions.swift', 'src/perceive/display-topology.swift']) {
+    assert.ok(completeAX.current_owners.includes(ownerPath), ownerPath);
+  }
+  assert.match(completeAX.exit_gate, /exact native AX roots/u);
+  assert.match(completeAX.exit_gate, /distinct Observation Ref\/Locator targeting/u);
+  assert.match(completeAX.exit_gate, /M5 event projection, M6 SDK and non-AX action families, and M10 native acceptance remain separate/u);
 
   const tracked = gitPathSet([]);
   const repositoryCandidates = new Set([

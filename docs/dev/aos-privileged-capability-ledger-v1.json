@@ -1976,13 +1976,13 @@
         }
       },
       "target": {
-        "milestone": "M4",
+        "milestone": "M6",
         "disposition": "Expand",
         "gaps": [
           "Bind process generation and operation identity.",
           "Add terminal outcome, residual descendants, and IPC/SDK parity."
         ],
-        "exit_gate": "M4 lifecycle commands identify the exact process generation, expose bounded terminal outcome and residual authority, and cannot act on PID reuse; M6 supplies canonical SDK projection.",
+        "exit_gate": "M6 lifecycle commands identify the exact process generation, expose bounded terminal outcome and residual authority through the canonical CLI/IPC/SDK protocol, and cannot act on PID reuse.",
         "reusable_atoms": [
           "Darwin process-generation identity",
           "one-shot terminal operation record",
@@ -2403,13 +2403,13 @@
         }
       },
       "target": {
-        "milestone": "M4",
+        "milestone": "M6",
         "disposition": "Expand",
         "gaps": [
           "Replace or isolate private AX-to-window correlation behind an explicit typed platform limit.",
           "Add exact window generation, IPC/SDK parity, and operation terminal history."
         ],
-        "exit_gate": "M4 completes every supported window lifecycle action with exact current identity, public-platform provenance, bounded readback, terminal receipt, and no untyped private dependency; M6 supplies canonical SDK projection.",
+        "exit_gate": "M6 completes every supported window lifecycle action through the canonical CLI/IPC/SDK protocol with exact current identity, public-platform provenance, bounded readback, terminal receipt, and no untyped private dependency.",
         "reusable_atoms": [
           "window identity record",
           "bounded lifecycle readback",
@@ -2814,7 +2814,7 @@
           "Expose explicit completeness/frontier facts for withheld and off-Space state.",
           "Add maintained SDK parity and operation lineage for long-lived subscriptions."
         ],
-        "exit_gate": "M4 display, window, and app observation states exactly what was enumerated, withheld, and beyond the public frontier; maintained SDK parity remains an explicit M6 dependency.",
+        "exit_gate": "M4 retains canonical display-topology observation and adds only the display facts required to bind AX transforms; general window/app lifecycle and maintained SDK parity remain explicit M6 dependencies.",
         "reusable_atoms": [
           "display-topology identity",
           "current-session window inventory",
@@ -3614,13 +3614,13 @@
         }
       },
       "target": {
-        "milestone": "M4",
+        "milestone": "M6",
         "disposition": "Expand",
         "gaps": [
           "Add shared operation identity, owner-filter intersection, recent outcome/blame, and SDK parity.",
           "Separate host stop barrier from feature safety hotkeys."
         ],
-        "exit_gate": "M4 completes input actuation so every nontrivial transaction is observable and exactly cancellable under mechanically authenticated ownership with terminal delivery and cleanup receipts; M6 supplies canonical SDK projection.",
+        "exit_gate": "M6 completes input actuation through the canonical CLI/IPC/SDK protocol so every nontrivial transaction is observable and exactly cancellable under mechanically authenticated ownership with terminal delivery and cleanup receipts.",
         "reusable_atoms": [
           "terminal input receipt",
           "held-input cleanup obligation",
@@ -18741,10 +18741,34 @@
       ],
       "deliverables": [
         {
-          "id": "full_ax_roots",
+          "id": "authority_contract",
           "owner_ref_ids": [
-            "M4.path.src_perceive_ax_swift",
-            "M4.path.shared_schemas_aos_target_handle_v1_schema_json",
+            "M4.path.docs_adr_0045_complete_ax_contract_md"
+          ],
+          "exit_gate_ids": [
+            "authority_contract_frozen"
+          ],
+          "proof_ref_ids": [
+            "M4.proof.tests_m4_ax_contract_foundation_test_mjs"
+          ]
+        },
+        {
+          "id": "observation_engine",
+          "owner_ref_ids": [
+            "M4.path.src_perceive"
+          ],
+          "exit_gate_ids": [
+            "immutable_bounded_ax_observation"
+          ],
+          "proof_ref_ids": [
+            "M4.proof.tests_m4_ax_contract_foundation_test_mjs",
+            "M4.proof.tests_ax_complete_surface_test_mjs"
+          ]
+        },
+        {
+          "id": "public_observation",
+          "owner_ref_ids": [
+            "M4.path.src_perceive",
             "M4.path.manifests_commands_source_aos_43_ax_complete_json",
             "M4.path.manifests_commands_source_external_51_ax_complete_json",
             "M4.path.manifests_commands_aos_commands_json",
@@ -18752,46 +18776,30 @@
             "M4.path.docs_api_aos_md"
           ],
           "exit_gate_ids": [
-            "complete_ax_surface",
-            "frontier_and_completeness_truth"
+            "immutable_bounded_ax_observation"
           ],
           "proof_ref_ids": [
-            "M4.proof.tests_aos_desktop_capabilities_test_mjs",
+            "M4.proof.tests_m4_ax_contract_foundation_test_mjs",
             "M4.proof.tests_ax_complete_surface_test_mjs"
           ]
         },
         {
-          "id": "depth_breadth_paging",
+          "id": "coordinate_binding",
           "owner_ref_ids": [
-            "M4.path.src_perceive_ax_swift",
-            "M4.path.shared_schemas_aos_target_handle_v1_schema_json"
+            "M4.path.src_perceive"
           ],
           "exit_gate_ids": [
-            "complete_ax_surface",
-            "frontier_and_completeness_truth"
+            "coordinate_identity_bound"
           ],
           "proof_ref_ids": [
-            "M4.proof.tests_aos_desktop_capabilities_test_mjs",
+            "M4.proof.tests_m4_ax_contract_foundation_test_mjs",
             "M4.proof.tests_ax_complete_surface_test_mjs"
           ]
         },
         {
-          "id": "raw_ax_attributes",
+          "id": "ax_subscription_lifecycle",
           "owner_ref_ids": [
-            "M4.path.src_perceive_ax_swift"
-          ],
-          "exit_gate_ids": [
-            "complete_ax_surface"
-          ],
-          "proof_ref_ids": [
-            "M4.proof.tests_aos_desktop_capabilities_test_mjs",
-            "M4.proof.tests_ax_complete_surface_test_mjs"
-          ]
-        },
-        {
-          "id": "ax_actions",
-          "owner_ref_ids": [
-            "M4.path.src_perceive_ax_swift",
+            "M4.path.src_perceive",
             "M4.path.manifests_commands_source_aos_43_ax_complete_json",
             "M4.path.manifests_commands_source_external_51_ax_complete_json",
             "M4.path.manifests_commands_aos_commands_json",
@@ -18799,32 +18807,17 @@
             "M4.path.docs_api_aos_md"
           ],
           "exit_gate_ids": [
-            "complete_ax_surface",
-            "target_state_staleness"
+            "subscription_action_integrated_closeout"
           ],
           "proof_ref_ids": [
-            "M4.proof.tests_aos_desktop_capabilities_test_mjs",
+            "M4.proof.tests_m4_ax_contract_foundation_test_mjs",
             "M4.proof.tests_ax_complete_surface_test_mjs"
           ]
         },
         {
-          "id": "ax_filters",
+          "id": "raw_ax_actions",
           "owner_ref_ids": [
-            "M4.path.src_perceive_ax_swift",
-            "M4.path.shared_schemas_aos_target_handle_v1_schema_json"
-          ],
-          "exit_gate_ids": [
-            "frontier_and_completeness_truth"
-          ],
-          "proof_ref_ids": [
-            "M4.proof.tests_aos_desktop_capabilities_test_mjs",
-            "M4.proof.tests_ax_complete_surface_test_mjs"
-          ]
-        },
-        {
-          "id": "ax_notifications",
-          "owner_ref_ids": [
-            "M4.path.src_observe_ax_observer_swift",
+            "M4.path.src_act",
             "M4.path.manifests_commands_source_aos_43_ax_complete_json",
             "M4.path.manifests_commands_source_external_51_ax_complete_json",
             "M4.path.manifests_commands_aos_commands_json",
@@ -18832,84 +18825,91 @@
             "M4.path.docs_api_aos_md"
           ],
           "exit_gate_ids": [
-            "complete_ax_surface"
+            "subscription_action_integrated_closeout"
           ],
           "proof_ref_ids": [
-            "M4.proof.tests_aos_desktop_capabilities_test_mjs",
+            "M4.proof.tests_m4_ax_contract_foundation_test_mjs",
             "M4.proof.tests_ax_complete_surface_test_mjs"
           ]
         },
         {
-          "id": "ax_display_sck_pixel_transforms",
+          "id": "integrated_closeout",
           "owner_ref_ids": [
-            "M4.path.src_perceive_ax_swift",
-            "M4.path.shared_schemas_aos_target_handle_v1_schema_json"
+            "M4.path.docs_adr_0045_complete_ax_contract_md",
+            "M4.path.src_perceive",
+            "M4.path.src_act",
+            "M4.path.manifests_commands_source_aos_43_ax_complete_json",
+            "M4.path.manifests_commands_source_external_51_ax_complete_json",
+            "M4.path.manifests_commands_aos_commands_json",
+            "M4.path.manifests_commands_aos_external_commands_json",
+            "M4.path.docs_api_aos_md"
           ],
           "exit_gate_ids": [
-            "transform_identity",
-            "target_state_staleness"
+            "authority_contract_frozen",
+            "immutable_bounded_ax_observation",
+            "coordinate_identity_bound",
+            "subscription_action_integrated_closeout"
           ],
           "proof_ref_ids": [
-            "M4.proof.tests_aos_desktop_capabilities_test_mjs",
+            "M4.proof.tests_m4_ax_contract_foundation_test_mjs",
             "M4.proof.tests_ax_complete_surface_test_mjs"
           ]
         }
       ],
       "exit_gates": [
         {
-          "id": "complete_ax_surface",
-          "criterion": "AX observation exposes application and system-wide roots, bounded depth and breadth, paging frontier, raw attributes, actions, filters, and per-PID notifications.",
+          "id": "authority_contract_frozen",
+          "criterion": "Accepted ADR 0045 freezes the exact five-root taxonomy, immutable snapshot/ref/page contract, raw value and action unions, per-PID observer lifecycle, coordinate spaces, milestone boundaries, actual current owner families, and dependency-ordered M4 delivery without claiming runtime implementation.",
           "proof_ref_ids": [
-            "M4.proof.tests_aos_desktop_capabilities_test_mjs",
+            "M4.proof.tests_m4_ax_contract_foundation_test_mjs"
+          ],
+          "prerequisite_gate_refs": []
+        },
+        {
+          "id": "immutable_bounded_ax_observation",
+          "criterion": "Production-attached offline proof executes the production observation engine across native system, process-generation application, exact window, current Observation Ref element, and AOS display-composite roots; it proves immutable retained snapshots, snapshot-bound pages, separate traversal/page bounds, raw typed values, filters, accounting, and complete/truncated/unsupported/unavailable frontier truth.",
+          "proof_ref_ids": [
+            "M4.proof.tests_m4_ax_contract_foundation_test_mjs",
             "M4.proof.tests_ax_complete_surface_test_mjs"
           ],
           "prerequisite_gate_refs": []
         },
         {
-          "id": "frontier_and_completeness_truth",
-          "criterion": "Every AX response distinguishes complete traversal, truncated frontier, unsupported root, and unavailable platform state.",
+          "id": "coordinate_identity_bound",
+          "criterion": "Production-attached offline proof binds ax_global_points and target_local_points to distinct display_backing_pixels, composite_output_pixels, and encoder_output_pixels using exact observable ScreenCaptureKit source/display/frame/dimension/scale facts plus canonical display-topology identity, with no fictional SCK generation or platform identity.",
           "proof_ref_ids": [
-            "M4.proof.tests_aos_desktop_capabilities_test_mjs",
-            "M4.proof.tests_ax_complete_surface_test_mjs"
-          ],
-          "prerequisite_gate_refs": []
-        },
-        {
-          "id": "target_state_staleness",
-          "criterion": "AX action targets bind immutable target and observation-state identity and fail closed when state is stale or ambiguous.",
-          "proof_ref_ids": [
-            "M4.proof.tests_aos_desktop_capabilities_test_mjs",
-            "M4.proof.tests_ax_complete_surface_test_mjs"
-          ],
-          "prerequisite_gate_refs": []
-        },
-        {
-          "id": "transform_identity",
-          "criterion": "AX, display topology, ScreenCaptureKit source, and pixel geometry transforms bind exact generations and reject scale, window, or topology drift.",
-          "proof_ref_ids": [
-            "M4.proof.tests_aos_desktop_capabilities_test_mjs",
+            "M4.proof.tests_m4_ax_contract_foundation_test_mjs",
             "M4.proof.tests_ax_complete_surface_test_mjs"
           ],
           "prerequisite_gate_refs": [
             "M3.geometry_reobserved_and_bound"
           ]
+        },
+        {
+          "id": "subscription_action_integrated_closeout",
+          "criterion": "Production-attached offline proof executes per-PID process-generation observer registration, callback-receipt sequence/time, loss/frontier, cancellation, owner kill, host stop, process-exit retirement, no-replay recovery, and zero-residual cleanup together with raw perform_action/set_attribute operation-plane admission, exact Observation Ref or Locator targeting, typed terminal readback, and convenience-owner convergence.",
+          "proof_ref_ids": [
+            "M4.proof.tests_m4_ax_contract_foundation_test_mjs",
+            "M4.proof.tests_ax_complete_surface_test_mjs"
+          ],
+          "prerequisite_gate_refs": []
         }
       ],
       "path_refs": [
         {
-          "id": "M4.path.src_perceive_ax_swift",
-          "path": "src/perceive/ax.swift",
+          "id": "M4.path.docs_adr_0045_complete_ax_contract_md",
+          "path": "docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md",
           "kind": "current"
         },
         {
-          "id": "M4.path.shared_schemas_aos_target_handle_v1_schema_json",
-          "path": "shared/schemas/aos-target-handle-v1.schema.json",
+          "id": "M4.path.src_perceive",
+          "path": "src/perceive/",
           "kind": "current"
         },
         {
-          "id": "M4.path.src_observe_ax_observer_swift",
-          "path": "src/observe/ax-observer.swift",
-          "kind": "proposed"
+          "id": "M4.path.src_act",
+          "path": "src/act/",
+          "kind": "current"
         },
         {
           "id": "M4.path.manifests_commands_source_aos_43_ax_complete_json",
@@ -18939,9 +18939,9 @@
       ],
       "proof_paths": [
         {
-          "id": "M4.proof.tests_aos_desktop_capabilities_test_mjs",
+          "id": "M4.proof.tests_m4_ax_contract_foundation_test_mjs",
           "case_id": null,
-          "path": "tests/aos-desktop-capabilities.test.mjs",
+          "path": "tests/m4-ax-contract-foundation.test.mjs",
           "kind": "current",
           "execution_class": "static"
         },
@@ -18950,11 +18950,14 @@
           "case_id": null,
           "path": "tests/ax-complete-surface.test.mjs",
           "kind": "proposed",
-          "execution_class": "static"
+          "execution_class": "fake"
         }
       ],
       "later_dependencies": [
-        "M5 reuses AX notifications and transform identity in the unified privileged stream plane.",
+        "M4 follows M4A authority, M4B observation engine, M4C public observation, M4D coordinate binding, M4E subscription lifecycle, and M4F raw actions/integrated closeout in that order on exact landed predecessors.",
+        "M5 may project the stable M4 AX event family into the unified stream plane but does not own the AXObserver resource or recovery lifecycle.",
+        "M6 owns maintained TypeScript/Python SDK parity plus general application lifecycle, window/menu lifecycle, and CoreGraphics input posting.",
+        "M10 owns live native, TCC, packaging, and release acceptance for the reviewed M4 behavior.",
         "Authored command sources, reviewed executable routes, generated aggregates, and generated docs move atomically with this command-producing slice."
       ]
     },
