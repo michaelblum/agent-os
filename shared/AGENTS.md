@@ -79,6 +79,10 @@ apps, and tests.
   interactively selected region captures; keep its canonical ordering,
   fallback, and binary identity encoding synchronized with the production Swift
   helper and deterministic fixtures.
+- `schemas/aos-ax-observation-v1.schema.json` owns the closed internal M4 AX
+  request, immutable snapshot, retained page, raw value, outcome, completeness,
+  frontier, and state-scoped Observation Ref contract. Its presence does not
+  add daemon or CLI reachability; that public integration belongs to M4C.
 - Shared helpers must stay product-neutral and layer-neutral.
 - Source facts admitted by each bounded public observation contract are exposed
   faithfully by default; facts outside that contract remain outside it.

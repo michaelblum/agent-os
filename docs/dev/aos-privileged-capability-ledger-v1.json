@@ -799,18 +799,18 @@
           ],
           "derived_floor": null
         },
-        "implementation": {
-          "state": "implemented",
-          "primitive_paths": [
-            "src/perceive/ax.swift",
-            "src/perceive/capture-pipeline.swift",
-            "src/perceive/daemon.swift"
-          ],
-          "evidence_paths": [
-            "docs/api/aos.md",
-            "shared/schemas/aos-semantic-targets.md"
-          ],
-          "summary": "AOS snapshots AX attributes, actions, geometry, and bounded tree projections for native targets; this source primitive is broader than any single public form but not an unbounded system-wide tree."
+      "implementation": {
+        "state": "implemented",
+        "primitive_paths": [
+          "src/perceive/ax.swift",
+          "src/perceive/capture-pipeline.swift",
+          "src/perceive/daemon.swift"
+        ],
+        "evidence_paths": [
+          "docs/api/aos.md",
+          "shared/schemas/aos-semantic-targets.md"
+        ],
+        "summary": "AOS snapshots AX attributes, actions, geometry, and bounded tree projections for native targets; this source primitive is broader than any single public form but not an unbounded system-wide tree."
         },
         "exposure": {
           "cli": {
@@ -957,23 +957,23 @@
             "schemas": []
           }
         },
-        "observation": {
-          "mode": "snapshot",
-          "roots": [
-            "frontmost application",
-            "selected application PID",
-            "selected window or subtree"
-          ],
-          "targets": [
-            "AX element",
-            "application",
-            "window"
-          ],
-          "depth": "Public graph depth is bounded; native Locator traversal is capped at depth 128 and a 30 second total deadline.",
-          "breadth": "Traversal and projected facts are bounded; no claim of every process or every attribute.",
-          "completeness": "Complete only for the fields returned by the selected bounded contract; missing platform attributes stay missing.",
-          "frontier": "The current response does not publish a general machine-readable truncation frontier for every AX traversal mode.",
-          "state_identity": "Snapshots carry state_id and Observation Refs; native Locators are action-time queries and do not silently reuse stale state."
+    "observation": {
+      "mode": "snapshot",
+      "roots": [
+        "frontmost application",
+        "selected application PID",
+        "selected window or subtree"
+      ],
+      "targets": [
+        "AX element",
+        "application",
+        "window"
+      ],
+      "depth": "Public graph depth is bounded; native Locator traversal is capped at depth 128 and a 30 second total deadline.",
+      "breadth": "Traversal and projected facts are bounded; no claim of every process or every attribute.",
+      "completeness": "Complete only for the fields returned by the selected bounded contract; missing platform attributes stay missing.",
+      "frontier": "The current response does not publish a general machine-readable truncation frontier for every AX traversal mode.",
+      "state_identity": "Snapshots carry state_id and Observation Refs; native Locators are action-time queries and do not silently reuse stale state."
         },
         "control": {
           "operation_identity": "One-shot command receipt and snapshot state_id; no shared operation id.",
@@ -1023,19 +1023,19 @@
             "detail": "No operation recovery record."
           }
         },
-        "data_transport": {
-          "transports": [
-            "JSON response",
-            "saved workspace JSON"
-          ],
-          "fidelity": "Admitted AX facts are raw by default, but the public contract selects and bounds fields.",
-          "transient_default": true,
-          "retention": "Only an explicit saved-workspace request persists the projection.",
-          "caller_owned_transforms": "Masking, redaction, summarization, and model projection belong to the caller."
+    "data_transport": {
+      "transports": [
+        "JSON response",
+        "saved workspace JSON"
+      ],
+      "fidelity": "Admitted AX facts are raw by default, but the public contract selects and bounds fields.",
+      "transient_default": true,
+      "retention": "Only an explicit saved-workspace request persists the projection.",
+      "caller_owned_transforms": "Masking, redaction, summarization, and model projection belong to the caller."
         },
         "proof": {
           "basis": "capability_proof",
-          "static": [
+      "static": [
             {
               "path": "tests/aos-desktop-capabilities.test.mjs",
               "claim": "Binds public native observation vocabulary to current command sources.",
@@ -1044,8 +1044,8 @@
               "tcc_services": [],
               "mutates_runtime": false
             }
-          ],
-          "fake": [],
+      ],
+      "fake": [],
           "native": [
             {
               "path": "tests/native-target-locator-selection.sh",
@@ -1056,7 +1056,7 @@
               "mutates_runtime": false
             }
           ],
-          "limitations": "No live target application or exhaustive AX completeness proof is part of M1."
+      "limitations": "No live target application or exhaustive AX completeness proof is part of M1."
         }
       },
       "target": {
@@ -19011,19 +19011,19 @@
           "kind": "current"
         },
         {
-          "id": "M4.path.src_perceive_ax_observation_engine_swift",
-          "path": "src/perceive/ax-observation-engine.swift",
-          "kind": "proposed"
+      "id": "M4.path.src_perceive_ax_observation_engine_swift",
+      "path": "src/perceive/ax-observation-engine.swift",
+      "kind": "current"
         },
         {
-          "id": "M4.path.src_perceive_ax_snapshot_store_swift",
-          "path": "src/perceive/ax-snapshot-store.swift",
-          "kind": "proposed"
+      "id": "M4.path.src_perceive_ax_snapshot_store_swift",
+      "path": "src/perceive/ax-snapshot-store.swift",
+      "kind": "current"
         },
         {
-          "id": "M4.path.src_perceive_ax_value_codec_swift",
-          "path": "src/perceive/ax-value-codec.swift",
-          "kind": "proposed"
+      "id": "M4.path.src_perceive_ax_value_codec_swift",
+      "path": "src/perceive/ax-value-codec.swift",
+      "kind": "current"
         },
         {
           "id": "M4.path.src_perceive_ax_coordinate_binding_swift",
@@ -19101,9 +19101,9 @@
           "kind": "current"
         },
         {
-          "id": "M4.path.shared_schemas_aos_ax_observation_v1_schema_json",
-          "path": "shared/schemas/aos-ax-observation-v1.schema.json",
-          "kind": "proposed"
+      "id": "M4.path.shared_schemas_aos_ax_observation_v1_schema_json",
+      "path": "shared/schemas/aos-ax-observation-v1.schema.json",
+      "kind": "current"
         },
         {
           "id": "M4.path.shared_schemas_aos_ax_action_v1_schema_json",
@@ -19185,10 +19185,10 @@
           "execution_class": "static"
         },
         {
-          "id": "M4.proof.tests_ax_complete_surface_test_mjs",
-          "case_id": null,
-          "path": "tests/ax-complete-surface.test.mjs",
-          "kind": "proposed",
+      "id": "M4.proof.tests_ax_complete_surface_test_mjs",
+      "case_id": null,
+      "path": "tests/ax-complete-surface.test.mjs",
+      "kind": "current",
           "execution_class": "fake"
         }
       ],

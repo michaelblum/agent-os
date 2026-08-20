@@ -54,6 +54,16 @@ needs, but public command policy and product UI policy belong above it:
   Native AX capture emits a V1 Locator only with a non-empty role and omits
   empty optional query strings so every emitted handle satisfies the public
   schema without altering the raw AX observation fields;
+- `src/perceive/ax-observation-engine.swift`, `ax-snapshot-store.swift`, and
+  `ax-value-codec.swift` own the internal complete-AX observation primitive:
+  exact system, application, window, current Observation Ref element, and AOS
+  display-composite roots; deterministic bounded traversal; closed raw value
+  outcomes; and immutable retained paging. The engine receives one externally
+  owned snapshot store so a daemon may preserve paging across IPC invocations;
+  request-local stores and public daemon/CLI routing remain out of this slice.
+  Generation is sampled before root resolution and again before snapshot
+  commit. Page tokens are opaque store lookup identities, never decoded
+  authority, and retained native handles release exactly once;
 - DesktopWorld's per-display Metal projection hosts are generation-bound stage
   infrastructure. They are prepared before native-effect admission, stay
   dormant between effects, and retire only with their display segment, stage,

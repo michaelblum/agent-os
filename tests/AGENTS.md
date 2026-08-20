@@ -413,6 +413,16 @@ tests.
   frozen bounds and rejoins the validated region path with no screen
   re-enumeration, filter recreation, or external image capture. Native region
   capture remains a separate permission-sensitive test.
+- `ax-complete-surface.test.mjs` compiles and executes the production AX
+  observation engine, snapshot store, and value codec against only injected
+  fake platform, generation, clock, and identity seams. It validates all five
+  roots, deterministic traversal and edge classification, independent bounds
+  and frontier facts, closed raw values and typed outcomes, double generation
+  sampling, immutable no-reobserve paging, opaque-token rejection and
+  lifecycle, externally owned store reuse, concurrency, exactly-once retained
+  handle cleanup, and production JSON against the internal AX schema. It must
+  clean its disposable roots and must not execute `./aos`, daemon, native UI,
+  browser, TCC, or public routing.
 - PNG file comparison proof must compile only its focused Swift source and
   disposable harness with explicit `-Onone`, generate fixed fixtures under a
   private temporary root, reject special files under a bounded watchdog, and

@@ -1,0 +1,756 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.agent-os.local/aos-ax-observation-v1.schema.json",
+  "title": "AOS AX Observation Domain V1",
+  "description": "Closed internal M4 observation-domain request, immutable result, and retained-page contract. This schema is not a public daemon or CLI route.",
+  "oneOf": [
+    { "$ref": "#/$defs/observation_request" },
+    { "$ref": "#/$defs/page_request" },
+    { "$ref": "#/$defs/observation_response" },
+    { "$ref": "#/$defs/page_response" }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "nonnegative_integer": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "positive_integer": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "platform_error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "detail"],
+      "properties": {
+        "code": { "$ref": "#/$defs/identifier" },
+        "detail": { "type": "string", "maxLength": 2048 }
+      }
+    },
+    "process_generation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pid", "start_time_seconds", "start_time_microseconds"],
+      "properties": {
+        "pid": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+        "start_time_seconds": { "$ref": "#/$defs/nonnegative_integer" },
+        "start_time_microseconds": { "type": "integer", "minimum": 0, "maximum": 999999 }
+      }
+    },
+    "point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      }
+    },
+    "size": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height"],
+      "properties": {
+        "width": { "type": "number" },
+        "height": { "type": "number" }
+      }
+    },
+    "rect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number" },
+        "height": { "type": "number" }
+      }
+    },
+    "range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["location", "length"],
+      "properties": {
+        "location": { "$ref": "#/$defs/nonnegative_integer" },
+        "length": { "$ref": "#/$defs/nonnegative_integer" }
+      }
+    },
+    "root_request": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": { "kind": { "const": "system_wide" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "generation"],
+          "properties": {
+            "kind": { "const": "application" },
+            "generation": { "$ref": "#/$defs/process_generation" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "generation", "window_id"],
+          "properties": {
+            "kind": { "const": "window" },
+            "generation": { "$ref": "#/$defs/process_generation" },
+            "window_id": { "$ref": "#/$defs/nonnegative_integer" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "state_id", "ref"],
+          "properties": {
+            "kind": { "const": "element" },
+            "state_id": { "$ref": "#/$defs/identifier" },
+            "ref": { "$ref": "#/$defs/identifier" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "topology_identity", "applications"],
+          "properties": {
+            "kind": { "const": "display_composite" },
+            "topology_identity": { "$ref": "#/$defs/identifier" },
+            "applications": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 4096,
+              "items": { "$ref": "#/$defs/process_generation" }
+            }
+          }
+        }
+      ]
+    },
+    "root_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "enum": ["system_wide", "application", "window", "element", "display_composite"]
+        },
+        "generation": { "$ref": "#/$defs/process_generation" },
+        "window_id": { "$ref": "#/$defs/nonnegative_integer" },
+        "source_state_id": { "$ref": "#/$defs/identifier" },
+        "source_ref": { "$ref": "#/$defs/identifier" },
+        "topology_identity": { "$ref": "#/$defs/identifier" },
+        "constituent_count": { "$ref": "#/$defs/positive_integer" }
+      }
+    },
+    "bounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_depth",
+        "max_visited",
+        "max_emitted",
+        "deadline_nanoseconds",
+        "max_array_depth",
+        "max_array_items",
+        "max_value_cost"
+      ],
+      "properties": {
+        "max_depth": { "$ref": "#/$defs/positive_integer" },
+        "max_visited": { "$ref": "#/$defs/positive_integer" },
+        "max_emitted": { "$ref": "#/$defs/positive_integer" },
+        "deadline_nanoseconds": { "$ref": "#/$defs/positive_integer" },
+        "max_array_depth": { "$ref": "#/$defs/positive_integer" },
+        "max_array_items": { "$ref": "#/$defs/positive_integer" },
+        "max_value_cost": { "$ref": "#/$defs/positive_integer" }
+      }
+    },
+    "projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attributes",
+        "parameterized_attribute_names",
+        "settable_facts",
+        "supported_action_names",
+        "relationship_names"
+      ],
+      "properties": {
+        "attributes": { "type": "boolean" },
+        "parameterized_attribute_names": { "type": "boolean" },
+        "settable_facts": { "type": "boolean" },
+        "supported_action_names": { "type": "boolean" },
+        "relationship_names": { "type": "boolean" }
+      }
+    },
+    "attribute_outcome": {
+      "enum": [
+        "value",
+        "no_value",
+        "unsupported",
+        "platform_error",
+        "deadline_exceeded",
+        "recursion_bound",
+        "array_bound",
+        "unrepresentable_type"
+      ]
+    },
+    "attribute_outcome_filter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "outcome"],
+      "properties": {
+        "name": { "$ref": "#/$defs/identifier" },
+        "outcome": { "$ref": "#/$defs/attribute_outcome" }
+      }
+    },
+    "filter": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "role": { "type": "string" },
+        "subrole": { "type": "string" },
+        "identifier": { "type": "string" },
+        "title": { "type": "string" },
+        "geometry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["intersects"],
+          "properties": { "intersects": { "$ref": "#/$defs/rect" } }
+        },
+        "enabled": { "type": "boolean" },
+        "focused": { "type": "boolean" },
+        "selected": { "type": "boolean" },
+        "raw_attribute_outcomes": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": { "$ref": "#/$defs/attribute_outcome_filter" }
+        },
+        "relationship_membership": { "type": "string" }
+      }
+    },
+    "observation_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "kind", "root", "bounds", "filters", "projection", "page_size"],
+      "properties": {
+        "schema_version": { "const": "aos.ax-observation.v1" },
+        "kind": { "const": "request" },
+        "root": { "$ref": "#/$defs/root_request" },
+        "bounds": { "$ref": "#/$defs/bounds" },
+        "filters": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": { "$ref": "#/$defs/filter" }
+        },
+        "projection": { "$ref": "#/$defs/projection" },
+        "page_size": { "$ref": "#/$defs/positive_integer" }
+      }
+    },
+    "page_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "kind",
+        "token",
+        "expected_state_id",
+        "request_digest",
+        "projection_digest",
+        "page_size"
+      ],
+      "properties": {
+        "schema_version": { "const": "aos.ax-observation.v1" },
+        "kind": { "const": "page_request" },
+        "token": { "type": "string", "minLength": 3, "maxLength": 512 },
+        "expected_state_id": { "$ref": "#/$defs/identifier" },
+        "request_digest": { "$ref": "#/$defs/digest" },
+        "projection_digest": { "$ref": "#/$defs/digest" },
+        "page_size": { "$ref": "#/$defs/positive_integer" }
+      }
+    },
+    "value": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": { "type": { "const": "null" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "boolean" },
+            "value": { "type": "boolean" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "signed_integer" },
+            "value": { "type": "integer" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "unsigned_integer" },
+            "value": { "$ref": "#/$defs/nonnegative_integer" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "floating_point" },
+            "value": { "type": "number" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "enum": ["string", "data", "date", "url", "element_ref"] },
+            "value": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "point" },
+            "value": { "$ref": "#/$defs/point" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "size" },
+            "value": { "$ref": "#/$defs/size" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "rect" },
+            "value": { "$ref": "#/$defs/rect" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "range" },
+            "value": { "$ref": "#/$defs/range" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "array" },
+            "value": {
+              "type": "array",
+              "maxItems": 4096,
+              "items": { "$ref": "#/$defs/value" }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "dictionary" },
+            "value": {
+              "type": "array",
+              "maxItems": 4096,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["key", "value"],
+                "properties": {
+                  "key": { "type": "string" },
+                  "value": { "$ref": "#/$defs/value" }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "attribute_projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "outcome"],
+      "properties": {
+        "name": { "$ref": "#/$defs/identifier" },
+        "outcome": { "$ref": "#/$defs/attribute_outcome" },
+        "value": { "$ref": "#/$defs/value" },
+        "error": { "$ref": "#/$defs/platform_error" },
+        "detail": { "type": "string", "maxLength": 2048 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "outcome": { "const": "value" } }, "required": ["outcome"] },
+          "then": { "required": ["value"] },
+          "else": { "not": { "required": ["value"] } }
+        },
+        {
+          "if": { "properties": { "outcome": { "const": "platform_error" } }, "required": ["outcome"] },
+          "then": { "required": ["error"] }
+        }
+      ]
+    },
+    "settable_fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "outcome"],
+      "properties": {
+        "name": { "$ref": "#/$defs/identifier" },
+        "outcome": {
+          "enum": ["settable", "not_settable", "unsupported", "platform_error", "deadline_exceeded"]
+        },
+        "error": { "$ref": "#/$defs/platform_error" }
+      }
+    },
+    "element_facts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "role": { "type": "string" },
+        "subrole": { "type": "string" },
+        "identifier": { "type": "string" },
+        "title": { "type": "string" },
+        "frame": { "$ref": "#/$defs/rect" },
+        "enabled": { "type": "boolean" },
+        "focused": { "type": "boolean" },
+        "selected": { "type": "boolean" }
+      }
+    },
+    "reference_edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relationship_name", "child_position", "ref", "kind"],
+      "properties": {
+        "relationship_name": { "$ref": "#/$defs/identifier" },
+        "child_position": { "$ref": "#/$defs/nonnegative_integer" },
+        "ref": { "$ref": "#/$defs/identifier" },
+        "kind": { "enum": ["cycle", "duplicate"] }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "depth",
+        "facts",
+        "attributes",
+        "parameterized_attribute_names",
+        "settable_facts",
+        "supported_action_names",
+        "relationship_names",
+        "reference_edges"
+      ],
+      "properties": {
+        "ref": { "$ref": "#/$defs/identifier" },
+        "parent_ref": { "$ref": "#/$defs/identifier" },
+        "incoming_relationship": { "$ref": "#/$defs/identifier" },
+        "child_position": { "$ref": "#/$defs/nonnegative_integer" },
+        "depth": { "$ref": "#/$defs/nonnegative_integer" },
+        "constituent_id": { "$ref": "#/$defs/identifier" },
+        "facts": { "$ref": "#/$defs/element_facts" },
+        "attributes": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": { "$ref": "#/$defs/attribute_projection" }
+        },
+        "parameterized_attribute_names": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "settable_facts": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": { "$ref": "#/$defs/settable_fact" }
+        },
+        "supported_action_names": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "relationship_names": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "reference_edges": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": { "$ref": "#/$defs/reference_edge" }
+        }
+      }
+    },
+    "accounting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "visited",
+        "matched",
+        "emitted",
+        "cycle_edges",
+        "duplicate_edges",
+        "elapsed_nanoseconds",
+        "retained_value_cost"
+      ],
+      "properties": {
+        "visited": { "$ref": "#/$defs/nonnegative_integer" },
+        "matched": { "$ref": "#/$defs/nonnegative_integer" },
+        "emitted": { "$ref": "#/$defs/nonnegative_integer" },
+        "cycle_edges": { "$ref": "#/$defs/nonnegative_integer" },
+        "duplicate_edges": { "$ref": "#/$defs/nonnegative_integer" },
+        "elapsed_nanoseconds": { "$ref": "#/$defs/nonnegative_integer" },
+        "retained_value_cost": { "$ref": "#/$defs/nonnegative_integer" }
+      }
+    },
+    "frontier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["depth", "reason"],
+      "properties": {
+        "parent_ref": { "$ref": "#/$defs/identifier" },
+        "relationship_name": { "type": "string" },
+        "child_position": { "$ref": "#/$defs/nonnegative_integer" },
+        "depth": { "$ref": "#/$defs/nonnegative_integer" },
+        "ref": { "$ref": "#/$defs/identifier" },
+        "constituent_id": { "$ref": "#/$defs/identifier" },
+        "reason": {
+          "enum": [
+            "depth_bound",
+            "visited_bound",
+            "emitted_bound",
+            "deadline",
+            "value_cost_bound",
+            "platform_error",
+            "generation_mismatch"
+          ]
+        }
+      }
+    },
+    "stop_condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "detail"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "complete",
+            "depth_bound",
+            "visited_bound",
+            "emitted_bound",
+            "deadline",
+            "value_cost_bound",
+            "platform_unsupported",
+            "platform_unavailable",
+            "platform_error",
+            "generation_mismatch",
+            "source_snapshot_expired",
+            "source_snapshot_evicted",
+            "source_ref_missing",
+            "retention_limit"
+          ]
+        },
+        "detail": { "type": "string", "maxLength": 2048 }
+      }
+    },
+    "constituent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "generation", "outcome"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "generation": { "$ref": "#/$defs/process_generation" },
+        "outcome": { "enum": ["complete", "truncated", "unsupported", "unavailable"] },
+        "error": { "$ref": "#/$defs/platform_error" }
+      }
+    },
+    "retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["snapshot_ttl_nanoseconds", "retained_ref_count", "retained_value_cost", "page_size"],
+      "properties": {
+        "snapshot_ttl_nanoseconds": { "$ref": "#/$defs/positive_integer" },
+        "retained_ref_count": { "$ref": "#/$defs/nonnegative_integer" },
+        "retained_value_cost": { "$ref": "#/$defs/nonnegative_integer" },
+        "page_size": { "$ref": "#/$defs/positive_integer" }
+      }
+    },
+    "observation_response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "kind",
+        "state_id",
+        "root",
+        "request_digest",
+        "projection_digest",
+        "bounds",
+        "filters",
+        "created_at",
+        "expires_at",
+        "outcome",
+        "stop_condition",
+        "accounting",
+        "frontier",
+        "constituents",
+        "nodes",
+        "retention"
+      ],
+      "properties": {
+        "schema_version": { "const": "aos.ax-observation.v1" },
+        "kind": { "const": "observation" },
+        "state_id": { "$ref": "#/$defs/identifier" },
+        "root": { "$ref": "#/$defs/root_identity" },
+        "request_digest": { "$ref": "#/$defs/digest" },
+        "projection_digest": { "$ref": "#/$defs/digest" },
+        "bounds": { "$ref": "#/$defs/bounds" },
+        "filters": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": { "$ref": "#/$defs/filter" }
+        },
+        "created_at": { "type": "string", "format": "date-time" },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "outcome": { "enum": ["complete", "truncated", "unsupported", "unavailable"] },
+        "stop_condition": { "$ref": "#/$defs/stop_condition" },
+        "accounting": { "$ref": "#/$defs/accounting" },
+        "frontier": {
+          "type": "array",
+          "maxItems": 65536,
+          "items": { "$ref": "#/$defs/frontier" }
+        },
+        "constituents": {
+          "type": "array",
+          "maxItems": 4096,
+          "items": { "$ref": "#/$defs/constituent" }
+        },
+        "nodes": {
+          "type": "array",
+          "maxItems": 65536,
+          "items": { "$ref": "#/$defs/node" }
+        },
+        "next_page_token": { "type": "string", "minLength": 3, "maxLength": 512 },
+        "next_position": { "$ref": "#/$defs/positive_integer" },
+        "retention": { "$ref": "#/$defs/retention" }
+      }
+    },
+    "page_error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "detail"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "token_tampered",
+            "request_digest_mismatch",
+            "projection_digest_mismatch",
+            "state_mismatch",
+            "page_size_mismatch",
+            "snapshot_expired",
+            "snapshot_evicted",
+            "token_expired",
+            "token_evicted",
+            "token_consumed",
+            "unknown_identity"
+          ]
+        },
+        "detail": { "type": "string", "maxLength": 2048 }
+      }
+    },
+    "page_response": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schema_version",
+            "kind",
+            "status",
+            "state_id",
+            "request_digest",
+            "projection_digest",
+            "position",
+            "nodes",
+            "snapshot_outcome",
+            "accounting",
+            "frontier"
+          ],
+          "properties": {
+            "schema_version": { "const": "aos.ax-observation.v1" },
+            "kind": { "const": "page" },
+            "status": { "const": "ok" },
+            "state_id": { "$ref": "#/$defs/identifier" },
+            "request_digest": { "$ref": "#/$defs/digest" },
+            "projection_digest": { "$ref": "#/$defs/digest" },
+            "position": { "$ref": "#/$defs/positive_integer" },
+            "nodes": {
+              "type": "array",
+              "maxItems": 65536,
+              "items": { "$ref": "#/$defs/node" }
+            },
+            "next_page_token": { "type": "string", "minLength": 3, "maxLength": 512 },
+            "next_position": { "$ref": "#/$defs/positive_integer" },
+            "snapshot_outcome": { "enum": ["complete", "truncated", "unsupported", "unavailable"] },
+            "accounting": { "$ref": "#/$defs/accounting" },
+            "frontier": {
+              "type": "array",
+              "maxItems": 65536,
+              "items": { "$ref": "#/$defs/frontier" }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_version", "kind", "status", "nodes", "error"],
+          "properties": {
+            "schema_version": { "const": "aos.ax-observation.v1" },
+            "kind": { "const": "page" },
+            "status": { "const": "error" },
+            "nodes": { "type": "array", "maxItems": 0 },
+            "error": { "$ref": "#/$defs/page_error" }
+          }
+        }
+      ]
+    }
+  }
+}

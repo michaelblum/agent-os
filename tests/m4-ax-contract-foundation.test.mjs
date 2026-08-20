@@ -20,9 +20,9 @@ const expectedM4PathRefs = [
   ['src/act/actions.swift', 'current'],
   ['src/act/targeting.swift', 'current'],
   ['src/act/session.swift', 'current'],
-  ['src/perceive/ax-observation-engine.swift', 'proposed'],
-  ['src/perceive/ax-snapshot-store.swift', 'proposed'],
-  ['src/perceive/ax-value-codec.swift', 'proposed'],
+  ['src/perceive/ax-observation-engine.swift', 'current'],
+  ['src/perceive/ax-snapshot-store.swift', 'current'],
+  ['src/perceive/ax-value-codec.swift', 'current'],
   ['src/perceive/ax-coordinate-binding.swift', 'proposed'],
   ['src/daemon/ax-observer-adapter.swift', 'proposed'],
   ['src/daemon/ax-action-adapter.swift', 'proposed'],
@@ -38,7 +38,7 @@ const expectedM4PathRefs = [
   ['shared/schemas/daemon-response.schema.json', 'current'],
   ['shared/schemas/daemon-event.schema.json', 'current'],
   ['shared/schemas/display-topology-v1.schema.json', 'current'],
-  ['shared/schemas/aos-ax-observation-v1.schema.json', 'proposed'],
+  ['shared/schemas/aos-ax-observation-v1.schema.json', 'current'],
   ['shared/schemas/aos-ax-action-v1.schema.json', 'proposed'],
   ['shared/schemas/aos-ax-notification-v1.schema.json', 'proposed'],
   ['manifests/commands/source/aos/03-see-01-capture.json', 'current'],
@@ -224,7 +224,7 @@ test('M4 ledger has exhaustive exact-file owners and requires production-attache
   }
   assert.deepEqual(m4.proof_paths.map(({ kind, execution_class: executionClass }) => [kind, executionClass]), [
     ['current', 'static'],
-    ['proposed', 'fake'],
+    ['current', 'fake'],
   ]);
   assert.ok(m4.exit_gates.filter(({ id }) => id !== 'authority_contract_frozen')
     .every(({ proof_ref_ids: refs }) => refs.includes('M4.proof.tests_ax_complete_surface_test_mjs')));
@@ -254,7 +254,16 @@ test('authority map, milestone boundaries, and non-AX assignment agree with ADR 
   const domain = authority.domains.find(({ id }) => id === 'complete-ax-surface');
   assert.ok(domain);
   assert.ok(domain.target_owners.includes(adrPath));
-  for (const ownerPath of ['src/perceive/ax.swift', 'src/act/actions.swift', 'src/perceive/display-topology.swift']) {
+  for (const ownerPath of [
+    'src/perceive/ax.swift',
+    'src/perceive/ax-observation-engine.swift',
+    'src/perceive/ax-snapshot-store.swift',
+    'src/perceive/ax-value-codec.swift',
+    'src/act/actions.swift',
+    'src/perceive/display-topology.swift',
+    'shared/schemas/aos-ax-observation-v1.schema.json',
+    'tests/ax-complete-surface.test.mjs',
+  ]) {
     assert.ok(domain.current_owners.includes(ownerPath), ownerPath);
   }
   assert.match(index, /\[0045\].+Accepted.+native AX roots.+SCK identity limits/u);
