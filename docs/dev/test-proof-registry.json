@@ -24,6 +24,7 @@
     "test-proof-registry.d/privileged-capability-ledger.json",
     "test-proof-registry.d/operation-control.json",
     "test-proof-registry.d/screen-recording.json",
-    "test-proof-registry.d/m3-screen-recording-integrated.json"
+    "test-proof-registry.d/m3-screen-recording-integrated.json",
+    "test-proof-registry.d/m4-complete-ax.json"
   ]
 }

@@ -16,7 +16,54 @@ const bootstrapPaths = new Set([
   'tests/schemas/aos-privileged-capability-ledger-v1.test.mjs',
   'docs/dev/test-proof-registry.d/privileged-capability-ledger.json',
   'docs/design/aos-sovereign-first-vertical-slice-contract.md',
+  'docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md',
+  'tests/m4-ax-contract-foundation.test.mjs',
 ]);
+const expectedM4PathRefs = [
+  ['docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md', 'current'],
+  ['src/perceive/ax.swift', 'current'],
+  ['src/perceive/capture-pipeline.swift', 'current'],
+  ['src/perceive/daemon.swift', 'current'],
+  ['src/perceive/display-topology.swift', 'current'],
+  ['src/perceive/spatial.swift', 'current'],
+  ['src/perceive/models.swift', 'current'],
+  ['src/act/actions.swift', 'current'],
+  ['src/act/targeting.swift', 'current'],
+  ['src/act/session.swift', 'current'],
+  ['src/perceive/ax-observation-engine.swift', 'proposed'],
+  ['src/perceive/ax-snapshot-store.swift', 'proposed'],
+  ['src/perceive/ax-value-codec.swift', 'proposed'],
+  ['src/perceive/ax-coordinate-binding.swift', 'proposed'],
+  ['src/daemon/ax-observer-adapter.swift', 'proposed'],
+  ['src/daemon/ax-action-adapter.swift', 'proposed'],
+  ['src/commands/ax.swift', 'proposed'],
+  ['scripts/aos-see-native.mjs', 'current'],
+  ['scripts/aos-see-observe.mjs', 'current'],
+  ['scripts/aos-focus-graph.mjs', 'current'],
+  ['scripts/aos-do-native.mjs', 'current'],
+  ['scripts/aos-do-ref.mjs', 'current'],
+  ['src/main.swift', 'current'],
+  ['shared/schemas/aos-target-handle-v1.schema.json', 'current'],
+  ['shared/schemas/daemon-request.schema.json', 'current'],
+  ['shared/schemas/daemon-response.schema.json', 'current'],
+  ['shared/schemas/daemon-event.schema.json', 'current'],
+  ['shared/schemas/display-topology-v1.schema.json', 'current'],
+  ['shared/schemas/aos-ax-observation-v1.schema.json', 'proposed'],
+  ['shared/schemas/aos-ax-action-v1.schema.json', 'proposed'],
+  ['shared/schemas/aos-ax-notification-v1.schema.json', 'proposed'],
+  ['manifests/commands/source/aos/03-see-01-capture.json', 'current'],
+  ['manifests/commands/source/external/11-see.json', 'current'],
+  ['manifests/commands/source/aos/16-graph.json', 'current'],
+  ['manifests/commands/source/external/36-graph.json', 'current'],
+  ['manifests/commands/source/aos/07-do-03-controls.json', 'current'],
+  ['manifests/commands/source/external/07-do-03-controls.json', 'current'],
+  ['manifests/commands/source/aos/43-ax-complete.json', 'proposed'],
+  ['manifests/commands/source/external/51-ax-complete.json', 'proposed'],
+  ['manifests/commands/aos-commands.json', 'generated'],
+  ['manifests/commands/aos-external-commands.json', 'generated'],
+  ['docs/api/aos.md', 'current'],
+  ['docs/api/aos-capabilities.md', 'current'],
+];
 
 const expectedCapabilityIds = [
   "ax-element-observation",
@@ -56,11 +103,11 @@ const expectedMilestoneByCapability = {
   "ax-element-observation": "M4",
   "ax-element-actions": "M4",
   "axobserver-per-pid-notifications": "M4",
-  "app-lifecycle-control": "M4",
-  "window-menu-lifecycle-control": "M4",
+  "app-lifecycle-control": "M6",
+  "window-menu-lifecycle-control": "M6",
   "display-topology-observation": "M4",
   "focus-window-display-events": "M5",
-  "coregraphics-input-posting": "M4",
+  "coregraphics-input-posting": "M6",
   "global-input-event-observation": "M5",
   "desktop-pixel-still-capture": "M6",
   "screencapturekit-screen-video": "M3",
@@ -3895,21 +3942,21 @@ const expectedMilestoneShape = [
       "M3"
     ],
     "deliverable_ids": [
-      "full_ax_roots",
-      "depth_breadth_paging",
-      "raw_ax_attributes",
-      "ax_actions",
-      "ax_filters",
-      "ax_notifications",
-      "ax_display_sck_pixel_transforms"
+      "authority_contract",
+      "observation_engine",
+      "public_observation",
+      "coordinate_binding",
+      "ax_subscription_lifecycle",
+      "raw_ax_actions",
+      "integrated_closeout"
     ],
     "gate_ids": [
-      "complete_ax_surface",
-      "frontier_and_completeness_truth",
-      "target_state_staleness",
-      "transform_identity"
+      "authority_contract_frozen",
+      "immutable_bounded_ax_observation",
+      "coordinate_identity_bound",
+      "subscription_action_integrated_closeout"
     ],
-    "path_count": 8,
+    "path_count": 43,
     "proof_count": 2
   },
   {
@@ -8706,6 +8753,43 @@ test('M1 through M10 normalized subsets, gates, dependencies, and command atomic
   assert.equal(milestones.flatMap(({ exit_gates: gates }) => gates).length, 58);
   assert.deepEqual(milestones[6].proof_paths.map(({ case_id: id }) => id), [null, null, 'playwright', 'opencli', 'ffmpeg']);
   assert.deepEqual(milestones[7].proof_paths.map(({ case_id: id }) => id), [null, null, 'playwright', 'opencli', 'ffmpeg']);
+});
+
+test('M4 authority stays AX-only, production-owned, non-circular, and behaviorally provable', async () => {
+  const ledger = await json(ledgerRelativePath);
+  const m4 = ledger.program_milestones.find(({ id }) => id === 'M4');
+  assert.ok(m4);
+  assert.deepEqual(ledger.authority.target_adr_amendments, [
+    'docs/adr/0044-operation-owner-roots-host-control-and-resource-claims.md',
+    'docs/adr/0045-complete-ax-observation-notification-and-coordinate-contract.md',
+  ]);
+  assert.deepEqual(m4.path_refs.map(({ path: ownerPath, kind }) => [ownerPath, kind]), expectedM4PathRefs);
+  assert.ok(m4.path_refs.every(({ path: ownerPath }) => !ownerPath.endsWith('/')));
+  assert.deepEqual(m4.proof_paths.map(({ path: proofPath, kind, execution_class: executionClass }) => (
+    [proofPath, kind, executionClass]
+  )), [
+    ['tests/m4-ax-contract-foundation.test.mjs', 'current', 'static'],
+    ['tests/ax-complete-surface.test.mjs', 'proposed', 'fake'],
+  ]);
+  assert.ok(m4.exit_gates.every(({ proof_ref_ids: proofRefs }) => proofRefs.length > 0));
+  assert.ok(m4.exit_gates.filter(({ id }) => id !== 'authority_contract_frozen')
+    .every(({ proof_ref_ids: proofRefs }) => proofRefs.includes('M4.proof.tests_ax_complete_surface_test_mjs')));
+  assert.deepEqual(
+    m4.exit_gates.find(({ id }) => id === 'coordinate_identity_bound').prerequisite_gate_refs,
+    ['M3.geometry_reobserved_and_bound'],
+  );
+  assert.match(
+    m4.exit_gates.find(({ id }) => id === 'coordinate_identity_bound').criterion,
+    /no fictional SCK generation or platform identity/u,
+  );
+  const targetMilestones = new Map(ledger.capabilities.map(({ id, target }) => [id, target.milestone]));
+  assert.equal(targetMilestones.get('display-topology-observation'), 'M4');
+  for (const id of ['app-lifecycle-control', 'window-menu-lifecycle-control', 'coregraphics-input-posting']) {
+    assert.equal(targetMilestones.get(id), 'M6', id);
+  }
+  assert.match(m4.later_dependencies.join('\n'), /M5 may project.+does not own the AXObserver resource/isu);
+  assert.match(m4.later_dependencies.join('\n'), /M6 owns maintained TypeScript\/Python SDK parity/iu);
+  assert.match(m4.later_dependencies.join('\n'), /M10 owns live native, TCC, packaging, and release acceptance/iu);
 });
 
 test('flagship exact transition emissions cover failures, cleanup, and atomic follow rebind', async () => {

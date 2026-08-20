@@ -359,8 +359,11 @@ burn-down entry only when its exit gate is met.
    public cancel/kill linearized by an adapter lifecycle owner held from before
    first durable `.prepared` publication through pending runtime insertion,
    concrete runtime installation/start handoff, and later activation;
-   M4 completes AX and input surfaces; M5 unifies privileged streams; M6
-   publishes canonical protocols and maintained SDKs; M7 exposes managed
+   M4 completes native AX CLI/IPC observation, raw actions, per-PID observer
+   lifecycle, and AX/display coordinate binding; general app lifecycle,
+   window/menu lifecycle, CoreGraphics input posting, and maintained SDKs are
+   M6, while M5 may project the stable AX event family without owning its
+   observer resource; M6 publishes canonical protocols and maintained SDKs; M7 exposes managed
    external tools; M8 converges installable skills; M9 composes Sigil flagship
    workflows; and M10 runs final acceptance.
 6. Burn down fixed-grammar and consent-gate claims only as their exact owners
