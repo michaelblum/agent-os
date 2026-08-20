@@ -96,6 +96,7 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
     var rootError: AOSAXPlatformError?
     var rollbackAttribute = false
     var frontierStress = false
+    var oversizedFacts = false
     var advanceAfterAttribute: [String: UInt64] = [:]
     var onRelease: (@Sendable () -> Void)?
     var forbiddenAtOrAfter: UInt64?
@@ -160,6 +161,9 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
 
     func facts(for handle: Int, deadlineNanoseconds: UInt64) -> AOSAXPlatformResult<AOSAXElementFacts> {
         called()
+        if oversizedFacts {
+            return .value(.init(role: String(repeating: "x", count: 513)))
+        }
         let role: String
         switch handle {
         case 1: role = "AXSystemWide"
@@ -359,6 +363,8 @@ final class Harness: @unchecked Sendable {
         maxBorrows: Int = 64,
         clockStart: UInt64 = 1_000,
         limitVisited: Int = 64,
+        limitEmitted: Int? = nil,
+        limitPageSize: Int = 64,
         limitArrayItems: Int = 64,
         invalidTokenIdentities: Bool = false,
         tokenIdentity: AOSAXPageTokenIdentity? = nil
@@ -381,12 +387,12 @@ final class Harness: @unchecked Sendable {
         let limits = try! AOSAXObservationLimits(
             maxDepth: 8,
             maxVisited: min(limitVisited, maxRefs),
-            maxEmitted: min(limitVisited, maxRefs),
+            maxEmitted: min(limitEmitted ?? limitVisited, min(limitVisited, maxRefs)),
             maxDeadlineNanoseconds: 1_000,
             maxArrayDepth: 8,
             maxArrayItems: limitArrayItems,
             maxValueCost: min(100_000, maxValueCost),
-            maxPageSize: min(64, maxRefs),
+            maxPageSize: min(limitPageSize, maxRefs),
             maxFilters: 64,
             maxCompositeApplications: 64
         )
@@ -640,6 +646,18 @@ func run() {
     precondition(mismatch.retention.retainedRefCount == 0)
     emit(mismatch)
 
+    let lateFinalHarness = Harness()
+    lateFinalHarness.generations.advanceAfterFinal = [100: 1_000]
+    let lateFinal = try! lateFinalHarness.engine.observe(request(.application(gen100), pageSize: 8))
+    precondition(lateFinal.outcome == .truncated)
+    precondition(lateFinal.stopCondition.kind == .deadline)
+    precondition(lateFinal.stopCondition.error?.code == "AX_DEADLINE_EXCEEDED")
+    precondition(lateFinal.nodes.isEmpty && lateFinal.nextPageToken == nil)
+    precondition(lateFinal.retention.retainedRefCount == 0)
+    precondition(lateFinal.accounting.retainedValueCost == 0)
+    precondition(lateFinalHarness.store.retainedCounts().refs == 0)
+    emit(lateFinal)
+
     let settlementHarness = Harness()
     settlementHarness.generations.changeAfterFirst = [100]
     settlementHarness.generations.unavailableAfterFirst = [200]
@@ -651,9 +669,9 @@ func run() {
     precondition(settlement.nodes.isEmpty && settlement.accounting.retainedValueCost == 0)
     precondition(settlement.retention.retainedRefCount == 0)
     precondition(settlement.constituents.compactMap { $0.error?.code } == [
-        "AX_PROCESS_GENERATION_MISMATCH", "AX_FINAL_UNAVAILABLE_200", "AX_DEADLINE_EXCEEDED",
+        "AX_PROCESS_GENERATION_MISMATCH", "AX_DEADLINE_EXCEEDED", "AX_DEADLINE_EXCEEDED",
     ])
-    precondition(settlement.frontier.map(\.reason) == [.generationMismatch, .platformUnavailable, .deadline])
+    precondition(settlement.frontier.map(\.reason) == [.generationMismatch, .deadline, .deadline])
     precondition(settlement.frontier.compactMap(\.constituentID) == [
         "application-0-pid-100", "application-1-pid-200", "application-2-pid-300",
     ])
@@ -750,6 +768,64 @@ func run() {
     precondition(hiddenNode.supportedActionNames == nil && hiddenNode.relationshipNames == nil)
     emit(hiddenFilterFacts)
 
+    let hiddenValueHarness = Harness(limitVisited: 1)
+    let hiddenElementValue = try! hiddenValueHarness.engine.observe(request(
+        .systemWide,
+        bounds: bounds(visited: 1),
+        filters: [.init(rawAttributeOutcomes: [.init(name: "Element", outcome: .value)])],
+        projection: factsOnly,
+        pageSize: 1
+    ))
+    precondition(hiddenElementValue.nodes.count == 1)
+    precondition(hiddenElementValue.nodes[0].attributes == nil)
+    precondition(hiddenElementValue.accounting.retainedValueCost == 0)
+    precondition(hiddenElementValue.retention.retainedRefCount == 1)
+    precondition(hiddenValueHarness.provider.retainCount() - hiddenValueHarness.provider.releaseCount() == 1)
+    emit(hiddenElementValue)
+
+    let unmatchedValueHarness = Harness(limitVisited: 1)
+    let unmatchedElementValue = try! unmatchedValueHarness.engine.observe(request(
+        .systemWide,
+        bounds: bounds(visited: 1),
+        filters: [.init(
+            role: "AXMissing",
+            rawAttributeOutcomes: [.init(name: "Element", outcome: .value)]
+        )],
+        pageSize: 1
+    ))
+    precondition(unmatchedElementValue.nodes.isEmpty && unmatchedElementValue.accounting.matched == 0)
+    precondition(unmatchedElementValue.accounting.retainedValueCost == 0)
+    precondition(unmatchedElementValue.retention.retainedRefCount == 1)
+    precondition(unmatchedValueHarness.provider.retainCount() - unmatchedValueHarness.provider.releaseCount() == 1)
+    emit(unmatchedElementValue)
+
+    do {
+        _ = try AOSAXObservationRequest(
+            root: .systemWide,
+            bounds: bounds(visited: 1),
+            filters: [.init(role: String(repeating: "x", count: 513))],
+            pageSize: 1
+        )
+        preconditionFailure("oversized filter string must be rejected")
+    } catch AOSAXObservationError.invalidRoot {
+    } catch {
+        preconditionFailure("unexpected oversized filter error: \(error)")
+    }
+
+    let oversizedFactsHarness = Harness(limitVisited: 1)
+    oversizedFactsHarness.provider.oversizedFacts = true
+    let oversizedFacts = try! oversizedFactsHarness.engine.observe(request(
+        .systemWide,
+        bounds: bounds(visited: 1),
+        projection: factsOnly,
+        pageSize: 1
+    ))
+    precondition(oversizedFacts.outcome == .truncated && oversizedFacts.nodes.isEmpty)
+    precondition(oversizedFacts.stopCondition.kind == .platformError)
+    precondition(oversizedFacts.stopCondition.error?.code == "AX_PROVIDER_RESULT_BOUND_EXCEEDED")
+    precondition(oversizedFacts.nextPageToken == nil && oversizedFacts.accounting.retainedValueCost == 0)
+    emit(oversizedFacts)
+
     let errorHarness = Harness()
     errorHarness.provider.attributeUnavailable = true
     errorHarness.provider.parameterizedUnsupported = true
@@ -786,6 +862,21 @@ func run() {
             $0.reason == .emittedBound
     }))
     emit(emitBound)
+    let independentPageHarness = Harness(limitVisited: 4, limitEmitted: 1, limitPageSize: 2)
+    let independentPageRequest = request(
+        .systemWide,
+        bounds: bounds(visited: 4, emitted: 1),
+        pageSize: 2
+    )
+    emit(independentPageRequest)
+    let independentPage = try! independentPageHarness.engine.observe(independentPageRequest)
+    precondition(independentPage.effectiveLimits.observationLimits.maxEmitted == 1)
+    precondition(independentPage.effectiveLimits.observationLimits.maxPageSize == 2)
+    precondition(independentPage.outcome == .truncated && independentPage.stopCondition.kind == .emittedBound)
+    precondition(independentPage.accounting.visited == 2 && independentPage.accounting.matched == 2)
+    precondition(independentPage.accounting.emitted == 1 && independentPage.nodes.count == 1)
+    precondition(independentPage.retention.pageSize == 2 && independentPage.nextPageToken == nil)
+    emit(independentPage)
     let pageBound = try! primary.engine.observe(request(.systemWide, pageSize: 1))
     precondition(pageBound.outcome == .complete)
     precondition(pageBound.accounting.emitted == 4)
@@ -888,6 +979,68 @@ func run() {
     precondition(rejectedFrontier.frontier.count == manualAdmission.effectiveLimits.observationLimits.maxFrontier)
     precondition(frontierBudgetHarness.store.retainedCounts().snapshots == 1)
     emit(rejectedFrontier)
+
+    let expiredPublishHarness = Harness(ttl: 1)
+    expiredPublishHarness.enableReleaseReentry()
+    let expiredRequest = request(.systemWide, pageSize: 1)
+    let expiredAdmission = try! expiredPublishHarness.store.beginObservation(expiredRequest)
+    let expiredState = try! expiredPublishHarness.store.allocateStateID { "expired-before-publish" }
+    expiredPublishHarness.provider.retain(handle: 42)
+    var expiredHandle: AOSAXRetainedHandle<Int>? = .init(
+        value: 42,
+        release: { expiredPublishHarness.provider.release(handle: $0) }
+    )
+    var expiredSnapshot: AOSAXStoredSnapshot<Int>? = .init(
+        stateID: expiredState,
+        requestDigest: String(repeating: "c", count: 64),
+        projectionDigest: String(repeating: "d", count: 64),
+        root: try! .init(kind: .systemWide),
+        bounds: expiredRequest.bounds,
+        effectiveLimits: expiredAdmission.effectiveLimits,
+        filters: [],
+        pageSize: 1,
+        createdAt: expiredAdmission.createdAt,
+        expiresAt: expiredAdmission.expiresAt,
+        createdMonotonicNanoseconds: expiredAdmission.startMonotonicNanoseconds,
+        expiresMonotonicNanoseconds: expiredAdmission.expiresMonotonicNanoseconds,
+        outcome: .complete,
+        stopCondition: .init(kind: .complete, detail: "injected complete snapshot"),
+        accounting: .init(
+            visited: 2,
+            matched: 2,
+            emitted: 2,
+            cycleEdges: 0,
+            duplicateEdges: 0,
+            elapsedNanoseconds: 1,
+            retainedValueCost: 7
+        ),
+        frontier: [],
+        constituents: [],
+        nodes: base.nodes,
+        handlesByRef: ["expired-ref": expiredHandle!],
+        retainedValueCost: 7
+    )
+    expiredPublishHarness.clock.advance(1)
+    let expiredBeforePublish = try! expiredPublishHarness.store.publish(expiredSnapshot!, pageSize: 1)
+    expiredSnapshot = nil
+    expiredHandle = nil
+    precondition(expiredBeforePublish.outcome == .unavailable)
+    precondition(expiredBeforePublish.stopCondition.kind == .snapshotExpired)
+    precondition(expiredBeforePublish.nodes.isEmpty && expiredBeforePublish.nextPageToken == nil)
+    precondition(expiredBeforePublish.accounting.emitted == 0)
+    precondition(expiredBeforePublish.accounting.retainedValueCost == 0)
+    precondition(expiredBeforePublish.retention.retainedRefCount == 0)
+    precondition(expiredBeforePublish.retention.retainedValueCost == 0)
+    let expiredCounts = expiredPublishHarness.store.retainedCounts()
+    precondition(expiredCounts.snapshots == 0 && expiredCounts.refs == 0)
+    precondition(expiredCounts.valueCost == 0 && expiredCounts.tokens == 0)
+    precondition(expiredPublishHarness.provider.retainCount() == 1)
+    precondition(expiredPublishHarness.provider.releaseCount() == 1)
+    if case .expired = expiredPublishHarness.store.resolveElement(stateID: expiredState, ref: "expired-ref") {
+    } else {
+        preconditionFailure("expired prepublication snapshot must retain only its expiry tombstone")
+    }
+    emit(expiredBeforePublish)
 
     let rollbackHarness = Harness()
     rollbackHarness.provider.rollbackAttribute = true
@@ -1375,6 +1528,8 @@ test('M4B source keeps the store injectable and does not claim public routing', 
   assert.equal(contract.$defs.bounds.properties.max_visited.maximum, 65_536);
   assert.equal(contract.$defs.observation_request.properties.page_size.maximum, 4_096);
   assert.equal(contract.$defs.observation_response.properties.nodes.maxItems, 4_096);
+  assert.equal(contract.$defs.bounded_string.maxLength, 512);
+  assert.ok(contract.$defs.stop_condition.properties.kind.enum.includes('snapshot_expired'));
   const generation = { pid: 100, start_time_seconds: 10, start_time_microseconds: 1 };
   const validRootIdentities = [
     { kind: 'system_wide' },
@@ -1400,4 +1555,13 @@ test('M4B source keeps the store injectable and does not claim public routing', 
   assert.deepEqual(validateDefinitionCases('root_identity', validRootIdentities), Array(5).fill(true));
   assert.deepEqual(validateDefinitionCases('root_identity', missingRootFields), Array(5).fill(false));
   assert.deepEqual(validateDefinitionCases('root_identity', crossKindRootFields), Array(5).fill(false));
+  assert.deepEqual(validateDefinitionCases('filter', [
+    { role: 'x'.repeat(512), relationship_membership: '' },
+    { role: 'x'.repeat(513) },
+    { relationship_membership: 'x'.repeat(513) },
+  ]), [true, false, false]);
+  assert.deepEqual(validateDefinitionCases('element_facts', [
+    { title: 'x'.repeat(512) },
+    { title: 'x'.repeat(513) },
+  ]), [true, false]);
 });

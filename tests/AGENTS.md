@@ -421,13 +421,16 @@ tests.
   edge settlement, exact per-constituent display-composite outcomes and deadline
   results, post-provider deadline retention rejection, kind-exact root identity,
   schema-valid omitted filter defaults, closed raw values and typed outcomes,
-  Unicode code-point admission, double generation sampling,
+  Unicode code-point admission, bounded filter/provider-fact strings, double
+  generation sampling with post-return deadline enforcement,
   immutable no-reobserve paging, authenticated opaque-token tombstone lifecycle,
   externally owned store reuse, synchronous release reentry, exactly-once
-  outside-lock retained-handle cleanup, bounded borrow settlement across expiry
-  and eviction, hidden filter-fact collection, and production JSON against the internal AX schema. It must
-  clean its disposable roots and must not execute `./aos`, daemon, native UI,
-  browser, TCC, or public routing.
+  outside-lock retained-handle cleanup including expired-before-publication
+  rejection, bounded borrow settlement across expiry and eviction, independent
+  page/emission bounds, transactional emitted-node value retention, hidden
+  filter-fact collection, and production JSON against the internal AX schema.
+  It must clean its disposable roots and must not execute `./aos`, daemon,
+  native UI, browser, TCC, or public routing.
 - PNG file comparison proof must compile only its focused Swift source and
   disposable harness with explicit `-Onone`, generate fixed fixtures under a
   private temporary root, reject special files under a bounded watchdog, and

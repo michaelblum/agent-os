@@ -47,8 +47,7 @@ public struct AOSAXObservationLimits: Codable, Equatable, Sendable {
               (1...Self.schemaMaxPageSize).contains(maxPageSize),
               (1...Self.schemaMaxFilters).contains(maxFilters),
               (1...Self.schemaMaxCompositeApplications).contains(maxCompositeApplications),
-              maxEmitted <= maxVisited,
-              maxPageSize <= maxEmitted else {
+              maxEmitted <= maxVisited else {
             throw AOSAXObservationError.invalidBounds
         }
         self.maxDepth = maxDepth
@@ -509,7 +508,6 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
               request.bounds.maxArrayItems <= limits.maxArrayItems,
               request.bounds.maxValueCost <= limits.maxValueCost,
               request.pageSize <= limits.maxPageSize,
-              request.pageSize <= request.bounds.maxEmitted,
               request.filters.count <= limits.maxFilters else {
             throw AOSAXObservationError.invalidBounds
         }
@@ -612,7 +610,6 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
             expireLocked(now: now, retirement: &retirement)
             guard pageSize > 0,
                   pageSize <= configuration.observationLimits.maxPageSize,
-                  pageSize <= snapshot.bounds.maxEmitted,
                   snapshot.nodes.count <= snapshot.bounds.maxEmitted,
                   snapshot.effectiveLimits == configuration else {
                 throw AOSAXObservationError.invalidBounds
@@ -620,6 +617,11 @@ public final class AOSAXSnapshotStore<Handle: Hashable & Sendable>: @unchecked S
             guard reservedStateIDs.remove(snapshot.stateID) != nil,
                   snapshots[snapshot.stateID] == nil else {
                 throw AOSAXObservationError.stateCollision
+            }
+            if now >= snapshot.expiresMonotonicNanoseconds {
+                addSnapshotTombstoneLocked(snapshot.stateID, reason: .expired)
+                retirement.append(SnapshotEntry(snapshot: snapshot, sequence: sequence))
+                return AOSAXObservationResponse.expiredBeforePublication(from: snapshot)
             }
             if snapshot.frontier.count > snapshot.effectiveLimits.observationLimits.maxFrontier {
                 addSnapshotTombstoneLocked(snapshot.stateID, reason: .retentionLimit)

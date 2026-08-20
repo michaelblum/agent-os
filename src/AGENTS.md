@@ -68,9 +68,14 @@ needs, but public command policy and product UI policy belong above it:
   that store is the sole timing, retention, capacity, and observation-limit
   authority. Request-local stores and public daemon/CLI routing remain out of this slice.
   Generation is sampled before root resolution and again before snapshot
-  commit. Page tokens are opaque store lookup identities, never decoded
-  authority; lifecycle tombstones retain only bounded authenticator identity
-  and disclose lifecycle truth only after full presented-token authentication.
+  commit, and every sample is deadline-checked again after the observer returns.
+  Page size is independent of the emitted-node bound. Filter and provider-fact
+  strings are bounded, value refs and cost commit only for retained emitted
+  nodes, and snapshots that expire before publication terminalize without
+  retained authority. Page tokens are opaque store lookup identities, never
+  decoded authority; lifecycle tombstones retain only bounded authenticator
+  identity and disclose lifecycle truth only after full presented-token
+  authentication.
   Observation Ref lookup uses bounded store-owned borrow leases; expiry,
   eviction, rollback, and teardown revoke ownership under the store lock but
   perform final exactly-once provider release only after unlocking. Provider

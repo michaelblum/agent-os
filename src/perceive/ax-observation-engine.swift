@@ -562,6 +562,10 @@ enum AOSAXContractAdmission {
         unicodeScalarCount(value, minimum: 1, maximum: 512)
     }
 
+    static func boundedString(_ value: String) -> Bool {
+        unicodeScalarCount(value, minimum: 0, maximum: 512)
+    }
+
     static func generation(_ value: AOSAXProcessGeneration) -> Bool {
         value.pid > 0 && value.startTimeMicroseconds <= 999_999
     }
@@ -571,6 +575,11 @@ enum AOSAXContractAdmission {
     }
 
     static func facts(_ value: AOSAXElementFacts) -> Bool {
+        guard [value.role, value.subrole, value.identifier, value.title]
+            .compactMap({ $0 })
+            .allSatisfy({ boundedString($0) }) else {
+            return false
+        }
         guard let frame = value.frame else { return true }
         return frame.x.isFinite && frame.y.isFinite && frame.width.isFinite && frame.height.isFinite
     }
@@ -631,9 +640,14 @@ enum AOSAXContractAdmission {
               (1...AOSAXObservationLimits.schemaMaxArrayDepth).contains(bounds.maxArrayDepth),
               (1...AOSAXObservationLimits.schemaMaxArrayItems).contains(bounds.maxArrayItems),
               (1...AOSAXObservationLimits.schemaMaxValueCost).contains(bounds.maxValueCost),
-              (1...AOSAXObservationLimits.schemaMaxPageSize).contains(pageSize), pageSize <= bounds.maxEmitted,
+              (1...AOSAXObservationLimits.schemaMaxPageSize).contains(pageSize),
               filters.count <= AOSAXObservationLimits.schemaMaxFilters,
-              filters.allSatisfy({ $0.rawAttributeOutcomes.allSatisfy { identifier($0.name) } }),
+              filters.allSatisfy({ filter in
+                  [filter.role, filter.subrole, filter.identifier, filter.title, filter.relationshipMembership]
+                      .compactMap({ $0 })
+                      .allSatisfy({ boundedString($0) }) &&
+                      filter.rawAttributeOutcomes.allSatisfy { identifier($0.name) }
+              }),
               outcomeCount <= AOSAXObservationLimits.schemaMaxArrayItems else {
             return false
         }
@@ -668,6 +682,7 @@ public enum AOSAXStopKind: String, Codable, Sendable {
     case platformUnavailable = "platform_unavailable"
     case platformError = "platform_error"
     case generationMismatch = "generation_mismatch"
+    case snapshotExpired = "snapshot_expired"
     case sourceSnapshotExpired = "source_snapshot_expired"
     case sourceSnapshotEvicted = "source_snapshot_evicted"
     case sourceRefMissing = "source_ref_missing"
@@ -946,7 +961,38 @@ public struct AOSAXObservationResponse: Codable, Equatable, Sendable {
     public static func retentionUnavailable<Handle: Hashable & Sendable>(
         from snapshot: AOSAXStoredSnapshot<Handle>
     ) -> AOSAXObservationResponse {
-        AOSAXObservationResponse(
+        unavailableBeforePublication(
+            from: snapshot,
+            stopCondition: .init(kind: .retentionLimit, detail: "snapshot exceeds finite retention capacity"),
+            clearRetainedOutput: false
+        )
+    }
+
+    public static func expiredBeforePublication<Handle: Hashable & Sendable>(
+        from snapshot: AOSAXStoredSnapshot<Handle>
+    ) -> AOSAXObservationResponse {
+        unavailableBeforePublication(
+            from: snapshot,
+            stopCondition: .init(kind: .snapshotExpired, detail: "snapshot expired before publication"),
+            clearRetainedOutput: true
+        )
+    }
+
+    private static func unavailableBeforePublication<Handle: Hashable & Sendable>(
+        from snapshot: AOSAXStoredSnapshot<Handle>,
+        stopCondition: AOSAXStopCondition,
+        clearRetainedOutput: Bool
+    ) -> AOSAXObservationResponse {
+        let clearedAccounting = AOSAXTraversalAccounting(
+            visited: snapshot.accounting.visited,
+            matched: snapshot.accounting.matched,
+            emitted: 0,
+            cycleEdges: snapshot.accounting.cycleEdges,
+            duplicateEdges: snapshot.accounting.duplicateEdges,
+            elapsedNanoseconds: snapshot.accounting.elapsedNanoseconds,
+            retainedValueCost: 0
+        )
+        return AOSAXObservationResponse(
             schemaVersion: "aos.ax-observation.v1",
             kind: "observation",
             stateID: snapshot.stateID,
@@ -959,8 +1005,8 @@ public struct AOSAXObservationResponse: Codable, Equatable, Sendable {
             createdAt: snapshot.createdAt,
             expiresAt: snapshot.expiresAt,
             outcome: .unavailable,
-            stopCondition: .init(kind: .retentionLimit, detail: "snapshot exceeds finite retention capacity"),
-            accounting: snapshot.accounting,
+            stopCondition: stopCondition,
+            accounting: clearRetainedOutput ? clearedAccounting : snapshot.accounting,
             frontier: snapshot.frontier,
             constituents: snapshot.constituents,
             nodes: [],
@@ -1222,7 +1268,7 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             case .platformUnavailable: return .platformUnavailable
             case .platformError: return .platformError
             case .generationMismatch: return .generationMismatch
-            case .retentionLimit, .sourceSnapshotExpired, .sourceSnapshotEvicted, .sourceRefMissing, .complete:
+            case .retentionLimit, .snapshotExpired, .sourceSnapshotExpired, .sourceSnapshotEvicted, .sourceRefMissing, .complete:
                 return .retentionLimit
             }
         }
@@ -1356,7 +1402,9 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
         func generationCheck(_ generation: AOSAXProcessGeneration) throws -> AOSAXGenerationCheck {
             guard AOSAXContractAdmission.generation(generation) else { throw AOSAXObservationError.invalidRoot }
             guard !deadlineReached() else { return .deadline }
-            switch generationObserver.observeGeneration(pid: generation.pid) {
+            let observation = generationObserver.observeGeneration(pid: generation.pid)
+            guard !deadlineReached() else { return .deadline }
+            switch observation {
             case .value(let actual):
                 guard AOSAXContractAdmission.generation(actual) else { throw AOSAXObservationError.invalidRoot }
                 guard actual == generation else {
@@ -1794,7 +1842,18 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             }
             switch factsResult {
             case .value(let value):
-                guard AOSAXContractAdmission.facts(value) else { throw AOSAXObservationError.invalidRoot }
+                guard AOSAXContractAdmission.facts(value) else {
+                    let error = AOSAXPlatformError(
+                        kind: .platformError,
+                        code: "AX_PROVIDER_RESULT_BOUND_EXCEEDED",
+                        detail: "provider element facts exceeded the admitted string or geometry bound"
+                    )
+                    recordProviderStop(error)
+                    _ = appendFrontier(.init(parentRef: entry.parentRef, relationshipName: entry.incomingRelationship, childPosition: entry.childPosition, depth: entry.depth, ref: entry.ref, constituentID: entry.constituentID, reason: .platformError))
+                    appendRemainingQueue(reason: .platformError)
+                    traversalStopped = true
+                    continue
+                }
                 facts = value
             case .unsupported(let error):
                 let exact = try classified(error, as: .unsupported)
@@ -1844,17 +1903,29 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             var providerDeadlineHit = false
             var transactionRefs: [Provider.Handle: String] = [:]
             var transactionBoxes = Set<Provider.Handle>()
-            func rollbackValueRefs() {
-                for (handle, ref) in transactionRefs where refsByHandle[handle] == ref {
+            var nodeValueRefs: [Provider.Handle: String] = [:]
+            var nodeValueBoxes = Set<Provider.Handle>()
+            var nodeValueCost = 0
+            var nodeValuesCommitted = false
+            func rollbackValueRefs(
+                _ refs: inout [Provider.Handle: String],
+                _ boxes: inout Set<Provider.Handle>
+            ) {
+                for (handle, ref) in refs where refsByHandle[handle] == ref && !discoveredHandles.contains(handle) {
                     refsByHandle.removeValue(forKey: handle)
                     usedRefIDs.remove(ref)
                     refConstituent.removeValue(forKey: ref)
                 }
-                for handle in transactionBoxes where refsByHandle[handle] == nil && !discoveredHandles.contains(handle) {
+                for handle in boxes where refsByHandle[handle] == nil && !discoveredHandles.contains(handle) {
                     boxesByHandle.removeValue(forKey: handle)?.releaseOnce()
                 }
-                transactionRefs.removeAll(keepingCapacity: true)
-                transactionBoxes.removeAll(keepingCapacity: true)
+                refs.removeAll(keepingCapacity: true)
+                boxes.removeAll(keepingCapacity: true)
+            }
+            defer {
+                if !nodeValuesCommitted {
+                    rollbackValueRefs(&nodeValueRefs, &nodeValueBoxes)
+                }
             }
             let codec = AOSAXValueCodec<Provider.Handle>(
                 bounds: try AOSAXValueCodecBounds(
@@ -1893,26 +1964,33 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                 case .platformError(let error):
                     internalAttributes.append(.init(name: name, outcome: .platformError, error: try classified(error, as: .platformError)))
                 case .value(let platformValue):
+                    guard request.projection.attributes else {
+                        internalAttributes.append(.init(name: name, outcome: .value))
+                        continue
+                    }
                     transactionRefs.removeAll(keepingCapacity: true)
                     transactionBoxes.removeAll(keepingCapacity: true)
                     let encoded: AOSAXValueEncoding
                     do {
-                        encoded = try codec.encode(platformValue, consumed: valueCost)
+                        encoded = try codec.encode(platformValue, consumed: valueCost + nodeValueCost)
                     } catch AOSAXHandleAdmissionError.deadline {
-                        rollbackValueRefs()
+                        rollbackValueRefs(&transactionRefs, &transactionBoxes)
                         internalAttributes.append(.init(name: name, outcome: .deadlineExceeded, detail: "value retention reached monotonic deadline"))
                         providerDeadlineHit = true
                         break attributeLoop
                     } catch {
-                        rollbackValueRefs()
+                        rollbackValueRefs(&transactionRefs, &transactionBoxes)
                         throw error
                     }
                     if let value = encoded.value {
-                        valueCost += encoded.cost
-                        valueCostByConstituent[entry.constituentID, default: 0] += encoded.cost
+                        nodeValueCost += encoded.cost
+                        for (handle, ref) in transactionRefs { nodeValueRefs[handle] = ref }
+                        nodeValueBoxes.formUnion(transactionBoxes)
+                        transactionRefs.removeAll(keepingCapacity: true)
+                        transactionBoxes.removeAll(keepingCapacity: true)
                         internalAttributes.append(.init(name: name, outcome: .value, value: value))
                     } else {
-                        rollbackValueRefs()
+                        rollbackValueRefs(&transactionRefs, &transactionBoxes)
                         let outcome: AOSAXAttributeOutcomeKind
                         let detail: String
                         switch encoded.limit {
@@ -2217,6 +2295,11 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                     appendRemainingQueue(reason: .emittedBound)
                     traversalStopped = true
                 } else {
+                    if request.projection.attributes {
+                        valueCost += nodeValueCost
+                        valueCostByConstituent[entry.constituentID, default: 0] += nodeValueCost
+                        nodeValuesCommitted = true
+                    }
                     emitted += 1
                     nodes.append(.init(
                         ref: entry.ref,
