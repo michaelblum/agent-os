@@ -2330,8 +2330,9 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                         relationshipRead = .init(kind: .platformError, error: error)
                         recordProviderStop(error)
                         _ = appendFrontier(.init(parentRef: entry.ref, relationshipName: nil, childPosition: nil, depth: entry.depth + 1, ref: nil, constituentID: entry.constituentID, reason: .platformError))
+                        appendRemainingQueue(reason: .platformError)
                         traversalStopped = true
-                        continue
+                        break
                     }
                     remainingRelationshipItems -= combinedCost.partialValue
                     relationships = batch.relationships.sorted { AOSAXValueCodec<Provider.Handle>.unicodeScalarLess($0.name, $1.name) }

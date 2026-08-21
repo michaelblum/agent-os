@@ -159,6 +159,7 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
     var duplicateAttributeNames = false
     var duplicateRelationshipNames = false
     var duplicateRelationshipHandle: Int?
+    var overBudgetRelationshipHandle: Int?
     var scalarDistinctRelationshipNames = false
     var titleOnlyAttributeNames = false
     var advanceAfterAttribute: [String: UInt64] = [:]
@@ -267,6 +268,11 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
             return .value(.init(relationships: [
                 .init(name: "Children", elements: [3]),
                 .init(name: "Children", elements: [4]),
+            ]))
+        }
+        if overBudgetRelationshipHandle == handle {
+            return .value(.init(relationships: [
+                .init(name: "Children", elements: Array(repeating: 99, count: maximumResultItems)),
             ]))
         }
         if queuedValueRefAttribute, handle == 3 {
@@ -974,6 +980,28 @@ func run() {
         return "\(name):\(position)"
     } == ["AChildren:1", "ZChildren:0", "ZChildren:1"])
     precondition(queuedDuplicate.retention.retainedRefCount == 2)
+
+    let queuedOverBudgetHarness = Harness(limitVisited: 4)
+    queuedOverBudgetHarness.provider.overBudgetRelationshipHandle = 3
+    let queuedOverBudget = try! queuedOverBudgetHarness.engine.observe(request(
+        .systemWide, bounds: bounds(visited: 4), projection: factsOnly, pageSize: 4
+    ))
+    precondition(queuedOverBudget.outcome == .truncated)
+    precondition(queuedOverBudget.stopCondition.error?.code == "AX_PROVIDER_RESULT_BOUND_EXCEEDED")
+    precondition(queuedOverBudget.accounting.visited == 2)
+    precondition(queuedOverBudget.accounting.matched == 2 && queuedOverBudget.accounting.emitted == 2)
+    precondition(queuedOverBudget.nodes.count == 2)
+    precondition(queuedOverBudget.nodes.last?.facts.identifier == "id-3")
+    precondition(queuedOverBudget.nodes.last?.relationshipRead.error?.code == "AX_PROVIDER_RESULT_BOUND_EXCEEDED")
+    precondition(queuedOverBudget.nodes.last?.referenceEdges.isEmpty == true)
+    precondition(queuedOverBudget.frontier.count == 4)
+    precondition(queuedOverBudget.frontier.allSatisfy { $0.reason == .platformError && $0.ref == nil })
+    precondition(queuedOverBudget.frontier.filter { $0.relationshipName == nil }.count == 1)
+    precondition(queuedOverBudget.frontier.compactMap {
+        guard let name = $0.relationshipName, let position = $0.childPosition else { return nil }
+        return "\(name):\(position)"
+    } == ["AChildren:1", "ZChildren:0", "ZChildren:1"])
+    precondition(queuedOverBudget.retention.retainedRefCount == 2)
 
     let scalarDistinctHarness = Harness(limitVisited: 4)
     scalarDistinctHarness.provider.scalarDistinctRelationshipNames = true
@@ -1697,6 +1725,7 @@ func run() {
     _ = frontierBudgetHarness.store.removeAll()
     _ = duplicateNamesHarness.store.removeAll()
     _ = queuedDuplicateHarness.store.removeAll()
+    _ = queuedOverBudgetHarness.store.removeAll()
     _ = scalarDistinctHarness.store.removeAll()
     _ = cancellationHarness.store.removeAll()
     precondition(primary.provider.retainCount() == primary.provider.releaseCount())
@@ -1706,6 +1735,7 @@ func run() {
     precondition(filterProjectionHarness.provider.retainCount() == filterProjectionHarness.provider.releaseCount())
     precondition(duplicateNamesHarness.provider.retainCount() == duplicateNamesHarness.provider.releaseCount())
     precondition(queuedDuplicateHarness.provider.retainCount() == queuedDuplicateHarness.provider.releaseCount())
+    precondition(queuedOverBudgetHarness.provider.retainCount() == queuedOverBudgetHarness.provider.releaseCount())
     precondition(scalarDistinctHarness.provider.retainCount() == scalarDistinctHarness.provider.releaseCount())
     precondition(cancellationHarness.provider.retainCount() == cancellationHarness.provider.releaseCount())
     for reentrantHarness in [
