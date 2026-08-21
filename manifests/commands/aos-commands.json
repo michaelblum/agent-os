@@ -620,6 +620,7 @@
             }
           },
           "examples" : [
+            "aos see capture --canvas surface-inspector --save --mode som --workspace default",
             "aos see snapshots --workspace default",
             "aos see refs --workspace default",
             "aos see capture main --out /tmp/screen.png",
@@ -927,7 +928,9 @@
             }
           ],
           "examples" : [
-            "aos see capture browser:work --save --mode som --workspace default --name before"
+            "aos see capture browser:work --save --mode som --workspace default --name before",
+            "aos see snapshots --workspace default",
+            "aos see refs --workspace default --query Save"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -15042,7 +15045,7 @@
         },
         {
           "id" : "record-screen-follow-update",
-          "usage" : "aos record screen-follow-update --operation <id:generation> --expected-geometry-generation <generation> --region <x,y,width,height> --binding-* <id:generation> --source-window-id <id> --source-owner-pid <pid> --json",
+          "usage" : "aos record screen-follow-update --operation <id:generation> --expected-geometry-generation <generation> --region <x,y,width,height> --binding-target <id:generation> --binding-observation <id:generation> --binding-state <id:generation> --binding-session <id:generation> --binding-navigation <id:generation> --binding-frame <id:generation> --source-window-id <id> --source-owner-pid <pid> --json",
           "args" : [
             {
               "id" : "screen-follow-update",

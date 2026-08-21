@@ -1,7 +1,7 @@
 {
   "$schema": "../../../shared/schemas/dev-test-proof-registry.schema.json",
   "schema_version": 1,
-  "summary": "Proof-worth ownership for the accepted M4 complete-AX authority, milestone allocation, production-owner map, and deferred behavioral proof boundary.",
+  "summary": "Proof-worth ownership for the accepted M4 complete-AX authority, milestone allocation, current internal observation engine, and later public/native delivery boundaries.",
   "entries": [
     {
       "id": "m4-complete-ax-contract-foundation",
@@ -17,6 +17,22 @@
       "command": "node --test tests/m4-ax-contract-foundation.test.mjs",
       "replaces": [],
       "guard": "Static authority and owner-allocation proof only; it does not execute production AX traversal, actions, observers, coordinate transforms, ./aos, daemon, Swift/native builds, UI, browser, TCC, packaging, or live capability sampling.",
+      "status": "active"
+    },
+    {
+      "id": "m4-ax-observation-engine-production-fake",
+      "path_patterns": [
+        "tests/ax-complete-surface.test.mjs"
+      ],
+      "fixture_patterns": [],
+      "owner": "native-perception",
+      "harness_level": "model_unit",
+      "proof_kind": "complete_ax_observation_engine_contract",
+      "contract": "The internal M4 AX observation engine uses exact system, application, window, current Observation Ref element, and AOS display-composite roots; injected double process-generation sampling; deterministic parent-first traversal with cycle versus duplicate edge truth; closed raw values and typed outcomes; independent traversal, value, page, expiry, and retention bounds; immutable no-reobserve snapshots; stateful opaque lookup tokens; one externally owned serialized store; and exactly-once retained-handle release.",
+      "worth": "This executes the three production Swift owners, validates their production JSON projection against the closed internal schema, and fails on request-local store ownership, generation drift admission, filter pruning, relationship-order drift, copied paging state, token authority decoding, cross-snapshot or consumed-token reuse, retention leaks, or public daemon and CLI preclaims.",
+      "command": "node --test tests/ax-complete-surface.test.mjs",
+      "replaces": [],
+      "guard": "Offline disposable fake platform, generation, clock, and identity seams only; no ./aos, build, daemon, public command route, native UI, browser, TCC, AXObserver, raw AX mutation, coordinate binding, packaging, or live capability sampling.",
       "status": "active"
     }
   ]

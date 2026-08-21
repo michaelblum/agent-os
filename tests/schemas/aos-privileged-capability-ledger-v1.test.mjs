@@ -30,9 +30,9 @@ const expectedM4PathRefs = [
   ['src/act/actions.swift', 'current'],
   ['src/act/targeting.swift', 'current'],
   ['src/act/session.swift', 'current'],
-  ['src/perceive/ax-observation-engine.swift', 'proposed'],
-  ['src/perceive/ax-snapshot-store.swift', 'proposed'],
-  ['src/perceive/ax-value-codec.swift', 'proposed'],
+  ['src/perceive/ax-observation-engine.swift', 'current'],
+  ['src/perceive/ax-snapshot-store.swift', 'current'],
+  ['src/perceive/ax-value-codec.swift', 'current'],
   ['src/perceive/ax-coordinate-binding.swift', 'proposed'],
   ['src/daemon/ax-observer-adapter.swift', 'proposed'],
   ['src/daemon/ax-action-adapter.swift', 'proposed'],
@@ -48,7 +48,7 @@ const expectedM4PathRefs = [
   ['shared/schemas/daemon-response.schema.json', 'current'],
   ['shared/schemas/daemon-event.schema.json', 'current'],
   ['shared/schemas/display-topology-v1.schema.json', 'current'],
-  ['shared/schemas/aos-ax-observation-v1.schema.json', 'proposed'],
+  ['shared/schemas/aos-ax-observation-v1.schema.json', 'current'],
   ['shared/schemas/aos-ax-action-v1.schema.json', 'proposed'],
   ['shared/schemas/aos-ax-notification-v1.schema.json', 'proposed'],
   ['manifests/commands/source/aos/03-see-01-capture.json', 'current'],
@@ -8769,7 +8769,7 @@ test('M4 authority stays AX-only, production-owned, non-circular, and behavioral
     [proofPath, kind, executionClass]
   )), [
     ['tests/m4-ax-contract-foundation.test.mjs', 'current', 'static'],
-    ['tests/ax-complete-surface.test.mjs', 'proposed', 'fake'],
+    ['tests/ax-complete-surface.test.mjs', 'current', 'fake'],
   ]);
   assert.ok(m4.exit_gates.every(({ proof_ref_ids: proofRefs }) => proofRefs.length > 0));
   assert.ok(m4.exit_gates.filter(({ id }) => id !== 'authority_contract_frozen')

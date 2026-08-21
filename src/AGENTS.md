@@ -54,6 +54,33 @@ needs, but public command policy and product UI policy belong above it:
   Native AX capture emits a V1 Locator only with a non-empty role and omits
   empty optional query strings so every emitted handle satisfies the public
   schema without altering the raw AX observation fields;
+- `src/perceive/ax-observation-engine.swift`, `ax-snapshot-store.swift`, and
+  `ax-value-codec.swift` own the internal complete-AX observation primitive:
+  exact system, application, window, current Observation Ref element, and AOS
+  display-composite roots with exact constituent settlement; deterministic
+  bounded traversal with one effective frontier budget covering queued work,
+  provider remainders, and pending repeated edges; closed raw value outcomes;
+  kind-discriminated root identity and schema-aligned filter decoding; JSON
+  Schema code-point admission; and immutable retained paging. Composite
+  truncation applies only to constituents that own unresolved frontier truth.
+  The engine receives one externally
+  owned snapshot store so a daemon may preserve paging across IPC invocations;
+  that store is the sole timing, retention, capacity, and observation-limit
+  authority. Request-local stores and public daemon/CLI routing remain out of this slice.
+  Generation is sampled before root resolution and again before snapshot
+  commit, and every sample is deadline-checked again after the observer returns.
+  Page size is independent of the emitted-node bound. Filter and provider-fact
+  strings are bounded, value refs and cost commit only for retained emitted
+  nodes, and snapshots that expire before publication terminalize without
+  retained authority. Page tokens are opaque store lookup identities, never
+  decoded authority; lifecycle tombstones retain only bounded authenticator
+  identity and disclose lifecycle truth only after full presented-token
+  authentication.
+  Observation Ref lookup uses bounded store-owned borrow leases; expiry,
+  eviction, rollback, and teardown revoke ownership under the store lock but
+  perform final exactly-once provider release only after unlocking. Provider
+  returns are deadline-rechecked, and no provider retain begins at or after the
+  admitted monotonic deadline;
 - DesktopWorld's per-display Metal projection hosts are generation-bound stage
   infrastructure. They are prepared before native-effect admission, stay
   dormant between effects, and retire only with their display segment, stage,
