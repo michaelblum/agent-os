@@ -388,6 +388,7 @@
             }
           },
           "examples": [
+            "aos see capture --canvas surface-inspector --save --mode som --workspace default",
             "aos see snapshots --workspace default",
             "aos see refs --workspace default",
             "aos see capture main --out /tmp/screen.png",
@@ -695,7 +696,9 @@
             }
           ],
           "examples": [
-            "aos see capture browser:work --save --mode som --workspace default --name before"
+            "aos see capture browser:work --save --mode som --workspace default --name before",
+            "aos see snapshots --workspace default",
+            "aos see refs --workspace default --query Save"
           ],
           "execution": {
             "auto_starts_daemon": false,
