@@ -15,7 +15,7 @@ private struct AOSAXJSONCodingKey: CodingKey {
     }
 }
 
-private func aosAXRejectSurplusKeys(_ decoder: Decoder, allowed: Set<String>) throws {
+func aosAXRejectSurplusKeys(_ decoder: Decoder, allowed: Set<String>) throws {
     let keys = try decoder.container(keyedBy: AOSAXJSONCodingKey.self).allKeys
     guard keys.allSatisfy({ allowed.contains($0.stringValue) }) else {
         throw AOSAXObservationError.invalidRoot
@@ -81,6 +81,7 @@ public struct AOSAXProcessGeneration: Codable, Hashable, Sendable {
     }
 
     public init(from decoder: Decoder) throws {
+        try aosAXRejectSurplusKeys(decoder, allowed: ["pid", "startTimeSeconds", "startTimeMicroseconds"])
         let container = try decoder.container(keyedBy: CodingKeys.self)
         try self.init(
             pid: container.decode(Int32.self, forKey: .pid),
@@ -409,6 +410,24 @@ public struct AOSAXObservationBounds: Codable, Equatable, Sendable {
         self.maxArrayItems = maxArrayItems
         self.maxValueCost = maxValueCost
     }
+
+    public init(from decoder: Decoder) throws {
+        try aosAXRejectSurplusKeys(decoder, allowed: ["maxDepth", "maxVisited", "maxEmitted", "deadlineNanoseconds", "maxArrayDepth", "maxArrayItems", "maxValueCost"])
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            maxDepth: container.decode(Int.self, forKey: .maxDepth),
+            maxVisited: container.decode(Int.self, forKey: .maxVisited),
+            maxEmitted: container.decode(Int.self, forKey: .maxEmitted),
+            deadlineNanoseconds: container.decode(UInt64.self, forKey: .deadlineNanoseconds),
+            maxArrayDepth: container.decode(Int.self, forKey: .maxArrayDepth),
+            maxArrayItems: container.decode(Int.self, forKey: .maxArrayItems),
+            maxValueCost: container.decode(Int.self, forKey: .maxValueCost)
+        )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case maxDepth, maxVisited, maxEmitted, deadlineNanoseconds, maxArrayDepth, maxArrayItems, maxValueCost
+    }
 }
 
 public struct AOSAXProjectionSelection: Codable, Equatable, Sendable {
@@ -431,6 +450,22 @@ public struct AOSAXProjectionSelection: Codable, Equatable, Sendable {
         self.supportedActionNames = supportedActionNames
         self.relationshipNames = relationshipNames
     }
+
+    public init(from decoder: Decoder) throws {
+        try aosAXRejectSurplusKeys(decoder, allowed: ["attributes", "parameterizedAttributeNames", "settableFacts", "supportedActionNames", "relationshipNames"])
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            attributes: try container.decode(Bool.self, forKey: .attributes),
+            parameterizedAttributeNames: try container.decode(Bool.self, forKey: .parameterizedAttributeNames),
+            settableFacts: try container.decode(Bool.self, forKey: .settableFacts),
+            supportedActionNames: try container.decode(Bool.self, forKey: .supportedActionNames),
+            relationshipNames: try container.decode(Bool.self, forKey: .relationshipNames)
+        )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case attributes, parameterizedAttributeNames, settableFacts, supportedActionNames, relationshipNames
+    }
 }
 
 public struct AOSAXGeometryFilter: Codable, Equatable, Sendable {
@@ -439,6 +474,14 @@ public struct AOSAXGeometryFilter: Codable, Equatable, Sendable {
     public init(intersects: AOSAXRect) {
         self.intersects = intersects
     }
+
+    public init(from decoder: Decoder) throws {
+        try aosAXRejectSurplusKeys(decoder, allowed: ["intersects"])
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(intersects: try container.decode(AOSAXRect.self, forKey: .intersects))
+    }
+
+    private enum CodingKeys: String, CodingKey { case intersects }
 
     fileprivate func matches(_ frame: AOSAXRect?) -> Bool {
         guard let frame else { return false }
@@ -457,6 +500,14 @@ public struct AOSAXAttributeOutcomeFilter: Codable, Equatable, Sendable {
         self.name = name
         self.outcome = outcome
     }
+
+    public init(from decoder: Decoder) throws {
+        try aosAXRejectSurplusKeys(decoder, allowed: ["name", "outcome"])
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(name: try container.decode(String.self, forKey: .name), outcome: try container.decode(AOSAXAttributeOutcomeKind.self, forKey: .outcome))
+    }
+
+    private enum CodingKeys: String, CodingKey { case name, outcome }
 }
 
 public struct AOSAXObservationFilter: Codable, Equatable, Sendable {
@@ -496,6 +547,7 @@ public struct AOSAXObservationFilter: Codable, Equatable, Sendable {
     }
 
     public init(from decoder: Decoder) throws {
+        try aosAXRejectSurplusKeys(decoder, allowed: ["role", "subrole", "identifier", "title", "geometry", "enabled", "focused", "selected", "rawAttributeOutcomes", "relationshipMembership"])
         let container = try decoder.container(keyedBy: CodingKeys.self)
         try self.init(
             role: container.decodeIfPresent(String.self, forKey: .role),
@@ -674,6 +726,7 @@ enum AOSAXContractAdmission {
               (1...AOSAXObservationLimits.schemaMaxPageSize).contains(pageSize),
               filters.count <= AOSAXObservationLimits.schemaMaxFilters,
               filters.allSatisfy({ filter in
+                  filter.rawAttributeOutcomes.count <= AOSAXObservationLimits.schemaMaxArrayItems &&
                   [filter.role, filter.subrole, filter.identifier, filter.title, filter.relationshipMembership]
                       .compactMap({ $0 })
                       .allSatisfy({ boundedString($0) }) &&
@@ -1634,6 +1687,36 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             rootStopped = true
         }
 
+        func settleCompositeAdmissionBound(
+            applications: [AOSAXProcessGeneration],
+            remainingStart: Int
+        ) {
+            guard remainingStart < applications.count else { return }
+            stopCondition = .init(
+                kind: .visitedBound,
+                detail: "display-composite constituent admission reached maxVisited"
+            )
+            for remainingIndex in remainingStart..<applications.count {
+                let generation = applications[remainingIndex]
+                constituents.append(.init(
+                    id: "application-\(remainingIndex)-pid-\(generation.pid)",
+                    generation: generation,
+                    outcome: .truncated
+                ))
+            }
+            let generation = applications[remainingStart]
+            _ = appendFrontier(.init(
+                parentRef: nil,
+                relationshipName: nil,
+                childPosition: remainingStart,
+                depth: 0,
+                ref: nil,
+                constituentID: "application-\(remainingStart)-pid-\(generation.pid)",
+                reason: .visitedBound,
+                remainingCount: applications.count - remainingStart
+            ))
+        }
+
         let rootIdentity: AOSAXRootIdentity
         switch request.root {
         case .systemWide:
@@ -1735,6 +1818,10 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             )
             for (index, generation) in applications.enumerated() {
                 try checkCancellation()
+                if discoveredHandles.count >= request.bounds.maxVisited {
+                    settleCompositeAdmissionBound(applications: applications, remainingStart: index)
+                    break
+                }
                 let constituentID = "application-\(index)-pid-\(generation.pid)"
                 if deadlineReached() {
                     settleCompositeAdmissionDeadline(applications: applications, remainingStart: index)
@@ -1938,12 +2025,14 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             var attributeNameRead: ([String], AOSAXProviderReadOutcome)? = needsAttributeNames
                 ? try readNames { provider.attributeNames(for: entry.handle.value, deadlineNanoseconds: deadline) }
                 : nil
-            var readNamesSet = Set<String>()
+            var filterAttributeNames = Set<String>()
             for filter in request.filters {
-                for expected in filter.rawAttributeOutcomes { readNamesSet.insert(expected.name) }
+                for expected in filter.rawAttributeOutcomes { filterAttributeNames.insert(expected.name) }
             }
-            if let projectedNames = attributeNameRead?.0 {
-                let combined = readNamesSet.union(projectedNames)
+            var readNamesSet = filterAttributeNames
+            let projectedAttributeNames = Set(attributeNameRead?.0 ?? [])
+            if !projectedAttributeNames.isEmpty {
+                let combined = readNamesSet.union(projectedAttributeNames)
                 if combined.count <= request.bounds.maxArrayItems {
                     readNamesSet = combined
                 } else {
@@ -1957,6 +2046,15 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             var valueBoundHit = false
             var retentionBoundHit = false
             var providerDeadlineHit = false
+
+            func appendDeadlineAttributes(from startIndex: Int, detail: String) {
+                guard startIndex < namesToRead.count else { return }
+                internalAttributes.append(contentsOf: namesToRead[startIndex...].map {
+                    .init(name: $0, outcome: .deadlineExceeded, detail: detail)
+                })
+                providerDeadlineHit = true
+            }
+
             var transactionRefs: [Provider.Handle: String] = [:]
             var transactionBoxes = Set<Provider.Handle>()
             var nodeValueRefs: [Provider.Handle: String] = [:]
@@ -1998,18 +2096,19 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                     return admitted.0
                 }
             )
-            attributeLoop: for name in namesToRead {
+            attributeLoop: for (nameIndex, name) in namesToRead.enumerated() {
                 guard !deadlineReached() else {
-                    internalAttributes.append(.init(name: name, outcome: .deadlineExceeded, detail: "monotonic deadline"))
-                    providerDeadlineHit = true
+                    appendDeadlineAttributes(from: nameIndex, detail: "monotonic deadline")
                     break
                 }
                 let attributeResult = try providerCall {
                     provider.attribute(name, for: entry.handle.value, deadlineNanoseconds: deadline)
                 }
                 guard !deadlineReached() else {
-                    internalAttributes.append(.init(name: name, outcome: .deadlineExceeded, detail: "provider returned after monotonic deadline"))
-                    providerDeadlineHit = true
+                    appendDeadlineAttributes(
+                        from: nameIndex,
+                        detail: "provider returned after monotonic deadline"
+                    )
                     break
                 }
                 switch attributeResult {
@@ -2022,7 +2121,8 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                 case .platformError(let error):
                     internalAttributes.append(.init(name: name, outcome: .platformError, error: try classified(error, as: .platformError)))
                 case .value(let platformValue):
-                    guard request.projection.attributes else {
+                    let projectsValue = request.projection.attributes && projectedAttributeNames.contains(name)
+                    guard projectsValue || filterAttributeNames.contains(name) else {
                         internalAttributes.append(.init(name: name, outcome: .value))
                         continue
                     }
@@ -2030,23 +2130,31 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                     transactionBoxes.removeAll(keepingCapacity: true)
                     let encoded: AOSAXValueEncoding
                     do {
-                        encoded = try codec.encode(platformValue, consumed: valueCost + nodeValueCost)
+                        let consumedValueCost = projectsValue ? valueCost + nodeValueCost : 0
+                        encoded = try codec.encode(platformValue, consumed: consumedValueCost)
                     } catch AOSAXHandleAdmissionError.deadline {
                         rollbackValueRefs(&transactionRefs, &transactionBoxes)
-                        internalAttributes.append(.init(name: name, outcome: .deadlineExceeded, detail: "value retention reached monotonic deadline"))
-                        providerDeadlineHit = true
+                        appendDeadlineAttributes(
+                            from: nameIndex,
+                            detail: "value retention reached monotonic deadline"
+                        )
                         break attributeLoop
                     } catch {
                         rollbackValueRefs(&transactionRefs, &transactionBoxes)
                         throw error
                     }
                     if let value = encoded.value {
-                        nodeValueCost += encoded.cost
-                        for (handle, ref) in transactionRefs { nodeValueRefs[handle] = ref }
-                        nodeValueBoxes.formUnion(transactionBoxes)
-                        transactionRefs.removeAll(keepingCapacity: true)
-                        transactionBoxes.removeAll(keepingCapacity: true)
-                        internalAttributes.append(.init(name: name, outcome: .value, value: value))
+                        if projectsValue {
+                            nodeValueCost += encoded.cost
+                            for (handle, ref) in transactionRefs { nodeValueRefs[handle] = ref }
+                            nodeValueBoxes.formUnion(transactionBoxes)
+                            transactionRefs.removeAll(keepingCapacity: true)
+                            transactionBoxes.removeAll(keepingCapacity: true)
+                            internalAttributes.append(.init(name: name, outcome: .value, value: value))
+                        } else {
+                            rollbackValueRefs(&transactionRefs, &transactionBoxes)
+                            internalAttributes.append(.init(name: name, outcome: .value))
+                        }
                     } else {
                         rollbackValueRefs(&transactionRefs, &transactionBoxes)
                         let outcome: AOSAXAttributeOutcomeKind
@@ -2061,11 +2169,11 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                         case .aggregateCost:
                             outcome = .unrepresentableType
                             detail = "aggregate representable-value cost bound"
-                            valueBoundHit = true
+                            if projectsValue { valueBoundHit = true }
                         case .retainedRefs:
                             outcome = .unrepresentableType
                             detail = "retained Observation Ref bound"
-                            retentionBoundHit = true
+                            if projectsValue { retentionBoundHit = true }
                         case .unrepresentable, nil:
                             outcome = .unrepresentableType
                             detail = "platform value has no closed representation"
@@ -2084,16 +2192,24 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
             )
             var settableFacts: [AOSAXSettableFact]? = request.projection.settableFacts ? [] : nil
             if request.projection.settableFacts {
-                for name in attributeNameRead?.0 ?? [] {
+                let settableNames = attributeNameRead?.0 ?? []
+                func appendDeadlineSettableFacts(from startIndex: Int) {
+                    guard startIndex < settableNames.count else { return }
+                    settableFacts?.append(contentsOf: settableNames[startIndex...].map {
+                        .init(name: $0, outcome: .deadlineExceeded)
+                    })
+                }
+                for (nameIndex, name) in settableNames.enumerated() {
                     guard !deadlineReached() else {
-                        settableFacts?.append(.init(name: name, outcome: .deadlineExceeded))
-                        continue
+                        appendDeadlineSettableFacts(from: nameIndex)
+                        if !traversalStopped { stopAtDeadline(expanding: entry) }
+                        break
                     }
                     let settableResult = try providerCall {
                         provider.isAttributeSettable(name, for: entry.handle.value, deadlineNanoseconds: deadline)
                     }
                     guard !deadlineReached() else {
-                        settableFacts?.append(.init(name: name, outcome: .deadlineExceeded))
+                        appendDeadlineSettableFacts(from: nameIndex)
                         if !traversalStopped { stopAtDeadline(expanding: entry) }
                         break
                     }
@@ -2170,6 +2286,31 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                 } else {
                     switch relationshipResult {
                 case .value(let batch):
+                    let relationshipNames = batch.relationships.map(\.name)
+                    let relationshipNameIdentities = relationshipNames.map {
+                        $0.unicodeScalars.map(\.value)
+                    }
+                    guard Set(relationshipNameIdentities).count == relationshipNames.count else {
+                        let error = AOSAXPlatformError(
+                            kind: .platformError,
+                            code: "AX_PROVIDER_RESULT_INVALID",
+                            detail: "relationship provider returned duplicate group names"
+                        )
+                        relationshipRead = .init(kind: .platformError, error: error)
+                        recordProviderStop(error)
+                        _ = appendFrontier(.init(
+                            parentRef: entry.ref,
+                            relationshipName: nil,
+                            childPosition: nil,
+                            depth: entry.depth + 1,
+                            ref: nil,
+                            constituentID: entry.constituentID,
+                            reason: .platformError
+                        ))
+                        appendRemainingQueue(reason: .platformError)
+                        traversalStopped = true
+                        break
+                    }
                     let total = batch.relationships.reduce(into: 0) { partial, relationship in
                         let next = partial.addingReportingOverflow(relationship.elements.count)
                         partial = next.overflow ? Int.max : next.partialValue
@@ -2368,7 +2509,9 @@ public final class AOSAXObservationEngine<Provider: AOSAXPlatformProvider>: @unc
                         depth: entry.depth,
                         constituentID: entry.constituentID,
                         facts: facts,
-                        attributes: request.projection.attributes ? internalAttributes : nil,
+                        attributes: request.projection.attributes
+                            ? internalAttributes.filter { projectedAttributeNames.contains($0.name) }
+                            : nil,
                         attributeNamesRead: request.projection.attributes || request.projection.settableFacts ? attributeNameRead?.1 : nil,
                         parameterizedAttributeNames: request.projection.parameterizedAttributeNames ? parameterizedRead?.0 : nil,
                         parameterizedAttributeNamesRead: parameterizedRead?.1,

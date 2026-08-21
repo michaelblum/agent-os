@@ -276,6 +276,7 @@ public struct AOSAXPageRequest: Codable, Equatable, Sendable {
     }
 
     public init(from decoder: Decoder) throws {
+        try aosAXRejectSurplusKeys(decoder, allowed: ["schemaVersion", "kind", "token", "expectedStateID", "requestDigest", "projectionDigest", "pageSize"])
         let container = try decoder.container(keyedBy: CodingKeys.self)
         guard try container.decode(String.self, forKey: .schemaVersion) == "aos.ax-observation.v1",
               try container.decode(String.self, forKey: .kind) == "page_request" else {

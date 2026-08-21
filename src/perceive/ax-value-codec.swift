@@ -32,6 +32,21 @@ public struct AOSAXRect: Codable, Equatable, Sendable {
         self.width = width
         self.height = height
     }
+
+    public init(from decoder: Decoder) throws {
+        try aosAXRejectSurplusKeys(decoder, allowed: ["x", "y", "width", "height"])
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            x: try container.decode(Double.self, forKey: .x),
+            y: try container.decode(Double.self, forKey: .y),
+            width: try container.decode(Double.self, forKey: .width),
+            height: try container.decode(Double.self, forKey: .height)
+        )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case x, y, width, height
+    }
 }
 
 public struct AOSAXRange: Codable, Equatable, Sendable {

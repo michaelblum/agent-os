@@ -39,21 +39,36 @@ const corpusRequest = (overrides = {}) => ({
   page_size: 1,
   ...overrides,
 });
+const corpusPageRequest = (overrides = {}) => ({
+  schema_version: 'aos.ax-observation.v1', kind: 'page_request', token: 'token.signature',
+  expected_state_id: 'state', request_digest: '0'.repeat(64), projection_digest: '1'.repeat(64),
+  page_size: 1, ...overrides,
+});
 const requestAdmissionCorpus = [
-  { valid: true, request: corpusRequest({ bounds: { ...corpusBounds, max_emitted: 2 } }) },
-  { valid: true, request: corpusRequest({ filters: [
+  { definition: 'observation_request', valid: true, value: corpusRequest({ bounds: { ...corpusBounds, max_emitted: 2 } }) },
+  { definition: 'observation_request', valid: true, value: corpusRequest({ filters: [
     { raw_attribute_outcomes: [{ name: 'Title', outcome: 'value' }] },
     { raw_attribute_outcomes: [{ name: 'Role', outcome: 'no_value' }] },
   ] }) },
-  { valid: true, request: corpusRequest({ root: {
+  { definition: 'observation_request', valid: true, value: corpusRequest({ root: {
     kind: 'display_composite', topology_identity: 'topology', applications: [corpusGeneration, corpusGeneration],
   } }) },
-  { valid: false, request: corpusRequest({ surplus: true }) },
-  { valid: false, request: corpusRequest({ root: { kind: 'system_wide', generation: corpusGeneration } }) },
+  { definition: 'observation_request', valid: false, value: corpusRequest({ surplus: true }) },
+  { definition: 'observation_request', valid: false, value: corpusRequest({ root: { kind: 'system_wide', generation: corpusGeneration } }) },
+  { definition: 'observation_request', valid: false, value: corpusRequest({ root: { kind: 'application', generation: { ...corpusGeneration, surplus: true } } }) },
+  { definition: 'observation_request', valid: false, value: corpusRequest({ root: { kind: 'application', generation: { ...corpusGeneration, start_time_microseconds: 1_000_000 } } }) },
+  { definition: 'observation_request', valid: false, value: corpusRequest({ bounds: { ...corpusBounds, surplus: true } }) },
+  { definition: 'observation_request', valid: false, value: corpusRequest({ projection: { ...corpusRequest().projection, surplus: true } }) },
+  { definition: 'observation_request', valid: false, value: corpusRequest({ filters: [{ geometry: { intersects: { x: 0, y: 0, width: 1, height: 1 }, surplus: true } }] }) },
+  { definition: 'observation_request', valid: false, value: corpusRequest({ filters: [{ geometry: { intersects: { x: 0, y: 0, width: 1, height: 1, surplus: true } } }] }) },
+  { definition: 'observation_request', valid: false, value: corpusRequest({ filters: [{ raw_attribute_outcomes: [{ name: 'Title', outcome: 'value', surplus: true }] }] }) },
+  { definition: 'observation_request', valid: false, value: corpusRequest({ filters: [{ role: 'AXButton', surplus: true }] }) },
+  { definition: 'observation_request', valid: false, value: corpusRequest({ filters: [{ raw_attribute_outcomes: Array.from({ length: 4_097 }, (_, index) => ({ name: `Attr${index}`, outcome: 'value' })) }] }) },
+  { definition: 'page_request', valid: false, value: corpusPageRequest({ surplus: true }) },
 ];
-const requestAdmissionCorpusJSON = JSON.stringify(requestAdmissionCorpus.map(({ valid, request }) => ({
-  valid,
-  json: JSON.stringify(request),
+const requestAdmissionCorpusJSON = JSON.stringify(requestAdmissionCorpus.map(({ definition, valid, value }) => ({
+  definition, valid,
+  json: JSON.stringify(value),
 })));
 
 const harness = String.raw`
@@ -142,7 +157,12 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
     var frontierStress = false
     var oversizedFacts = false
     var duplicateAttributeNames = false
+    var duplicateRelationshipNames = false
+    var duplicateRelationshipHandle: Int?
+    var scalarDistinctRelationshipNames = false
+    var titleOnlyAttributeNames = false
     var advanceAfterAttribute: [String: UInt64] = [:]
+    var advanceAfterSettable: [String: UInt64] = [:]
     var onRelease: (@Sendable () -> Void)?
     var forbiddenAtOrAfter: UInt64?
     private var calls = 0
@@ -150,6 +170,7 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
     private var releases = 0
     private var lateCalls = 0
     private var lateRetains = 0
+    private var settableCalls: [String] = []
 
     init(clock: FakeClock) { self.clock = clock }
 
@@ -167,6 +188,7 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
     func releaseCount() -> Int { lock.held { releases } }
     func lateCallCount() -> Int { lock.held { lateCalls } }
     func lateRetainCount() -> Int { lock.held { lateRetains } }
+    func settableCallNames() -> [String] { lock.held { settableCalls } }
 
     func systemWideRoot(deadlineNanoseconds: UInt64) -> AOSAXPlatformResult<Int> {
         called()
@@ -235,6 +257,18 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
         maximumResultItems: Int
     ) -> AOSAXPlatformResult<AOSAXPlatformRelationshipBatch<Int>> {
         called()
+        if scalarDistinctRelationshipNames, handle == 1 {
+            return .value(.init(relationships: [
+                .init(name: "\u{00E9}", elements: [3]),
+                .init(name: "e\u{0301}", elements: [4]),
+            ]))
+        }
+        if (duplicateRelationshipNames && handle == 1) || duplicateRelationshipHandle == handle {
+            return .value(.init(relationships: [
+                .init(name: "Children", elements: [3]),
+                .init(name: "Children", elements: [4]),
+            ]))
+        }
         if queuedValueRefAttribute, handle == 3 {
             return .value(.init(relationships: [], frontier: [
                 .init(name: "Deferred", nextChildPosition: 0, remainingCount: 1),
@@ -290,6 +324,7 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
 
     func attributeNames(for handle: Int, deadlineNanoseconds: UInt64) -> AOSAXPlatformResult<[String]> {
         called()
+        if titleOnlyAttributeNames { return .value(["Title"]) }
         if duplicateAttributeNames { return .value(["Title", "Title"]) }
         if rollbackAttribute { return .value(["RollbackArray"]) }
         if queuedValueRefAttribute {
@@ -319,7 +354,7 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
         case "Signed": return .value(.signedInteger(-4))
         case "Unsigned": return .value(.unsignedInteger(4))
         case "Float": return .value(.floatingPoint(1.5))
-        case "String", "Title": return .value(.string("value-\(handle)"))
+        case "String", "Title", "Secret", "ZuluSecret": return .value(.string("value-\(handle)"))
         case "Data": return .value(.data(Data([1, 2, 3])))
         case "Date": return .value(.date(Date(timeIntervalSince1970: 1_700_000_000)))
         case "URL": return .value(.url(URL(string: "https://example.invalid/fake")!))
@@ -367,6 +402,10 @@ final class FakeProvider: @unchecked Sendable, AOSAXPlatformProvider {
         deadlineNanoseconds: UInt64
     ) -> AOSAXPlatformSettableResult {
         called()
+        lock.held { settableCalls.append(name) }
+        defer {
+            if let advance = advanceAfterSettable[name] { clock.advance(advance) }
+        }
         if name == "Error" { return .platformError(.init(code: "AX_FAKE_SETTABLE", detail: "fake settable error")) }
         if name == "Unsupported" { return .unsupported }
         return .value(name == "Title")
@@ -538,6 +577,7 @@ final class ResponseBox: @unchecked Sendable {
 }
 
 struct RequestAdmissionCorpusEntry: Decodable {
+    let definition: String
     let valid: Bool
     let json: String
 }
@@ -689,14 +729,17 @@ func run() {
             topologyIdentity: "topology-constituent-bound",
             applications: [gen100, gen200]
         ),
-        bounds: bounds(depth: 1),
+        bounds: bounds(depth: 1, visited: 1),
         pageSize: 8
     ))
     precondition(constituentBound.outcome == .truncated)
     precondition(constituentBound.constituents.map(\.outcome) == [.complete, .truncated])
-    precondition(constituentBound.frontier.allSatisfy {
-        $0.constituentID == "application-1-pid-200"
-    })
+    precondition(constituentBound.frontier.count == 1)
+    precondition(constituentBound.frontier[0].constituentID == "application-1-pid-200")
+    precondition(constituentBound.frontier[0].reason == .visitedBound)
+    precondition(constituentBound.frontier[0].childPosition == 1)
+    precondition(constituentBound.frontier[0].remainingCount == 1)
+    precondition(constituentBoundHarness.provider.retainCount() == 1)
     emit(constituentBound)
 
     let mismatchHarness = Harness()
@@ -901,6 +944,49 @@ func run() {
     let duplicateCounts = duplicateNamesHarness.store.retainedCounts()
     precondition(duplicateCounts.snapshots == 1 && duplicateCounts.refs == 1)
     precondition(duplicateCounts.valueCost == 0 && duplicateCounts.tokens == 0)
+    duplicateNamesHarness.provider.duplicateAttributeNames = false
+    duplicateNamesHarness.provider.duplicateRelationshipNames = true
+    let duplicateRelationships = try! duplicateNamesHarness.engine.observe(request(
+        .systemWide, bounds: bounds(visited: 1), projection: factsOnly, pageSize: 1
+    ))
+    precondition(duplicateRelationships.outcome == .truncated)
+    precondition(duplicateRelationships.stopCondition.error?.code == "AX_PROVIDER_RESULT_INVALID")
+    precondition(!duplicateRelationships.nodes.isEmpty, "AX_DIAG_EMPTY_DUPLICATE_RELATIONSHIP")
+    precondition(duplicateRelationships.nodes[0].relationshipRead.error?.code == "AX_PROVIDER_RESULT_INVALID")
+    precondition(duplicateRelationships.nodes[0].referenceEdges.isEmpty)
+    precondition(duplicateRelationships.retention.retainedRefCount == 1)
+
+    let queuedDuplicateHarness = Harness(limitVisited: 4)
+    queuedDuplicateHarness.provider.duplicateRelationshipHandle = 3
+    let queuedDuplicate = try! queuedDuplicateHarness.engine.observe(request(
+        .systemWide, bounds: bounds(visited: 4), projection: factsOnly, pageSize: 4
+    ))
+    precondition(queuedDuplicate.outcome == .truncated)
+    precondition(queuedDuplicate.stopCondition.error?.code == "AX_PROVIDER_RESULT_INVALID")
+    precondition(queuedDuplicate.accounting.visited == 2)
+    precondition(queuedDuplicate.accounting.matched == 2 && queuedDuplicate.accounting.emitted == 2)
+    precondition(queuedDuplicate.accounting.cycleEdges == 0 && queuedDuplicate.accounting.duplicateEdges == 0)
+    precondition(queuedDuplicate.frontier.count == 4)
+    precondition(queuedDuplicate.frontier.allSatisfy { $0.reason == .platformError && $0.ref == nil })
+    precondition(queuedDuplicate.frontier.filter { $0.relationshipName == nil }.count == 1)
+    precondition(queuedDuplicate.frontier.compactMap {
+        guard let name = $0.relationshipName, let position = $0.childPosition else { return nil }
+        return "\(name):\(position)"
+    } == ["AChildren:1", "ZChildren:0", "ZChildren:1"])
+    precondition(queuedDuplicate.retention.retainedRefCount == 2)
+
+    let scalarDistinctHarness = Harness(limitVisited: 4)
+    scalarDistinctHarness.provider.scalarDistinctRelationshipNames = true
+    let scalarDistinct = try! scalarDistinctHarness.engine.observe(request(
+        .systemWide, bounds: bounds(visited: 4), pageSize: 4
+    ))
+    precondition(scalarDistinct.outcome == .complete)
+    precondition(scalarDistinct.accounting.visited == 4)
+    precondition(scalarDistinct.nodes[0].relationshipRead.kind == .value)
+    let scalarDistinctNames = scalarDistinct.nodes[0].relationshipNames!
+    precondition(scalarDistinctNames.count == 2)
+    precondition(scalarDistinctNames[0].unicodeScalars.map(\.value) == [0x65, 0x301])
+    precondition(scalarDistinctNames[1].unicodeScalars.map(\.value) == [0xE9])
 
     let cancellationHarness = Harness(limitVisited: 1, cancelAfterBorrow: true)
     let cancellationSource = try! cancellationHarness.engine.observe(request(
@@ -999,7 +1085,9 @@ func run() {
         filters: [.init(rawAttributeOutcomes: [.init(name: "BigArray", outcome: .arrayBound)])],
         pageSize: 8
     ))
-    precondition(attribute("BigArray", in: arrayBound.nodes[0]).outcome == .arrayBound)
+    precondition(arrayBound.accounting.matched == 1)
+    precondition(arrayBound.nodes.count == 1)
+    precondition(arrayBound.nodes[0].attributes?.isEmpty == true)
     emit(arrayBound)
     let valueBound = try! primary.engine.observe(request(
         .systemWide,
@@ -1155,6 +1243,33 @@ func run() {
         supportedActionNames: false,
         relationshipNames: false
     )
+    let filterProjectionHarness = Harness(limitVisited: 1)
+    filterProjectionHarness.provider.titleOnlyAttributeNames = true
+    let filterProjection = try! filterProjectionHarness.engine.observe(request(
+        .systemWide, bounds: bounds(visited: 1),
+        filters: [.init(rawAttributeOutcomes: [.init(name: "Secret", outcome: .value)])],
+        projection: attributesOnly, pageSize: 1
+    ))
+    precondition(filterProjection.accounting.matched == 1)
+    precondition(!filterProjection.nodes.isEmpty, "AX_DIAG_EMPTY_FILTER_PROJECTION")
+    precondition(filterProjection.nodes[0].attributes?.map(\.name) == ["Title"])
+    let exhaustedProjectionFilter = try! filterProjectionHarness.engine.observe(request(
+        .systemWide, bounds: bounds(visited: 1, valueCost: 8),
+        filters: [.init(rawAttributeOutcomes: [.init(name: "ZuluSecret", outcome: .value)])],
+        projection: attributesOnly, pageSize: 1
+    ))
+    precondition(exhaustedProjectionFilter.accounting.matched == 1)
+    precondition(exhaustedProjectionFilter.nodes.count == 1)
+    precondition(exhaustedProjectionFilter.nodes[0].attributes?.map(\.name) == ["Title"])
+    precondition(exhaustedProjectionFilter.accounting.retainedValueCost == 8)
+    precondition(exhaustedProjectionFilter.retention.retainedValueCost == 8)
+    let filterProjectionMiss = try! filterProjectionHarness.engine.observe(request(
+        .systemWide, bounds: bounds(visited: 1),
+        filters: [.init(rawAttributeOutcomes: [.init(name: "Secret", outcome: .noValue)])],
+        projection: attributesOnly, pageSize: 1
+    ))
+    precondition(filterProjectionMiss.accounting.matched == 0 && filterProjectionMiss.nodes.isEmpty)
+
     let rollback = try! rollbackHarness.engine.observe(request(
         .systemWide,
         bounds: bounds(visited: 1),
@@ -1215,11 +1330,43 @@ func run() {
         pageSize: 1
     ))
     precondition(lateValue.outcome == .truncated && lateValue.stopCondition.kind == .deadline)
+    precondition(!lateValue.nodes.isEmpty, "AX_DIAG_EMPTY_LATE_VALUE")
     precondition(attribute("Element", in: lateValue.nodes[0]).outcome == .deadlineExceeded)
+    let lateAttributes = lateValue.nodes[0].attributes!
+    precondition(lateAttributes.count == Set(lateAttributes.map(\.name)).count)
+    let lateStart = lateAttributes.firstIndex { $0.name == "Element" }!
+    precondition(lateAttributes[lateStart...].allSatisfy { $0.outcome == .deadlineExceeded })
     precondition(lateValue.retention.retainedRefCount == 1)
     precondition(lateValueHarness.provider.retainCount() == 1)
+    precondition(lateValueHarness.provider.lateCallCount() == 0)
     precondition(lateValueHarness.provider.lateRetainCount() == 0)
     emit(lateValue)
+
+    let settableOnly = AOSAXProjectionSelection(
+        attributes: false,
+        parameterizedAttributeNames: false,
+        settableFacts: true,
+        supportedActionNames: false,
+        relationshipNames: false
+    )
+    let lateSettableHarness = Harness(limitVisited: 1)
+    lateSettableHarness.provider.advanceAfterSettable = ["Array": 1]
+    lateSettableHarness.provider.forbiddenAtOrAfter = lateSettableHarness.clock.read() + 1
+    let lateSettable = try! lateSettableHarness.engine.observe(request(
+        .systemWide,
+        bounds: bounds(visited: 1, deadline: 1),
+        projection: settableOnly,
+        pageSize: 1
+    ))
+    precondition(lateSettable.outcome == .truncated && lateSettable.stopCondition.kind == .deadline)
+    precondition(lateSettable.nodes.count == 1)
+    let lateSettableFacts = lateSettable.nodes[0].settableFacts!
+    precondition(lateSettableFacts.count == 23)
+    precondition(Set(lateSettableFacts.map(\.name)).count == 23)
+    precondition(lateSettableFacts.allSatisfy { $0.outcome == .deadlineExceeded })
+    precondition(lateSettableHarness.provider.settableCallNames() == ["Array"])
+    precondition(lateSettableHarness.provider.lateCallCount() == 0)
+    emit(lateSettable)
 
     let evictionHarness = Harness(maxSnapshots: 1)
     evictionHarness.enableReleaseReentry()
@@ -1413,7 +1560,15 @@ func run() {
         from: Data(#"${requestAdmissionCorpusJSON}"#.utf8)
     )
     for entry in requestCorpus {
-        let accepted = (try? decoder.decode(AOSAXObservationRequest.self, from: Data(entry.json.utf8))) != nil
+        let accepted: Bool
+        switch entry.definition {
+        case "observation_request":
+            accepted = (try? decoder.decode(AOSAXObservationRequest.self, from: Data(entry.json.utf8))) != nil
+        case "page_request":
+            accepted = (try? decoder.decode(AOSAXPageRequest.self, from: Data(entry.json.utf8))) != nil
+        default:
+            preconditionFailure("unknown admission-corpus definition")
+        }
         precondition(accepted == entry.valid)
     }
     precondition((try? decoder.decode(AOSAXObservationRequest.self, from: encodedRequest)) != nil)
@@ -1454,13 +1609,6 @@ func run() {
     for identityJSON in invalidRootIdentities {
         precondition((try? decoder.decode(AOSAXRootIdentity.self, from: Data(identityJSON.utf8))) == nil)
     }
-    let invalidJSON = String(data: encodedRequest, encoding: .utf8)!
-        .replacingOccurrences(of: "\"start_time_microseconds\":1", with: "\"start_time_microseconds\":1000000")
-    precondition(invalidJSON.contains("\"start_time_microseconds\":1000000"))
-    do {
-        _ = try decoder.decode(AOSAXObservationRequest.self, from: Data(invalidJSON.utf8))
-        preconditionFailure("decoded microsecond overflow must be rejected")
-    } catch {}
     do {
         _ = try AOSAXPageRequest(
             token: "token.é",
@@ -1536,6 +1684,7 @@ func run() {
     _ = deadlineHarness.store.removeAll()
     _ = lateRootHarness.store.removeAll()
     _ = lateValueHarness.store.removeAll()
+    _ = lateSettableHarness.store.removeAll()
     _ = evictionHarness.store.removeAll()
     _ = expiryHarness.store.removeAll()
     _ = borrowExpiryHarness.store.removeAll()
@@ -1544,13 +1693,20 @@ func run() {
     _ = refCapacityHarness.store.removeAll()
     _ = valueCapacityHarness.store.removeAll()
     _ = rollbackHarness.store.removeAll()
+    _ = filterProjectionHarness.store.removeAll()
     _ = frontierBudgetHarness.store.removeAll()
     _ = duplicateNamesHarness.store.removeAll()
+    _ = queuedDuplicateHarness.store.removeAll()
+    _ = scalarDistinctHarness.store.removeAll()
     _ = cancellationHarness.store.removeAll()
     precondition(primary.provider.retainCount() == primary.provider.releaseCount())
     precondition(lateRootHarness.provider.retainCount() == lateRootHarness.provider.releaseCount())
     precondition(lateValueHarness.provider.retainCount() == lateValueHarness.provider.releaseCount())
+    precondition(lateSettableHarness.provider.retainCount() == lateSettableHarness.provider.releaseCount())
+    precondition(filterProjectionHarness.provider.retainCount() == filterProjectionHarness.provider.releaseCount())
     precondition(duplicateNamesHarness.provider.retainCount() == duplicateNamesHarness.provider.releaseCount())
+    precondition(queuedDuplicateHarness.provider.retainCount() == queuedDuplicateHarness.provider.releaseCount())
+    precondition(scalarDistinctHarness.provider.retainCount() == scalarDistinctHarness.provider.releaseCount())
     precondition(cancellationHarness.provider.retainCount() == cancellationHarness.provider.releaseCount())
     for reentrantHarness in [
         evictionHarness,
@@ -1657,10 +1813,13 @@ test('M4B source keeps the store injectable and does not claim public routing', 
   assert.equal(contract.$defs.observation_response.properties.nodes.maxItems, 4_096);
   assert.equal(contract.$defs.bounded_string.maxLength, 512);
   assert.ok(contract.$defs.stop_condition.properties.kind.enum.includes('snapshot_expired'));
-  assert.deepEqual(
-    validateDefinitionCases('observation_request', requestAdmissionCorpus.map(({ request }) => request)),
-    requestAdmissionCorpus.map(({ valid }) => valid),
-  );
+  for (const definition of ['observation_request', 'page_request']) {
+    const cases = requestAdmissionCorpus.filter((entry) => entry.definition === definition);
+    assert.deepEqual(
+      validateDefinitionCases(definition, cases.map(({ value }) => value)),
+      cases.map(({ valid }) => valid),
+    );
+  }
   const generation = { pid: 100, start_time_seconds: 10, start_time_microseconds: 1 };
   const validRootIdentities = [
     { kind: 'system_wide' },

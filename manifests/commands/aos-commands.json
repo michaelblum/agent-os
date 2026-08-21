@@ -15042,7 +15042,7 @@
         },
         {
           "id" : "record-screen-follow-update",
-          "usage" : "aos record screen-follow-update --operation <id:generation> --expected-geometry-generation <generation> --region <x,y,width,height> --binding-* <id:generation> --source-window-id <id> --source-owner-pid <pid> --json",
+          "usage" : "aos record screen-follow-update --operation <id:generation> --expected-geometry-generation <generation> --region <x,y,width,height> --binding-target <id:generation> --binding-observation <id:generation> --binding-state <id:generation> --binding-session <id:generation> --binding-navigation <id:generation> --binding-frame <id:generation> --source-window-id <id> --source-owner-pid <pid> --json",
           "args" : [
             {
               "id" : "screen-follow-update",
